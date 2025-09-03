@@ -18,9 +18,9 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { message, sessionId, selectedEventId } = await request.json();
+        const { message, sessionId, selectedEventId, pendingEventData } = await request.json();
 
-        console.log('Received message:', message, 'SessionId:', sessionId, 'SelectedEventId:', selectedEventId);
+        console.log('Received message:', message, 'SessionId:', sessionId, 'SelectedEventId:', selectedEventId, 'PendingEventData:', pendingEventData);
 
         // 임시 테스트 응답
         if (message.includes('테스트')) {
@@ -71,8 +71,8 @@ export async function POST(request: Request) {
             console.error('Failed to fetch events:', eventError);
         }
 
-        // AI 라우터로 메시지 처리 (선택된 일정 ID 포함)
-        const response = await aiRouter.processMessage(message, context, accessToken, selectedEventId);
+        // AI 라우터로 메시지 처리 (선택된 일정 ID와 대기 중인 이벤트 데이터 포함)
+        const response = await aiRouter.processMessage(message, context, accessToken, selectedEventId, pendingEventData);
 
         // 스마트 제안 생성
         let suggestions: any[] = [];

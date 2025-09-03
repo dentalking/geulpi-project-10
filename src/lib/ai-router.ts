@@ -4,14 +4,14 @@ import { contextManager } from './context-manager';
 import type { AIIntent, UserContext, CalendarEvent } from '@/types';
 
 class AIRouter {
-    async processMessage(message: string, context: UserContext, accessToken: string, selectedEventId?: string) {
+    async processMessage(message: string, context: UserContext, accessToken: string, selectedEventId?: string, pendingEventData?: any) {
         // 1. 의도 분류
         const intent = await this.classifyIntent(message, context, selectedEventId);
 
         // 2. 적절한 핸들러로 라우팅
         switch (intent.type) {
             case 'CREATE_EVENT':
-                return this.handleEventCreation(intent, context, message, accessToken);
+                return this.handleEventCreation(intent, context, message, accessToken, pendingEventData);
             case 'SEARCH_EVENTS':
                 return this.handleEventSearch(intent, context, accessToken);
             case 'GET_BRIEFING':
@@ -62,9 +62,12 @@ ${selectedEventId ? '선택된 일정이 있음 (수정/삭제 의도일 가능�
         }
     }
 
-    private async handleEventCreation(intent: AIIntent, context: UserContext, originalMessage: string, accessToken: string) {
+    private async handleEventCreation(intent: AIIntent, context: UserContext, originalMessage: string, accessToken: string, pendingEventData?: any) {
         try {
-            const eventData = await geminiService.parseEventFromText(originalMessage);
+            // Use pending event data if available, otherwise parse from text
+            const eventData = pendingEventData || await geminiService.parseEventFromText(originalMessage);
+            
+            console.log('Creating event with data:', eventData);
             const calendar = getCalendarClient(accessToken);
 
             const startDateTime = new Date(`${eventData.date}T${eventData.time}:00`);

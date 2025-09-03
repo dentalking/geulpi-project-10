@@ -8,6 +8,7 @@ export class GeminiService {
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
+    console.log('GeminiService constructor - API Key exists:', !!apiKey);
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }
@@ -84,17 +85,19 @@ export class GeminiService {
     const prompt = `
       이 이미지에서 일정 또는 이벤트 정보를 추출해주세요.
       
-      JSON 형식으로 반환하되, 다음 필드를 포함해주세요:
-      - title: 이벤트 제목
-      - date: 날짜 (YYYY-MM-DD 형식)
-      - time: 시간 (HH:MM 형식)
-      - duration: 예상 소요 시간(분)
-      - location: 장소
-      - description: 설명
-      - confidence: 추출 신뢰도 (0-1)
-      - extractedText: 이미지에서 추출한 텍스트
+      반드시 유효한 JSON 형식으로만 반환하세요. 다음 필드를 포함해주세요:
+      {
+        "title": "이벤트 제목",
+        "date": "YYYY-MM-DD 형식의 날짜",
+        "time": "HH:MM 형식의 시간",
+        "duration": 예상 소요 시간(분, 숫자),
+        "location": "장소",
+        "description": "설명",
+        "confidence": 추출 신뢰도 (0-1 사이의 숫자),
+        "extractedText": "이미지에서 추출한 텍스트"
+      }
       
-      JSON만 반환하고 다른 설명은 포함하지 마세요.
+      **중요**: JSON만 반환하고, 코드 블록 마커나 다른 설명은 절대 포함하지 마세요.
     `;
 
     try {
@@ -110,14 +113,52 @@ export class GeminiService {
 
       const response = result.response;
       let jsonText = response.text();
+      
+      console.log('Raw Gemini response:', jsonText.substring(0, 500));
 
-      // JSON 추출
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      // Clean up the response
+      // Remove code block markers if present
+      jsonText = jsonText.replace(/`{3}json\s*/gi, '').replace(/`{3}\s*/g, '');
+      
+      // Extract JSON object
+      const jsonMatch = jsonText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
       if (jsonMatch) {
         jsonText = jsonMatch[0];
       }
+      
+      // Additional cleanup: remove any text before the first { and after the last }
+      const firstBrace = jsonText.indexOf('{');
+      const lastBrace = jsonText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+      }
 
-      const parsedData = JSON.parse(jsonText);
+      console.log('Cleaned JSON text:', jsonText);
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Failed to parse:', jsonText);
+        
+        // Fallback: try to extract basic information manually
+        const titleMatch = jsonText.match(/"title"\s*:\s*"([^"]*)"/);
+        const dateMatch = jsonText.match(/"date"\s*:\s*"([^"]*)"/);
+        const timeMatch = jsonText.match(/"time"\s*:\s*"([^"]*)"/);
+        const locationMatch = jsonText.match(/"location"\s*:\s*"([^"]*)"/);
+        
+        parsedData = {
+          title: titleMatch ? titleMatch[1] : '추출된 일정',
+          date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
+          time: timeMatch ? timeMatch[1] : '09:00',
+          duration: 60,
+          location: locationMatch ? locationMatch[1] : undefined,
+          description: '이미지에서 추출된 일정',
+          confidence: 0.5,
+          extractedText: jsonText
+        };
+      }
 
       return {
         title: parsedData.title || '추출된 일정',

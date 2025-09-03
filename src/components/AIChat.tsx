@@ -30,6 +30,10 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
     const [isMobile, setIsMobile] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<any>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageData, setImageData] = useState<{ base64: string; mimeType: string } | null>(null);
+    const [isProcessingImage, setIsProcessingImage] = useState(false);
+    const [pendingEventData, setPendingEventData] = useState<any>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +110,150 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
         }
     };
 
+    // Convert blob to base64
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result as string;
+                // Remove data:image/xxx;base64, prefix
+                const base64Data = base64String.split(',')[1];
+                resolve(base64Data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    // Handle paste event for images
+    const handlePaste = async (e: React.ClipboardEvent) => {
+        const items = Array.from(e.clipboardData.items);
+        const imageItem = items.find(item => item.type.startsWith('image/'));
+        
+        if (!imageItem) return;
+        
+        const blob = imageItem.getAsFile();
+        if (!blob) return;
+        
+        // Get the correct mime type
+        const mimeType = blob.type || imageItem.type || 'image/png';
+        console.log('Image pasted - MIME type:', mimeType, 'Blob type:', blob.type, 'Item type:', imageItem.type);
+        
+        // Show preview
+        const previewUrl = URL.createObjectURL(blob);
+        setImagePreview(previewUrl);
+        
+        try {
+            // Convert to base64 and store for later processing
+            const base64 = await blobToBase64(blob);
+            setImageData({ base64, mimeType });
+            
+            toast.info('이미지 업로드됨', '전송 버튼을 눌러 일정을 분석하세요');
+        } catch (error) {
+            console.error('Image conversion error:', error);
+            toast.error('이미지 처리 오류', '이미지를 업로드할 수 없습니다');
+            setImagePreview(null);
+            URL.revokeObjectURL(previewUrl);
+        }
+    };
+
+    // Process image and extract event data
+    const processImage = async () => {
+        if (!imageData) return;
+        
+        setIsProcessingImage(true);
+        
+        console.log('Processing image with MIME type:', imageData.mimeType);
+        
+        try {
+            // Send to API for processing
+            const response = await fetch('/api/ai/process-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: imageData.base64,
+                    mimeType: imageData.mimeType || 'image/png',
+                    sessionId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.eventData) {
+                // Store the pending event data
+                setPendingEventData(data.eventData);
+                
+                // Show extracted event data to user for confirmation
+                const confirmMessage = `
+스크린샷에서 다음 일정을 추출했습니다:
+
+📅 제목: ${data.eventData.title}
+📆 날짜: ${data.eventData.date}
+⏰ 시간: ${data.eventData.time}
+📍 장소: ${data.eventData.location || '미정'}
+⏱️ 소요시간: ${data.eventData.duration}분
+
+이 일정을 등록하시겠습니까? (예/아니오)
+                `.trim();
+                
+                const assistantMessage: AIMessage = {
+                    id: Date.now().toString(),
+                    role: 'assistant',
+                    content: confirmMessage,
+                    timestamp: new Date(),
+                    type: 'text',
+                    data: { pendingEvent: data.eventData }
+                };
+                
+                setMessages(prev => [...prev, assistantMessage]);
+                
+                // Set quick actions for confirmation
+                setSuggestions([
+                    {
+                        id: 'confirm-event',
+                        title: '✅ 일정 등록',
+                        action: `예, "${data.eventData.title}" 일정을 등록해주세요`,
+                        icon: '✅'
+                    },
+                    {
+                        id: 'cancel-event',
+                        title: '❌ 취소',
+                        action: '아니오, 취소합니다',
+                        icon: '❌'
+                    },
+                    {
+                        id: 'edit-event',
+                        title: '✏️ 수정',
+                        action: `"${data.eventData.title}" 일정을 수정하고 싶습니다`,
+                        icon: '✏️'
+                    }
+                ]);
+                
+                toast.success('이미지 분석 완료', '일정 정보를 추출했습니다');
+            } else {
+                toast.error('일정 추출 실패', '이미지에서 일정 정보를 찾을 수 없습니다');
+            }
+        } catch (error) {
+            console.error('Image processing error:', error);
+            toast.error('이미지 처리 오류', '이미지를 처리하는 중 오류가 발생했습니다');
+        } finally {
+            setIsProcessingImage(false);
+            // Clear image data after processing
+            setImageData(null);
+            setImagePreview(null);
+        }
+    };
+
+    // Clear uploaded image
+    const clearImage = () => {
+        if (imagePreview) {
+            URL.revokeObjectURL(imagePreview);
+        }
+        setImagePreview(null);
+        setImageData(null);
+        toast.info('이미지 삭제됨', '이미지가 삭제되었습니다');
+    };
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -158,6 +306,13 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
 
     const sendMessage = async (text?: string) => {
         const messageText = text || input;
+        
+        // If there's an image, process it first
+        if (imageData && !messageText.trim()) {
+            await processImage();
+            return;
+        }
+        
         if (!messageText.trim()) return;
 
         const userMessage: AIMessage = {
@@ -173,13 +328,18 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
         setIsLoading(true);
 
         try {
+            // Check if this is a confirmation for pending event
+            const isPendingEventConfirmation = pendingEventData && 
+                (messageText.includes('예') || messageText.includes('등록'));
+            
             const response = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: messageText,
                     sessionId,
-                    selectedEventId: selectedEvent?.id // 선택된 일정 ID 포함
+                    selectedEventId: selectedEvent?.id, // 선택된 일정 ID 포함
+                    pendingEventData: isPendingEventConfirmation ? pendingEventData : null
                 })
             });
 
@@ -203,6 +363,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
             // 일정 관련 액션이면 동기화 및 토스트 알림
             if (data.action === 'event_created') {
                 toast.success('일정이 생성되었습니다', data.eventSummary);
+                setPendingEventData(null); // Clear pending event data
                 onEventSync?.();
             } else if (data.action === 'event_updated') {
                 toast.success('일정이 수정되었습니다', data.eventSummary);
@@ -210,6 +371,8 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
             } else if (data.action === 'event_deleted') {
                 toast.success('일정이 삭제되었습니다');
                 onEventSync?.();
+            } else if (messageText.includes('취소') || messageText.includes('아니오')) {
+                setPendingEventData(null); // Clear pending event data on cancel
             }
 
         } catch (error) {
@@ -558,6 +721,89 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                 </div>
             )}
 
+            {/* Image Preview */}
+            {imagePreview && (
+                <div style={{
+                    padding: 'var(--space-3)',
+                    borderTop: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-3)'
+                }}>
+                    <img 
+                        src={imagePreview} 
+                        alt="Preview" 
+                        style={{
+                            width: '60px',
+                            height: '60px',
+                            objectFit: 'cover',
+                            borderRadius: 'var(--radius-md)',
+                            border: '0.5px solid rgba(255, 255, 255, 0.2)'
+                        }}
+                    />
+                    <div style={{ flex: 1 }}>
+                        <p style={{
+                            margin: 0,
+                            fontSize: 'var(--font-sm)',
+                            color: 'var(--text-primary)',
+                            fontWeight: '500'
+                        }}>
+                            {isProcessingImage ? '🔄 이미지 분석 중...' : '📸 스크린샷 준비됨'}
+                        </p>
+                        <p style={{
+                            margin: '4px 0 0 0',
+                            fontSize: 'var(--font-xs)',
+                            color: 'var(--text-tertiary)'
+                        }}>
+                            {isProcessingImage ? 'AI가 일정 정보를 추출하고 있습니다' : '전송 버튼을 눌러 일정을 분석하세요'}
+                        </p>
+                    </div>
+                    {isProcessingImage ? (
+                        <div style={{
+                            width: '24px',
+                            height: '24px',
+                            border: '2px solid rgba(255, 255, 255, 0.2)',
+                            borderTopColor: 'var(--accent-primary)',
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                        }} />
+                    ) : (
+                        <button
+                            onClick={clearImage}
+                            className="interactive focus-ring"
+                            style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: 'var(--radius-full)',
+                                padding: 0,
+                                fontSize: '16px',
+                                background: 'rgba(255, 59, 48, 0.2)',
+                                border: '0.5px solid rgba(255, 59, 48, 0.4)',
+                                color: 'rgba(255, 59, 48, 0.9)',
+                                cursor: 'pointer',
+                                transition: 'var(--transition-fast)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.3)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.6)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.2)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.4)';
+                            }}
+                            title="이미지 삭제"
+                            aria-label="이미지 삭제"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Input */}
             <div className="glass-dark" style={{
                 padding: isMobile ? 'var(--space-3)' : 'var(--space-4)',
@@ -601,8 +847,9 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage()}
-                        placeholder={isListening ? '듣는 중...' : '메시지를 입력하세요...'}
-                        disabled={isLoading}
+                        onPaste={handlePaste}
+                        placeholder={isListening ? '듣는 중...' : '메시지를 입력하거나 이미지를 붙여넣으세요...'}
+                        disabled={isLoading || isProcessingImage}
                         className="focus-ring"
                         style={{
                             flex: 1,
@@ -629,7 +876,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                     />
                     <button
                         onClick={() => sendMessage()}
-                        disabled={isLoading || !input.trim()}
+                        disabled={isLoading || isProcessingImage || (!input.trim() && !imageData)}
                         className="haptic-tap focus-ring"
                         style={{
                             width: '44px',
@@ -637,25 +884,28 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                             borderRadius: 'var(--radius-full)',
                             padding: 0,
                             fontSize: '18px',
-                            background: isLoading || !input.trim() 
+                            background: (isLoading || isProcessingImage || (!input.trim() && !imageData))
                                 ? 'rgba(255, 255, 255, 0.05)'
-                                : 'rgba(0, 122, 255, 0.9)',
-                            color: isLoading || !input.trim()
+                                : imageData 
+                                    ? 'rgba(138, 43, 226, 0.9)'  // Purple for image analysis
+                                    : 'rgba(0, 122, 255, 0.9)',  // Blue for text
+                            color: (isLoading || isProcessingImage || (!input.trim() && !imageData))
                                 ? 'var(--text-tertiary)'
                                 : 'white',
-                            border: isLoading || !input.trim()
+                            border: (isLoading || isProcessingImage || (!input.trim() && !imageData))
                                 ? '0.5px solid rgba(255, 255, 255, 0.08)'
                                 : 'none',
-                            cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
+                            cursor: (isLoading || isProcessingImage || (!input.trim() && !imageData)) ? 'not-allowed' : 'pointer',
                             transition: 'var(--transition-fast)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: '600'
                         }}
-                        aria-label="메시지 전송"
+                        title={imageData ? '이미지 분석' : '메시지 전송'}
+                        aria-label={imageData ? '이미지 분석' : '메시지 전송'}
                     >
-                        ↑
+                        {imageData ? '🔍' : '↑'}
                     </button>
                 </div>
             </div>
