@@ -1,0 +1,353 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "add": "Add",
+    "remove": "Remove",
+    "settings": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "fontSize": "Font Size",
+    "preview": "Preview",
+    "autoSave": "Settings are saved automatically and will persist on your next visit."
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "signUp": "Sign Up",
+    "signIn": "Sign In",
+    "email": "Email Address",
+    "password": "Password",
+    "forgotPassword": "Forgot your password?",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "continueWith": "Continue with",
+    "or": "or",
+    "emailRequired": "Please enter your email address.",
+    "emailInvalid": "Please enter a valid email address.",
+    "passwordRequired": "Please enter your password.",
+    "authFailed": "Authentication failed. Please try again.",
+    "sessionExpired": "Session expired. Please login again.",
+    "authRequired": "Authentication required",
+    "authExpired": "Authentication expired",
+    "authInvalid": "Invalid authentication",
+    "invalidCredentials": "Invalid email or password.",
+    "changeEmail": "Change email",
+    "loginEmail": "Login email",
+    "startNow": "Get Started",
+    "loginToAccount": "Sign in to your account",
+    "timeManagementNew": "A new way of time management",
+    "googleLogin": "Continue with Google",
+    "appleLogin": "Continue with Apple",
+    "microsoftLogin": "Continue with Microsoft",
+    "sslProtection": "Protected by 256-bit SSL encryption"
+  },
+  "landing": {
+    "hero": {
+      "badge": "AI magic that reads images and creates schedules",
+      "title": "Just One Screenshot",
+      "subtitle": "Schedule Management Done",
+      "description": "Automatically extract schedules from screenshots of emails, messages, and documents\nand register them to Google Calendar. The perfect combination of OCR + AI.",
+      "freeTrialButton": "14-Day Free Trial",
+      "demoButton": "Try Demo",
+      "noCreditCard": "No credit card required",
+      "startIn5Min": "Start in 5 minutes",
+      "cancelAnytime": "Cancel anytime"
+    },
+    "features": {
+      "title": "Smart Schedule Management with Just One Image",
+      "subtitle": "The perfect combination of OCR + AI + Natural Language Processing",
+      "items": {
+        "ocr": {
+          "title": "Screenshot OCR Recognition",
+          "description": "Automatic schedule extraction from email, messenger, and document captures",
+          "stats": "99.8% Accuracy"
+        },
+        "nlp": {
+          "title": "Natural Language Processing",
+          "description": "Create perfect schedules with just \"meeting at 2pm tomorrow\"",
+          "stats": "15 Languages"
+        },
+        "location": {
+          "title": "Smart Location Suggestions",
+          "description": "Suggest optimal meeting places by analyzing attendees' locations",
+          "stats": "AI Optimized"
+        },
+        "voice": {
+          "title": "Voice Input Support",
+          "description": "Easily add schedules by voice while driving",
+          "stats": "Korean Optimized"
+        },
+        "imageOcr": {
+          "title": "Image OCR Recognition",
+          "description": "Automatically extract schedule information from screenshots, photos, and PDFs.",
+          "stats": "99.8% Accuracy"
+        },
+        "textAnalysis": {
+          "title": "Smart Text Analysis",
+          "description": "AI accurately recognizes dates, times, locations, and attendees.",
+          "stats": "0.3s Processing"
+        },
+        "calendar": {
+          "title": "Google Calendar Integration",
+          "description": "Extracted schedules are automatically registered to your calendar.",
+          "stats": "Real-time Sync"
+        },
+        "oneClick": {
+          "title": "One-Click Processing",
+          "description": "Simple drag & drop without complex processes.",
+          "stats": "10s Complete"
+        }
+      }
+    },
+    "demo": {
+      "title": "Experience in 10 Seconds",
+      "titleHighlight": "AI Schedule Management",
+      "subtitle": "See real-time from screenshot upload to calendar registration",
+      "steps": {
+        "upload": {
+          "title": "Upload Screenshot",
+          "description": "Capture screen with schedule"
+        },
+        "analyze": {
+          "title": "AI Auto Analysis",
+          "description": "Extract date, time, location"
+        },
+        "register": {
+          "title": "Calendar Registration",
+          "description": "Auto sync with Google Calendar"
+        }
+      },
+      "uploadArea": {
+        "dragDrop": "Start with Drag & Drop",
+        "clickToSelect": "Or click to select a screenshot",
+        "startDemo": "Start Demo"
+      }
+    },
+    "testimonials": {
+      "title": "Real Reviews from Actual Users",
+      "subtitle": "Thousands save time with Geulpi every day",
+      "users": {
+        "kim": {
+          "name": "Jisoo Kim",
+          "role": "PM, Naver",
+          "content": "It's amazing that meeting invitations are automatically registered to my calendar just by taking a screenshot. I've reduced my scheduling time by 80%.",
+          "saved": "5 hours/week saved"
+        },
+        "lee": {
+          "name": "Minho Lee",
+          "role": "Startup CEO",
+          "content": "Meeting schedules received via KakaoTalk are done with just one capture. The OCR recognition rate is surprisingly accurate.",
+          "saved": "0% Mistakes"
+        },
+        "park": {
+          "name": "Seoyeon Park",
+          "role": "Freelance Designer",
+          "content": "It's so convenient to transfer schedule images sent by clients directly to my calendar.",
+          "saved": "30 min/day saved"
+        }
+      }
+    },
+    "pricing": {
+      "title": "Start at a Reasonable Price",
+      "subtitle": "Experience all features with a 14-day free trial",
+      "mostPopular": "Most Popular",
+      "plans": {
+        "free": {
+          "name": "Free",
+          "description": "Free plan for individual users",
+          "price": "$0",
+          "priceUnit": "/month",
+          "features": [
+            "50 OCR scans per month",
+            "Google Calendar integration",
+            "Basic natural language processing"
+          ],
+          "button": "Start for Free"
+        },
+        "pro": {
+          "name": "Pro",
+          "description": "Pro plan for professionals",
+          "price": "$9.99",
+          "priceUnit": "/month",
+          "features": [
+            "Unlimited OCR scans",
+            "All calendar integrations",
+            "Advanced natural language processing",
+            "Voice input support",
+            "Location recommendation AI"
+          ],
+          "button": "14-Day Free Trial"
+        },
+        "team": {
+          "name": "Team",
+          "description": "Enterprise plan for team collaboration",
+          "price": "$29.99",
+          "priceUnit": "/month",
+          "features": [
+            "All Pro features",
+            "Team schedule sharing",
+            "Admin dashboard",
+            "Priority support",
+            "API access"
+          ],
+          "button": "Contact Sales"
+        }
+      },
+      "selectedPlan": {
+        "pro": "✨ You selected the Pro plan",
+        "team": "👥 You selected the Team plan",
+        "free": "🎉 Starting for free"
+      }
+    },
+    "cta": {
+      "title": "Start Now, 14 Days Free",
+      "subtitle": "You can start right away without a credit card.\nIn 5 minutes, you can automatically register your first schedule.",
+      "startButton": "Start for Free",
+      "viewPlans": "View Plans",
+      "rating": "4.9/5",
+      "reviews": "(2,847 reviews)"
+    },
+    "navigation": {
+      "features": "Features",
+      "pricing": "Pricing",
+      "testimonials": "Testimonials",
+      "contact": "Contact",
+      "serviceIntro": "About Service"
+    },
+    "footer": {
+      "tagline": "Wisdom to prepare for the near future\nAI Schedule Management Service",
+      "product": {
+        "title": "Product",
+        "features": "Key Features",
+        "pricing": "Pricing",
+        "updates": "Updates"
+      },
+      "company": {
+        "title": "Company",
+        "about": "About",
+        "careers": "Careers",
+        "blog": "Blog"
+      },
+      "support": {
+        "title": "Support",
+        "help": "Help",
+        "contact": "Contact Us",
+        "apiDocs": "API Docs"
+      },
+      "legal": {
+        "terms": "Terms of Service",
+        "privacy": "Privacy Policy",
+        "cookies": "Cookie Policy"
+      },
+      "copyright": "© 2024 Geulpi. All rights reserved."
+    },
+    "settings": {
+      "title": "Settings",
+      "themeSection": "Theme Settings",
+      "fontSection": "Font Size",
+      "themes": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "fontSizes": {
+        "small": "Small",
+        "normal": "Normal",
+        "large": "Large",
+        "extraLarge": "Extra Large"
+      },
+      "previewSection": "Preview",
+      "previewText": "This is how text will be displayed.",
+      "previewSubtext": "AI smartly manages your schedule.",
+      "closeSettings": "Close Settings",
+      "currentLanguage": "Current Language",
+      "changeLanguage": "Change Language"
+    }
+  },
+  "login": {
+    "planSelected": {
+      "pro": "✨ You've selected the Pro plan",
+      "team": "👥 You've selected the Team plan",
+      "free": "🎉 Starting for free"
+    },
+    "title": {
+      "login": "Login",
+      "getStarted": "Get Started"
+    },
+    "subtitle": {
+      "loginAccount": "Sign in to your account",
+      "newTimeManagement": "A new way of time management"
+    },
+    "emailPlaceholder": "Email address",
+    "passwordPlaceholder": "Password",
+    "continue": "Continue",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up",
+    "or": "or",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "changeEmail": "Change email",
+    "loginEmail": "Login email",
+    "loginButton": "Login",
+    "forgotPassword": "Forgot your password?",
+    "termsOfService": "Terms of Service",
+    "privacyPolicy": "Privacy Policy",
+    "help": "Help",
+    "sslProtection": "Protected by 256-bit SSL encryption"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "sync": {
+      "success": "Sync Complete",
+      "failed": "Sync Failed",
+      "eventsLoaded": "{count} events loaded",
+      "cannotLoad": "Cannot load events",
+      "networkError": "Network error occurred"
+    },
+    "eventSelected": "Event Selected",
+    "eventSelectedDesc": "\"{title}\" - You can edit it in the command bar",
+    "selectedEvent": "Selected Event",
+    "timeSelected": "Time Selected",
+    "timeSelectedDesc": "{date} {time} - Add an event in the command bar",
+    "reminder": {
+      "message": "\"{title}\" starts in {minutes} minutes"
+    },
+    "notification": {
+      "title": "Geulpi Calendar Reminder",
+      "allowed": "Notifications Allowed",
+      "blocked": "Notifications Blocked",
+      "browserEnabled": "Browser notifications enabled",
+      "enableInSettings": "Please enable notifications in browser settings"
+    },
+    "notifications": "Notifications",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No new notifications",
+    "allowBrowserNotifications": "Allow browser notifications",
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "shortcuts": {
+      "openCommandBar": "Open command bar",
+      "showHelp": "Show help"
+    },
+    "stats": {
+      "todayEvents": "Today's Events",
+      "thisWeek": "This Week",
+      "meetings": "Meetings",
+      "withLocation": "With Location"
+    }
+  }
+}

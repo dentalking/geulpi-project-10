@@ -1,6 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Calendar, 
+  RefreshCw, 
+  Plus, 
+  ExternalLink, 
+  Clock,
+  CalendarDays,
+  CalendarRange
+} from 'lucide-react';
 import { getGoogleCalendarUrl, getGoogleCalendarCreateEventUrl } from '@/utils/googleCalendarUrl';
 
 interface GoogleCalendarLinkProps {
@@ -32,6 +42,23 @@ export default function GoogleCalendarLink({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.google-calendar-link')) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showDropdown]);
+
   const handleOpenCalendar = (options?: { view?: string; eventId?: string }) => {
     const url = getGoogleCalendarUrl({
       view: (options?.view || currentView) as any,
@@ -47,7 +74,7 @@ export default function GoogleCalendarLink({
     const url = getGoogleCalendarCreateEventUrl({
       dates: {
         start: currentDate,
-        end: new Date(currentDate.getTime() + 60 * 60 * 1000) // 1시간 후
+        end: new Date(currentDate.getTime() + 60 * 60 * 1000)
       }
     });
     
@@ -55,16 +82,16 @@ export default function GoogleCalendarLink({
     setShowDropdown(false);
   };
 
-  const getSyncStatusIcon = () => {
+  const getSyncStatusColor = () => {
     switch (syncStatus) {
       case 'syncing':
-        return '🔄';
+        return 'text-blue-400';
       case 'success':
-        return '✅';
+        return 'text-green-400';
       case 'error':
-        return '⚠️';
+        return 'text-red-400';
       default:
-        return '🔗';
+        return 'text-white/60';
     }
   };
 
@@ -88,301 +115,135 @@ export default function GoogleCalendarLink({
   };
 
   return (
-    <div className="google-calendar-link" style={{ position: 'relative' }}>
-      {/* 메인 버튼 */}
+    <div className="google-calendar-link relative">
+      {/* Main Button */}
       <button
-        className="glass-light btn-haptic interactive focus-ring"
         onClick={() => setShowDropdown(!showDropdown)}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 'var(--space-2)',
-          padding: 'var(--space-2) var(--space-4)',
-          borderRadius: 'var(--radius-full)',
-          fontSize: 'var(--font-sm)',
-          fontWeight: '500',
-          position: 'relative',
-          transition: 'var(--transition-smooth)'
-        }}
-        aria-label="Google Calendar 옵션"
+        className="flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full transition-all group"
+        aria-label="Google Calendar menu"
         aria-expanded={showDropdown}
+        aria-haspopup="menu"
+        id="google-calendar-button"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-          <line x1="16" y1="2" x2="16" y2="6" />
-          <line x1="8" y1="2" x2="8" y2="6" />
-          <line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-        <span>Google Calendar</span>
-        <span style={{ opacity: 0.7, fontSize: '12px' }}>{getSyncStatusIcon()}</span>
+        <Calendar className="w-4 h-4" />
+        {!isMobile && (
+          <span className="text-sm font-medium">Google Calendar</span>
+        )}
+        {syncStatus === 'syncing' && (
+          <RefreshCw className="w-4 h-4 animate-spin" />
+        )}
       </button>
 
-      {/* 드롭다운 메뉴 */}
-      {showDropdown && (
-        <>
-          {/* 배경 클릭 시 닫기 */}
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 998
-            }}
-            onClick={() => setShowDropdown(false)}
-          />
-          
-          <div
-            className="glass-high-contrast float"
-            style={{
-              position: 'absolute',
-              top: 'calc(100% + var(--space-2))',
-              right: 0,
-              minWidth: '220px',
-              padding: 'var(--space-2)',
-              borderRadius: 'var(--radius-xl)',
-              zIndex: 999,
-              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)'
-            }}
+      {/* Dropdown Menu */}
+      <AnimatePresence>
+        {showDropdown && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-72 bg-black/90 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl overflow-hidden z-50"
+            role="menu"
+            aria-labelledby="google-calendar-button"
           >
-            {/* 동기화 상태 */}
-            <div
-              style={{
-                padding: 'var(--space-3) var(--space-4)',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                marginBottom: 'var(--space-2)'
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontSize: 'var(--font-xs)',
-                color: 'var(--text-secondary)'
-              }}>
-                <span>{getSyncStatusText()}</span>
-                {onSync && syncStatus !== 'syncing' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSync();
-                    }}
-                    className="btn-haptic"
-                    style={{
-                      padding: '2px 6px',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '10px',
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: 'none',
-                      color: 'inherit',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    새로고침
-                  </button>
-                )}
+            {/* Sync Status */}
+            <div className="p-4 border-b border-white/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-white/60">동기화 상태</span>
+                <span className={`text-xs ${getSyncStatusColor()}`}>
+                  {getSyncStatusText()}
+                </span>
               </div>
+              <button
+                onClick={() => {
+                  if (onSync) {
+                    onSync();
+                  }
+                  setShowDropdown(false);
+                }}
+                disabled={syncStatus === 'syncing'}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                <span className="text-sm font-medium">
+                  {syncStatus === 'syncing' ? '동기화 중...' : '지금 동기화'}
+                </span>
+              </button>
             </div>
 
-            {/* 메뉴 아이템들 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {/* Quick Actions */}
+            <div className="p-2">
               <button
-                className="dropdown-item interactive"
-                onClick={() => handleOpenCalendar()}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-sm)',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'var(--transition-fast)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span>📅</span>
-                <span>캘린더 열기</span>
-              </button>
-
-              <button
-                className="dropdown-item interactive"
-                onClick={() => handleOpenCalendar({ view: 'day' })}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-sm)',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'var(--transition-fast)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span>📆</span>
-                <span>오늘 일정 보기</span>
-              </button>
-
-              <button
-                className="dropdown-item interactive"
-                onClick={() => handleOpenCalendar({ view: 'week' })}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-sm)',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'var(--transition-fast)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span>📊</span>
-                <span>주간 보기</span>
-              </button>
-
-              <button
-                className="dropdown-item interactive"
-                onClick={() => handleOpenCalendar({ view: 'agenda' })}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-sm)',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'var(--transition-fast)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span>📋</span>
-                <span>일정 목록</span>
-              </button>
-
-              <div style={{
-                height: '1px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                margin: 'var(--space-2) 0'
-              }} />
-
-              <button
-                className="dropdown-item interactive"
                 onClick={handleCreateEvent}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-sm)',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'var(--transition-fast)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-lg transition-all group"
               >
-                <span>➕</span>
-                <span>새 일정 만들기</span>
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Plus className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-medium">새 일정 만들기</div>
+                  <div className="text-xs text-white/60">Google Calendar에서</div>
+                </div>
               </button>
 
-              {isMobile && (
-                <>
-                  <div style={{
-                    height: '1px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    margin: 'var(--space-2) 0'
-                  }} />
-                  
-                  <button
-                    className="dropdown-item interactive"
-                    onClick={() => {
-                      window.location.href = 'googlecalendar://';
-                      setShowDropdown(false);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-3)',
-                      padding: 'var(--space-3) var(--space-4)',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-primary)',
-                      fontSize: 'var(--font-sm)',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      transition: 'var(--transition-fast)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <span>📱</span>
-                    <span>앱에서 열기</span>
-                  </button>
-                </>
-              )}
+              <button
+                onClick={() => handleOpenCalendar()}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-lg transition-all group"
+              >
+                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center group-hover:bg-white/20 transition-all">
+                  <ExternalLink className="w-4 h-4" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-medium">캘린더 열기</div>
+                  <div className="text-xs text-white/60">현재 보기로 이동</div>
+                </div>
+              </button>
             </div>
-          </div>
-        </>
-      )}
+
+            {/* View Options */}
+            <div className="p-2 border-t border-white/10">
+              <div className="text-xs text-white/40 px-3 py-1 mb-1">보기 옵션</div>
+              
+              <button
+                onClick={() => handleOpenCalendar({ view: 'day' })}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <CalendarDays className="w-4 h-4 text-white/60" />
+                <span className="text-sm">일간 보기</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenCalendar({ view: 'week' })}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <CalendarRange className="w-4 h-4 text-white/60" />
+                <span className="text-sm">주간 보기</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenCalendar({ view: 'month' })}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <Calendar className="w-4 h-4 text-white/60" />
+                <span className="text-sm">월간 보기</span>
+              </button>
+            </div>
+
+            {/* Selected Event */}
+            {selectedEventId && (
+              <div className="p-2 border-t border-white/10">
+                <button
+                  onClick={() => handleOpenCalendar({ eventId: selectedEventId })}
+                  className="w-full flex items-center gap-3 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg transition-all"
+                >
+                  <Clock className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm text-purple-200">선택된 일정 보기</span>
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

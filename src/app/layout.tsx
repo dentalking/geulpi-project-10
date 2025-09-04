@@ -1,10 +1,7 @@
 import './globals.css';
 import { ToastProvider } from '@/providers/ToastProvider';
-
-export const metadata = {
-  title: 'AI Calendar Assistant',
-  description: 'Gemini AI가 당신의 일정을 똑똑하게 관리합니다',
-};
+import { ThemeProvider } from '@/providers/ThemeProvider';
+import KeyboardShortcutsProvider from '@/components/KeyboardShortcutsProvider';
 
 export default function RootLayout({
   children,
@@ -12,11 +9,15 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ko">
-      <body>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+    <html suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <ThemeProvider>
+          <KeyboardShortcutsProvider>
+            <ToastProvider>
+              {children}
+            </ToastProvider>
+          </KeyboardShortcutsProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

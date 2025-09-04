@@ -1,0 +1,353 @@
+{
+  "common": {
+    "loading": "로딩 중...",
+    "error": "오류가 발생했습니다",
+    "retry": "다시 시도",
+    "cancel": "취소",
+    "confirm": "확인",
+    "save": "저장",
+    "delete": "삭제",
+    "edit": "편집",
+    "close": "닫기",
+    "back": "뒤로",
+    "next": "다음",
+    "previous": "이전",
+    "search": "검색",
+    "filter": "필터",
+    "sort": "정렬",
+    "add": "추가",
+    "remove": "제거",
+    "settings": "설정",
+    "language": "언어",
+    "theme": "테마",
+    "fontSize": "글자 크기",
+    "preview": "미리보기",
+    "autoSave": "설정은 자동으로 저장되며, 다음 방문 시에도 유지됩니다."
+  },
+  "auth": {
+    "login": "로그인",
+    "logout": "로그아웃",
+    "signUp": "회원 가입",
+    "signIn": "로그인",
+    "email": "이메일 주소",
+    "password": "비밀번호",
+    "forgotPassword": "비밀번호를 잊으셨나요?",
+    "noAccount": "계정이 없으신가요?",
+    "haveAccount": "이미 계정이 있으신가요?",
+    "continueWith": "계속하기",
+    "or": "또는",
+    "emailRequired": "이메일 주소를 입력해주세요.",
+    "emailInvalid": "올바른 이메일 주소를 입력해주세요.",
+    "passwordRequired": "비밀번호를 입력해주세요.",
+    "authFailed": "인증에 실패했습니다. 다시 시도해주세요.",
+    "sessionExpired": "세션이 만료되었습니다. 다시 로그인해주세요.",
+    "authRequired": "인증이 필요합니다",
+    "authExpired": "인증이 만료되었습니다",
+    "authInvalid": "유효하지 않은 인증입니다",
+    "invalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    "changeEmail": "이메일 변경",
+    "loginEmail": "로그인 이메일",
+    "startNow": "시작하기",
+    "loginToAccount": "계정에 로그인하세요",
+    "timeManagementNew": "시간 관리의 새로운 방법",
+    "googleLogin": "Google로 계속하기",
+    "appleLogin": "Apple로 계속하기",
+    "microsoftLogin": "Microsoft로 계속하기",
+    "sslProtection": "256-bit SSL 암호화로 보호됩니다"
+  },
+  "landing": {
+    "hero": {
+      "badge": "AI가 이미지를 읽고 일정을 만드는 마법",
+      "title": "스크린샷 한 장이면",
+      "subtitle": "일정 관리 끝",
+      "description": "이메일, 메신저, 문서의 캡처 화면에서 자동으로 일정을 추출하여\nGoogle Calendar에 등록합니다. OCR + AI의 완벽한 조합.",
+      "freeTrialButton": "14일 무료 체험",
+      "demoButton": "데모 체험하기",
+      "noCreditCard": "신용카드 불필요",
+      "startIn5Min": "5분 안에 시작",
+      "cancelAnytime": "언제든 취소 가능"
+    },
+    "features": {
+      "title": "이미지 하나로 완성되는 스마트 일정 관리",
+      "subtitle": "OCR + AI + 자연어 처리의 완벽한 조합",
+      "items": {
+        "ocr": {
+          "title": "스크린샷 OCR 인식",
+          "description": "이메일, 메신저, 문서 캡처만으로 일정 자동 추출",
+          "stats": "99.8% 정확도"
+        },
+        "nlp": {
+          "title": "자연어 처리",
+          "description": "\"내일 2시 미팅\"만 입력해도 완벽한 일정 생성",
+          "stats": "15개 언어 지원"
+        },
+        "location": {
+          "title": "스마트 장소 추천",
+          "description": "참석자 위치 분석으로 최적의 만남 장소 제안",
+          "stats": "AI 최적화"
+        },
+        "voice": {
+          "title": "음성 입력 지원",
+          "description": "운전 중에도 말로 간편하게 일정 추가",
+          "stats": "한국어 최적화"
+        },
+        "imageOcr": {
+          "title": "이미지 OCR 인식",
+          "description": "스크린샷, 사진, PDF에서 일정 정보를 자동으로 추출합니다.",
+          "stats": "99.8% 정확도"
+        },
+        "textAnalysis": {
+          "title": "스마트 텍스트 분석",
+          "description": "날짜, 시간, 장소, 참석자를 AI가 정확하게 인식합니다.",
+          "stats": "0.3초 처리"
+        },
+        "calendar": {
+          "title": "Google Calendar 연동",
+          "description": "추출된 일정이 자동으로 캘린더에 등록됩니다.",
+          "stats": "실시간 동기화"
+        },
+        "oneClick": {
+          "title": "원클릭 처리",
+          "description": "복잡한 과정 없이 드래그&드롭으로 간단하게.",
+          "stats": "10초 완료"
+        }
+      }
+    },
+    "demo": {
+      "title": "10초만에 체험하는",
+      "titleHighlight": "AI 일정 관리",
+      "subtitle": "스크린샷 업로드부터 캘린더 등록까지, 실시간으로 확인하세요",
+      "steps": {
+        "upload": {
+          "title": "스크린샷 업로드",
+          "description": "일정이 담긴 화면 캡처"
+        },
+        "analyze": {
+          "title": "AI 자동 분석",
+          "description": "날짜, 시간, 장소 추출"
+        },
+        "register": {
+          "title": "캘린더 등록",
+          "description": "Google Calendar 자동 연동"
+        }
+      },
+      "uploadArea": {
+        "dragDrop": "드래그 & 드롭으로 시작하세요",
+        "clickToSelect": "또는 클릭하여 스크린샷을 선택하세요",
+        "startDemo": "데모 시작하기"
+      }
+    },
+    "testimonials": {
+      "title": "실제 사용자들의 생생한 후기",
+      "subtitle": "매일 수천 명이 Geulpi로 시간을 절약하고 있습니다",
+      "users": {
+        "kim": {
+          "name": "김지수",
+          "role": "PM, 네이버",
+          "content": "회의 초대 이메일 스크린샷만 찍어도 자동으로 캘린더에 등록되는게 정말 신기해요. 일정 관리 시간이 80% 줄었습니다.",
+          "saved": "주 5시간 절약"
+        },
+        "lee": {
+          "name": "이민호",
+          "role": "스타트업 CEO",
+          "content": "카톡으로 받은 미팅 일정도 캡처 한 번이면 끝. OCR 인식률이 놀라울 정도로 정확해요.",
+          "saved": "실수 0%"
+        },
+        "park": {
+          "name": "박서연",
+          "role": "프리랜서 디자이너",
+          "content": "클라이언트가 보낸 일정 이미지를 그대로 캘린더로 옮길 수 있어서 너무 편해요.",
+          "saved": "하루 30분 절약"
+        }
+      }
+    },
+    "pricing": {
+      "title": "합리적인 가격으로 시작하세요",
+      "subtitle": "14일 무료 체험으로 모든 기능을 경험해보세요",
+      "mostPopular": "Most Popular",
+      "plans": {
+        "free": {
+          "name": "Free",
+          "description": "개인 사용자를 위한 무료 플랜",
+          "price": "₩0",
+          "priceUnit": "/월",
+          "features": [
+            "월 50회 OCR 스캔",
+            "Google Calendar 연동",
+            "기본 자연어 처리"
+          ],
+          "button": "무료로 시작하기"
+        },
+        "pro": {
+          "name": "Pro",
+          "description": "전문가를 위한 프로 플랜",
+          "price": "₩9,900",
+          "priceUnit": "/월",
+          "features": [
+            "무제한 OCR 스캔",
+            "모든 캘린더 연동",
+            "고급 자연어 처리",
+            "음성 입력 지원",
+            "장소 추천 AI"
+          ],
+          "button": "14일 무료 체험"
+        },
+        "team": {
+          "name": "Team",
+          "description": "팀 협업을 위한 기업 플랜",
+          "price": "₩29,900",
+          "priceUnit": "/월",
+          "features": [
+            "Pro의 모든 기능",
+            "팀 일정 공유",
+            "관리자 대시보드",
+            "우선 기술 지원",
+            "API 접근 권한"
+          ],
+          "button": "영업팀 문의"
+        }
+      },
+      "selectedPlan": {
+        "pro": "✨ Pro 플랜을 선택하셨습니다",
+        "team": "👥 Team 플랜을 선택하셨습니다",
+        "free": "🎉 무료로 시작합니다"
+      }
+    },
+    "cta": {
+      "title": "지금 시작하면 14일 무료",
+      "subtitle": "신용카드 없이 바로 시작할 수 있습니다.\n5분이면 첫 일정을 자동으로 등록할 수 있어요.",
+      "startButton": "무료로 시작하기",
+      "viewPlans": "요금제 보기",
+      "rating": "4.9/5",
+      "reviews": "(2,847개 리뷰)"
+    },
+    "navigation": {
+      "features": "기능",
+      "pricing": "요금제",
+      "testimonials": "고객사례",
+      "contact": "문의",
+      "serviceIntro": "서비스 소개"
+    },
+    "footer": {
+      "tagline": "가까운 미래를 준비하는 지혜\nAI 일정 관리 서비스",
+      "product": {
+        "title": "제품",
+        "features": "주요 기능",
+        "pricing": "요금제",
+        "updates": "업데이트"
+      },
+      "company": {
+        "title": "회사",
+        "about": "소개",
+        "careers": "채용",
+        "blog": "블로그"
+      },
+      "support": {
+        "title": "지원",
+        "help": "도움말",
+        "contact": "문의하기",
+        "apiDocs": "API 문서"
+      },
+      "legal": {
+        "terms": "이용약관",
+        "privacy": "개인정보처리방침",
+        "cookies": "쿠키 정책"
+      },
+      "copyright": "© 2024 Geulpi. All rights reserved."
+    },
+    "settings": {
+      "title": "설정",
+      "themeSection": "테마 설정",
+      "fontSection": "글자 크기",
+      "themes": {
+        "light": "라이트",
+        "dark": "다크",
+        "system": "시스템"
+      },
+      "fontSizes": {
+        "small": "작게",
+        "normal": "보통",
+        "large": "크게",
+        "extraLarge": "매우 크게"
+      },
+      "previewSection": "미리보기",
+      "previewText": "이렇게 텍스트가 표시됩니다.",
+      "previewSubtext": "AI가 당신의 일정을 똑똑하게 관리합니다.",
+      "closeSettings": "설정 닫기",
+      "currentLanguage": "현재 언어",
+      "changeLanguage": "언어 변경"
+    }
+  },
+  "login": {
+    "planSelected": {
+      "pro": "✨ Pro 플랜을 선택하셨습니다",
+      "team": "👥 Team 플랜을 선택하셨습니다",
+      "free": "🎉 무료로 시작합니다"
+    },
+    "title": {
+      "login": "로그인",
+      "getStarted": "시작하기"
+    },
+    "subtitle": {
+      "loginAccount": "계정에 로그인하세요",
+      "newTimeManagement": "시간 관리의 새로운 방법"
+    },
+    "emailPlaceholder": "이메일 주소",
+    "passwordPlaceholder": "비밀번호",
+    "continue": "계속",
+    "noAccount": "계정이 없으신가요?",
+    "signUp": "회원 가입",
+    "or": "또는",
+    "continueWithGoogle": "Google로 계속하기",
+    "continueWithApple": "Apple로 계속하기",
+    "continueWithMicrosoft": "Microsoft로 계속하기",
+    "changeEmail": "이메일 변경",
+    "loginEmail": "로그인 이메일",
+    "loginButton": "로그인",
+    "forgotPassword": "비밀번호를 잊으셨나요?",
+    "termsOfService": "이용약관",
+    "privacyPolicy": "개인정보처리방침",
+    "help": "도움말",
+    "sslProtection": "256-bit SSL 암호화로 보호됩니다"
+  },
+  "dashboard": {
+    "title": "대시보드",
+    "sync": {
+      "success": "동기화 완료",
+      "failed": "동기화 실패",
+      "eventsLoaded": "{count}개 일정을 불러왔습니다",
+      "cannotLoad": "일정을 불러올 수 없습니다",
+      "networkError": "네트워크 오류가 발생했습니다"
+    },
+    "eventSelected": "일정 선택됨",
+    "eventSelectedDesc": "\"{title}\" - 명령어 바에서 수정 가능합니다",
+    "selectedEvent": "선택된 일정",
+    "timeSelected": "시간 선택",
+    "timeSelectedDesc": "{date} {time} - 명령어 바에서 일정을 추가하세요",
+    "reminder": {
+      "message": "\"{title}\" 일정이 {minutes}분 후에 시작됩니다"
+    },
+    "notification": {
+      "title": "Geulpi 일정 알림",
+      "allowed": "알림 허용",
+      "blocked": "알림 차단",
+      "browserEnabled": "브라우저 알림이 활성화되었습니다",
+      "enableInSettings": "브라우저 설정에서 알림을 허용해주세요"
+    },
+    "notifications": "알림",
+    "markAllRead": "모두 읽음 표시",
+    "noNotifications": "새로운 알림이 없습니다",
+    "allowBrowserNotifications": "브라우저 알림 허용",
+    "keyboardShortcuts": "키보드 단축키",
+    "shortcuts": {
+      "openCommandBar": "명령어 바 열기",
+      "showHelp": "도움말 표시"
+    },
+    "stats": {
+      "todayEvents": "오늘 일정",
+      "thisWeek": "이번 주",
+      "meetings": "미팅",
+      "withLocation": "장소 포함"
+    }
+  }
+}

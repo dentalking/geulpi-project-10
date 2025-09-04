@@ -1,0 +1,193 @@
+/* 
+ * Unified Design System Tokens
+ * 일관된 디자인 시스템을 위한 통합 토큰
+ */
+
+:root {
+  /* ============================================
+     1. COLOR SYSTEM - 색상 시스템
+     ============================================ */
+  
+  /* Primary Colors */
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+  
+  /* Gray Scale - Apple Inspired */
+  --color-gray-50: #FBFBFD;
+  --color-gray-100: #F5F5F7;
+  --color-gray-200: #E8E8ED;
+  --color-gray-300: #D2D2D7;
+  --color-gray-400: #86868B;
+  --color-gray-500: #6E6E73;
+  --color-gray-600: #515154;
+  --color-gray-700: #3A3A3C;
+  --color-gray-800: #1D1D1F;
+  --color-gray-900: #000000;
+  
+  /* Accent Colors */
+  --color-primary: #0071E3;
+  --color-primary-hover: #0077ED;
+  --color-primary-active: #005BB5;
+  
+  --color-success: #34C759;
+  --color-warning: #FF9500;
+  --color-error: #FF3B30;
+  --color-info: #5AC8FA;
+  
+  /* ============================================
+     2. TYPOGRAPHY SYSTEM - 타이포그래피
+     ============================================ */
+  
+  /* Font Family */
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  
+  /* Font Sizes - Consistent Scale */
+  --text-xs: 11px;      /* Micro text */
+  --text-sm: 13px;      /* Small text */
+  --text-base: 15px;    /* Body text */
+  --text-md: 17px;      /* Medium text */
+  --text-lg: 19px;      /* Large body */
+  --text-xl: 22px;      /* Heading 3 */
+  --text-2xl: 28px;     /* Heading 2 */
+  --text-3xl: 34px;     /* Heading 1 */
+  --text-4xl: 48px;     /* Display */
+  --text-5xl: 60px;     /* Hero */
+  --text-6xl: 72px;     /* Jumbo */
+  
+  /* Font Weights */
+  --font-thin: 100;
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  
+  /* Line Heights */
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 1.75;
+  
+  /* Letter Spacing */
+  --tracking-tighter: -0.03em;
+  --tracking-tight: -0.02em;
+  --tracking-normal: -0.01em;
+  --tracking-wide: 0.025em;
+  
+  /* ============================================
+     3. SPACING SYSTEM - 간격 시스템 (8pt Grid)
+     ============================================ */
+  
+  --space-0: 0px;
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-14: 56px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-32: 128px;
+  
+  /* ============================================
+     4. BUTTON SYSTEM - 버튼 시스템
+     ============================================ */
+  
+  /* Button Sizes */
+  --btn-padding-xs: 4px 12px;
+  --btn-padding-sm: 6px 16px;
+  --btn-padding-md: 10px 20px;
+  --btn-padding-lg: 14px 32px;
+  --btn-padding-xl: 18px 40px;
+  
+  --btn-height-xs: 28px;
+  --btn-height-sm: 32px;
+  --btn-height-md: 40px;
+  --btn-height-lg: 48px;
+  --btn-height-xl: 56px;
+  
+  --btn-font-xs: var(--text-xs);
+  --btn-font-sm: var(--text-sm);
+  --btn-font-md: var(--text-base);
+  --btn-font-lg: var(--text-md);
+  --btn-font-xl: var(--text-lg);
+  
+  /* ============================================
+     5. BORDER RADIUS - 모서리 반경
+     ============================================ */
+  
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-full: 980px;
+  
+  /* ============================================
+     6. SHADOWS - 그림자
+     ============================================ */
+  
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.16);
+  --shadow-2xl: 0 20px 60px rgba(0, 0, 0, 0.20);
+  
+  /* ============================================
+     7. TRANSITIONS - 전환 효과
+     ============================================ */
+  
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.6, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slower: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* ============================================
+     8. Z-INDEX SYSTEM - 레이어 시스템
+     ============================================ */
+  
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-notification: 800;
+  
+  /* ============================================
+     9. BREAKPOINTS - 반응형 중단점
+     ============================================ */
+  
+  --screen-sm: 640px;
+  --screen-md: 768px;
+  --screen-lg: 1024px;
+  --screen-xl: 1280px;
+  --screen-2xl: 1440px;
+  
+  /* ============================================
+     10. LAYOUT - 레이아웃
+     ============================================ */
+  
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 980px;
+  --container-xl: 1200px;
+  
+  --nav-height: 44px;
+  --sidebar-width: 280px;
+}

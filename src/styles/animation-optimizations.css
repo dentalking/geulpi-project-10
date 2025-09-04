@@ -1,0 +1,140 @@
+/* Animation Performance Optimizations */
+
+/* Only apply will-change on hover/active states to prevent excessive GPU memory usage */
+.optimized-animation {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.optimized-animation:hover {
+  will-change: transform;
+}
+
+.optimized-animation:active {
+  will-change: transform, opacity;
+}
+
+/* Use transform and opacity for animations (GPU accelerated) */
+@keyframes optimized-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes optimized-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+@keyframes optimized-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .optimized-animation {
+    transition: none;
+  }
+}
+
+/* Optimize backdrop-filter performance */
+.optimized-glass {
+  /* Use smaller blur values for better performance */
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  /* Force GPU acceleration */
+  transform: translateZ(0);
+  /* Prevent repaints */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Batch animations for better performance */
+.stagger-animation {
+  animation: optimized-fade-in 0.3s ease-out backwards;
+}
+
+.stagger-animation:nth-child(1) { animation-delay: 0.05s; }
+.stagger-animation:nth-child(2) { animation-delay: 0.1s; }
+.stagger-animation:nth-child(3) { animation-delay: 0.15s; }
+.stagger-animation:nth-child(4) { animation-delay: 0.2s; }
+.stagger-animation:nth-child(5) { animation-delay: 0.25s; }
+
+/* Optimize infinite animations */
+@keyframes optimized-spin {
+  from {
+    transform: rotate(0deg) translateZ(0);
+  }
+  to {
+    transform: rotate(360deg) translateZ(0);
+  }
+}
+
+.optimized-spinner {
+  animation: optimized-spin 1s linear infinite;
+  transform-origin: center;
+  /* Only apply will-change when visible */
+  will-change: transform;
+}
+
+/* Clean up will-change after animation */
+.animation-complete {
+  will-change: auto;
+}
+
+/* Use CSS containment for better performance */
+.contained-animation {
+  contain: layout style paint;
+}
+
+/* Optimize hover states */
+.optimized-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.optimized-hover:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Reduce composite layers */
+.reduce-layers {
+  /* Avoid creating unnecessary layers */
+  transform: translateZ(0);
+}
+
+/* Performance hints for complex animations */
+.complex-animation-container {
+  /* Isolate stacking context */
+  isolation: isolate;
+  /* Enable GPU acceleration */
+  transform: translateZ(0);
+  /* Optimize painting */
+  contain: layout;
+}

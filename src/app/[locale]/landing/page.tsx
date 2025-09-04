@@ -1,0 +1,747 @@
+'use client';
+
+import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
+import { 
+  ArrowRight, 
+  Camera, 
+  MapPin, 
+  MessageSquare, 
+  Clock, 
+  Mic, 
+  CheckCircle,
+  Menu,
+  X,
+  Zap,
+  Star,
+  Upload,
+  ScanLine,
+  Calendar,
+  Sparkles,
+  Shield,
+  Users
+} from 'lucide-react';
+import { Logo } from '@/components/Logo';
+import LanguageSelector from '@/components/LanguageSelector';
+import SettingsPanel from '@/components/SettingsPanel';
+
+export default function LandingPage() {
+  const t = useTranslations('landing');
+  const locale = useLocale();
+  const router = useRouter();
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const features = [
+    {
+      icon: Camera,
+      title: t('features.items.ocr.title'),
+      description: t('features.items.ocr.description'),
+      gradient: 'from-purple-500 to-pink-500',
+      stats: t('features.items.ocr.stats')
+    },
+    {
+      icon: MessageSquare,
+      title: t('features.items.nlp.title'),
+      description: t('features.items.nlp.description'),
+      gradient: 'from-blue-500 to-cyan-500',
+      stats: t('features.items.nlp.stats')
+    },
+    {
+      icon: MapPin,
+      title: t('features.items.location.title'),
+      description: t('features.items.location.description'),
+      gradient: 'from-green-500 to-emerald-500',
+      stats: t('features.items.location.stats')
+    },
+    {
+      icon: Mic,
+      title: t('features.items.voice.title'),
+      description: t('features.items.voice.description'),
+      gradient: 'from-orange-500 to-red-500',
+      stats: t('features.items.voice.stats')
+    }
+  ];
+
+  const testimonials = [
+    {
+      name: t('testimonials.users.kim.name'),
+      role: t('testimonials.users.kim.role'),
+      content: t('testimonials.users.kim.content'),
+      saved: t('testimonials.users.kim.saved'),
+      avatar: '👩‍💼'
+    },
+    {
+      name: t('testimonials.users.lee.name'),
+      role: t('testimonials.users.lee.role'),
+      content: t('testimonials.users.lee.content'),
+      saved: t('testimonials.users.lee.saved'),
+      avatar: '👨‍💻'
+    },
+    {
+      name: t('testimonials.users.park.name'),
+      role: t('testimonials.users.park.role'),
+      content: t('testimonials.users.park.content'),
+      saved: t('testimonials.users.park.saved'),
+      avatar: '👩‍🎨'
+    }
+  ];
+
+  const demoSteps = [
+    {
+      step: 1,
+      title: t('demo.steps.upload.title'),
+      description: t('demo.steps.upload.description'),
+      icon: Upload,
+      color: 'text-purple-400'
+    },
+    {
+      step: 2,
+      title: t('demo.steps.analyze.title'),
+      description: t('demo.steps.analyze.description'),
+      icon: ScanLine,
+      color: 'text-pink-400'
+    },
+    {
+      step: 3,
+      title: t('demo.steps.register.title'),
+      description: t('demo.steps.register.description'),
+      icon: Calendar,
+      color: 'text-blue-400'
+    }
+  ];
+
+  return (
+    <div className="min-h-screen overflow-x-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      {/* Navigation */}
+      <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+        scrolled ? 'backdrop-blur-xl border-b' : ''
+      }`}
+      style={{ 
+        background: scrolled ? 'var(--glass-bg)' : 'transparent',
+        borderColor: scrolled ? 'var(--glass-border)' : 'transparent'
+      }}>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="relative">
+                <Logo size={32} color="#fff" className="transition-transform group-hover:scale-110" />
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
+              </div>
+              <span className="text-xl font-medium">Geulpi</span>
+              <span className="text-xs text-white/40 hidden md:inline">Geulpi</span>
+            </Link>
+
+            <div className="hidden md:flex items-center gap-8">
+              {[
+                { key: 'features', label: t('navigation.features') },
+                { key: 'pricing', label: t('navigation.pricing') },
+                { key: 'testimonials', label: t('navigation.testimonials') },
+                { key: 'contact', label: t('navigation.contact') }
+              ].map((item) => (
+                <a
+                  key={item.key}
+                  href={`#${item.key}`}
+                  className="text-white/70 hover:text-white transition-colors text-sm font-medium"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <LanguageSelector />
+              <SettingsPanel />
+              
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 text-white/80 hover:text-white"
+              >
+                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+
+              <Link
+                href={`/${locale}/login`}
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all"
+              >
+                {t('hero.freeTrialButton').replace('14-Day ', '').replace('14일 ', '')}
+              </Link>
+            </div>
+          </div>
+
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden border-t border-white/10 mt-4"
+            >
+              <div className="py-4 space-y-2">
+                {[t('navigation.features'), t('navigation.pricing'), t('navigation.testimonials'), t('navigation.contact')].map((item) => (
+                  <a
+                    key={item}
+                    href={`#${item}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    {item}
+                  </a>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative min-h-screen flex items-center pt-20">
+        {/* Background Effects */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-full blur-3xl" />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="max-w-4xl">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="mb-6"
+            >
+              <span className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full text-sm">
+                <Zap className="w-4 h-4 text-purple-400" />
+                <span className="text-purple-200">{t('hero.badge')}</span>
+              </span>
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+            >
+              {t('hero.title')}
+              <br />
+              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                {t('hero.subtitle')}
+              </span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-xl md:text-2xl text-white/70 mb-10 leading-relaxed"
+            >
+              {t('hero.description').split('\n').map((line, index) => (
+                <span key={index}>
+                  {line}
+                  {index === 0 && <br />}
+                </span>
+              ))}
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="flex flex-col sm:flex-row items-center gap-4"
+            >
+              <Link
+                href="/login"
+                className="px-8 py-4 bg-white text-black rounded-full font-semibold text-lg hover:bg-white/90 transition-all flex items-center gap-2 group"
+              >
+                {t('hero.freeTrialButton')}
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+
+              <a
+                href="#demo"
+                className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-full font-semibold text-lg hover:bg-white/20 transition-all border border-white/20"
+              >
+                {t('hero.demoButton')}
+              </a>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="mt-12 flex items-center gap-8 text-sm text-white/50"
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span>{t('hero.noCreditCard')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span>{t('hero.startIn5Min')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span>{t('hero.cancelAnytime')}</span>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Demo Section */}
+      <section id="demo" className="py-32 relative">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              {t('demo.title')}{' '}
+              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                {t('demo.titleHighlight')}
+              </span>
+            </h2>
+            <p className="text-xl text-white/70">
+              {t('demo.subtitle')}
+            </p>
+          </motion.div>
+
+          {/* 3-Step Demo Process */}
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            {demoSteps.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                  className="relative"
+                >
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-purple-500/50 transition-all">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-bold text-xl">
+                        {step.step}
+                      </div>
+                      <Icon className={`w-8 h-8 ${step.color}`} />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
+                    <p className="text-white/60">{step.description}</p>
+                  </div>
+                  {index < demoSteps.length - 1 && (
+                    <div className="hidden md:block absolute top-1/2 -right-4 z-10">
+                      <ArrowRight className="w-8 h-8 text-white/20" />
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Interactive Demo Area */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-3xl p-12 border border-white/10"
+          >
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-32 h-32 bg-white/10 rounded-3xl mb-6 group cursor-pointer hover:bg-white/20 transition-all">
+                <Upload className="w-16 h-16 text-white/70 group-hover:scale-110 transition-transform" />
+              </div>
+              <h3 className="text-2xl font-semibold mb-4">{t('demo.uploadArea.dragDrop')}</h3>
+              <p className="text-white/60 mb-8">{t('demo.uploadArea.clickToSelect')}</p>
+              <button className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all">
+                {t('demo.uploadArea.startDemo')}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section id="features" className="py-32 bg-white/[0.02]">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              {t('features.title')}
+            </h2>
+            <p className="text-xl text-white/70">
+              {t('features.subtitle')}
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[
+              {
+                icon: Camera,
+                title: t('features.items.imageOcr.title'),
+                description: t('features.items.imageOcr.description'),
+                stats: t('features.items.imageOcr.stats')
+              },
+              {
+                icon: ScanLine,
+                title: t('features.items.textAnalysis.title'),
+                description: t('features.items.textAnalysis.description'),
+                stats: t('features.items.textAnalysis.stats')
+              },
+              {
+                icon: MessageSquare,
+                title: t('features.items.nlp.title'),
+                description: t('features.items.nlp.description'),
+                stats: t('features.items.nlp.stats')
+              },
+              {
+                icon: Calendar,
+                title: t('features.items.calendar.title'),
+                description: t('features.items.calendar.description'),
+                stats: t('features.items.calendar.stats')
+              },
+              {
+                icon: MapPin,
+                title: t('features.items.location.title'),
+                description: t('features.items.location.description'),
+                stats: t('features.items.location.stats')
+              },
+              {
+                icon: Zap,
+                title: t('features.items.oneClick.title'),
+                description: t('features.items.oneClick.description'),
+                stats: t('features.items.oneClick.stats')
+              }
+            ].map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-purple-500/50 transition-all group"
+                >
+                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <Icon className="w-7 h-7 text-white" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                  <p className="text-white/60 mb-4">{feature.description}</p>
+                  <div className="text-sm text-purple-400 font-medium">{feature.stats}</div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section id="testimonials" className="py-32">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              {t('testimonials.title')}
+            </h2>
+            <p className="text-xl text-white/70">
+              {t('testimonials.subtitle')}
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {testimonials.map((testimonial, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-2xl p-8 border border-white/10"
+              >
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="text-4xl">{testimonial.avatar}</div>
+                  <div>
+                    <div className="font-semibold">{testimonial.name}</div>
+                    <div className="text-sm text-white/60">{testimonial.role}</div>
+                  </div>
+                </div>
+                <p className="text-white/80 mb-6 italic">"{testimonial.content}"</p>
+                <div className="flex items-center gap-2 text-green-400">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="font-medium">{testimonial.saved}</span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-32 bg-white/[0.02]">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              {t('pricing.title')}
+            </h2>
+            <p className="text-xl text-white/70">
+              {t('pricing.subtitle')}
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {/* Free Plan */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10"
+            >
+              <h3 className="text-2xl font-bold mb-2">{t('pricing.plans.free.name')}</h3>
+              <p className="text-white/60 mb-6">{t('pricing.plans.free.description')}</p>
+              <div className="text-4xl font-bold mb-6">{t('pricing.plans.free.price')}<span className="text-base font-normal text-white/60">{t('pricing.plans.free.priceUnit')}</span></div>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.free.features.0')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.free.features.1')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.free.features.2')}</span>
+                </li>
+              </ul>
+              
+              <Link href="/login?plan=free" className="block w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium text-center transition-all">
+                {t('pricing.plans.free.button')}
+              </Link>
+            </motion.div>
+
+            {/* Pro Plan (Popular) */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-2xl p-8 border border-purple-500/30 relative"
+            >
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-sm font-semibold">
+                {t('pricing.mostPopular')}
+              </div>
+              
+              <h3 className="text-2xl font-bold mb-2">{t('pricing.plans.pro.name')}</h3>
+              <p className="text-white/60 mb-6">{t('pricing.plans.pro.description')}</p>
+              <div className="text-4xl font-bold mb-6">{t('pricing.plans.pro.price')}<span className="text-base font-normal text-white/60">{t('pricing.plans.pro.priceUnit')}</span></div>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.pro.features.0')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.pro.features.1')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.pro.features.2')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.pro.features.3')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.pro.features.4')}</span>
+                </li>
+              </ul>
+              
+              <Link href="/login?plan=pro" className="block w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/25 text-white rounded-full font-medium text-center transition-all">
+                {t('hero.freeTrialButton')}
+              </Link>
+            </motion.div>
+
+            {/* Team Plan */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+              className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10"
+            >
+              <h3 className="text-2xl font-bold mb-2">{t('pricing.plans.team.name')}</h3>
+              <p className="text-white/60 mb-6">{t('pricing.plans.team.description')}</p>
+              <div className="text-4xl font-bold mb-6">{t('pricing.plans.team.price')}<span className="text-base font-normal text-white/60">{t('pricing.plans.team.priceUnit')}</span></div>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.team.features.0')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.team.features.1')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.team.features.2')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.team.features.3')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-white/80">{t('pricing.plans.team.features.4')}</span>
+                </li>
+              </ul>
+              
+              <Link href="/login?plan=team" className="block w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium text-center transition-all">
+                {t('pricing.plans.team.button')}
+              </Link>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-32">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl p-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              {t('cta.title')}
+            </h2>
+            <p className="text-xl mb-8 text-white/90">
+              {t('cta.subtitle').split('\n').map((line, index) => (
+                <span key={index}>
+                  {line}
+                  {index === 0 && <br />}
+                </span>
+              ))}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href="/login"
+                className="px-8 py-4 bg-white text-black rounded-full font-semibold text-lg hover:bg-white/90 transition-all"
+              >
+                {t('cta.startButton')}
+              </Link>
+              <Link
+                href="/subscription"
+                className="px-8 py-4 bg-white/20 text-white rounded-full font-semibold text-lg hover:bg-white/30 transition-all border border-white/30"
+              >
+                {t('cta.viewPlans')}
+              </Link>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-4 text-sm">
+              <div className="flex items-center gap-1">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                ))}
+              </div>
+              <span className="text-white/90">{t('cta.rating')} ({t('cta.reviews')})</span>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-16 border-t border-white/10">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <Logo size={24} color="#fff" />
+                <span className="font-medium">Geulpi</span>
+              </div>
+              <p className="text-sm text-white/60">
+                {t('footer.tagline').split('\n').map((line, index) => (
+                  <span key={index}>
+                    {line}
+                    {index === 0 && <br />}
+                  </span>
+                ))}
+              </p>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold mb-4">{t('footer.product.title')}</h4>
+              <ul className="space-y-2">
+                <li><a href="#features" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.product.features')}</a></li>
+                <li><a href="#pricing" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.product.pricing')}</a></li>
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.product.updates')}</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold mb-4">{t('footer.company.title')}</h4>
+              <ul className="space-y-2">
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.company.about')}</a></li>
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.company.careers')}</a></li>
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.company.blog')}</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold mb-4">{t('footer.support.title')}</h4>
+              <ul className="space-y-2">
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.support.help')}</a></li>
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.support.contact')}</a></li>
+                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.support.apiDocs')}</a></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-white/40">
+              {t('footer.copyright')}
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm text-white/60">
+              <Link href="/terms" className="hover:text-white transition-colors">{t('footer.legal.terms')}</Link>
+              <Link href="/privacy" className="hover:text-white transition-colors">{t('footer.legal.privacy')}</Link>
+              <Link href="/cookies" className="hover:text-white transition-colors">{t('footer.legal.cookies')}</Link>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

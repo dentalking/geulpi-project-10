@@ -1,0 +1,243 @@
+/* =================================================================
+   Language-Specific Font Optimization
+   ================================================================= */
+
+/* 
+ * Optimized font stacks for different languages
+ * Ensures best reading experience for each language
+ */
+
+/* =================================================================
+   Korean (한국어) Font Stack
+   ================================================================= */
+[lang="ko"],
+[lang="ko-KR"] {
+  font-family: 
+    'Pretendard Variable',           /* Primary Korean web font */
+    'Pretendard',                    /* Fallback */
+    -apple-system,                   /* macOS/iOS system font */
+    'Apple SD Gothic Neo',           /* macOS Korean */
+    'SF Pro KR',                     /* Apple Korean variant */
+    'Noto Sans KR',                  /* Google Korean font */
+    'Malgun Gothic',                 /* Windows Korean */
+    '맑은 고딕',                      /* Malgun Gothic Korean name */
+    'Nanum Gothic',                  /* Alternative Korean */
+    'Apple Gothic',                  /* Legacy Apple Korean */
+    'HY Gothic',                     /* Legacy Korean */
+    sans-serif;
+  
+  /* Korean-specific letter spacing for better readability */
+  letter-spacing: -0.01em;
+  word-break: keep-all;            /* Prevent word breaks in Korean */
+  line-break: strict;               /* Strict line breaking for Korean */
+  
+  /* Font weight adjustments for Korean */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+}
+
+/* Korean headings - slightly different tracking */
+[lang="ko"] h1,
+[lang="ko"] h2,
+[lang="ko"] h3,
+[lang="ko"] h4,
+[lang="ko"] h5,
+[lang="ko"] h6 {
+  letter-spacing: -0.02em;
+  font-feature-settings: "kern" 1;
+}
+
+/* =================================================================
+   English Font Stack
+   ================================================================= */
+[lang="en"],
+[lang="en-US"],
+[lang="en-GB"] {
+  font-family: 
+    -apple-system,                   /* macOS/iOS system font */
+    'SF Pro Display',                /* Apple's San Francisco */
+    'SF Pro Text',                   /* SF for smaller text */
+    'Inter',                         /* Modern web font */
+    'Helvetica Neue',                /* Classic fallback */
+    'Segoe UI',                      /* Windows */
+    'Roboto',                        /* Android */
+    'Ubuntu',                        /* Ubuntu Linux */
+    'Oxygen',                        /* KDE */
+    'Cantarell',                     /* GNOME */
+    'Fira Sans',                     /* Firefox OS */
+    'Droid Sans',                    /* Older Android */
+    sans-serif;
+  
+  /* English-specific typography settings */
+  letter-spacing: -0.017em;         /* Apple's default tracking */
+  font-feature-settings: 
+    "kern" 1,                       /* Kerning */
+    "liga" 1,                       /* Ligatures */
+    "calt" 1;                       /* Contextual alternates */
+}
+
+/* English headings - tighter tracking */
+[lang="en"] h1,
+[lang="en"] h2,
+[lang="en"] h3 {
+  letter-spacing: -0.022em;
+  font-feature-settings: 
+    "kern" 1,
+    "liga" 1,
+    "calt" 1,
+    "ss01" 1;                       /* Stylistic alternates */
+}
+
+/* =================================================================
+   Japanese (日本語) Font Stack - Future Support
+   ================================================================= */
+[lang="ja"],
+[lang="ja-JP"] {
+  font-family: 
+    -apple-system,
+    'Hiragino Kaku Gothic ProN',
+    'Hiragino Sans',
+    'Yu Gothic',
+    'Meiryo',
+    'Noto Sans JP',
+    sans-serif;
+  
+  line-height: 1.7;                 /* Increased for Japanese readability */
+  letter-spacing: 0.02em;
+}
+
+/* =================================================================
+   Chinese Simplified (简体中文) Font Stack - Future Support
+   ================================================================= */
+[lang="zh"],
+[lang="zh-CN"] {
+  font-family: 
+    -apple-system,
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    'Noto Sans CJK SC',
+    'Source Han Sans SC',
+    sans-serif;
+  
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+}
+
+/* =================================================================
+   Font Loading Optimization
+   ================================================================= */
+
+/* Pretendard Variable Font for Korean */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 100 900;
+  font-display: swap;               /* Faster font loading */
+  src: local('Pretendard Variable'),
+       url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.woff2') format('woff2-variations');
+}
+
+/* Inter Variable Font for English */
+@font-face {
+  font-family: 'Inter';
+  font-weight: 100 900;
+  font-display: swap;
+  src: local('Inter'),
+       url('https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff2') format('woff2');
+}
+
+/* =================================================================
+   Font Size Adjustments per Language
+   ================================================================= */
+
+/* Korean typically needs slightly larger font sizes */
+[lang="ko"] {
+  --font-size-adjustment: 1.02;
+}
+
+[lang="ko"] body {
+  font-size: calc(var(--font-base) * var(--font-size-adjustment, 1));
+}
+
+/* English standard sizing */
+[lang="en"] {
+  --font-size-adjustment: 1;
+}
+
+/* =================================================================
+   Code Font Stacks
+   ================================================================= */
+
+code,
+pre,
+kbd,
+samp,
+.monospace {
+  font-family: 
+    'SF Mono',                      /* macOS/iOS */
+    'Monaco',                       /* macOS classic */
+    'Cascadia Code',                /* Windows Terminal */
+    'Roboto Mono',                  /* Google */
+    'Fira Code',                    /* With ligatures */
+    'JetBrains Mono',              /* JetBrains */
+    'Consolas',                     /* Windows */
+    'Courier New',                  /* Fallback */
+    monospace;
+  
+  font-feature-settings: 
+    "liga" 1,                       /* Ligatures for code */
+    "calt" 1;                       /* Contextual alternates */
+  
+  /* Consistent sizing across languages */
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+/* =================================================================
+   Number Formatting
+   ================================================================= */
+
+/* Ensure consistent number rendering across languages */
+.number,
+.price,
+.statistic {
+  font-feature-settings: 
+    "tnum" 1,                       /* Tabular numbers */
+    "lnum" 1;                       /* Lining numbers */
+}
+
+/* =================================================================
+   Performance Optimizations
+   ================================================================= */
+
+/* Optimize font rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;            /* Prevent fake bold/italic */
+}
+
+/* Optimize for high-DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  body {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* =================================================================
+   Print Styles
+   ================================================================= */
+
+@media print {
+  body {
+    font-family: 'Times New Roman', 'Batang', serif;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+  
+  [lang="ko"] {
+    font-family: 'Batang', 'Times New Roman', serif;
+  }
+}
