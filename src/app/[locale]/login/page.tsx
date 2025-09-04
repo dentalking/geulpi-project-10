@@ -85,7 +85,7 @@ export default function LoginPage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href={`/${locale}/landing`} className="flex items-center gap-3 group">
             <div className="relative">
-              <Logo size={32} color="#fff" className="transition-transform group-hover:scale-110" />
+              <Logo size={32} className="transition-transform group-hover:scale-110" />
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
             </div>
             <span className="text-2xl font-medium" style={{ color: 'var(--text-primary)' }}>GEULPI</span>
@@ -122,7 +122,8 @@ export default function LoginPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-3 rounded-2xl mb-6 text-center text-sm"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 p-3 rounded-2xl mb-6 text-center text-sm"
+              style={{ color: 'var(--text-on-accent)' }}
             >
               {planFromUrl === 'pro' && t('login.planSelected.pro')}
               {planFromUrl === 'team' && t('login.planSelected.team')}
@@ -138,7 +139,7 @@ export default function LoginPage() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="flex items-center justify-center gap-3 mb-6"
             >
-              <Logo size={56} color="#fff" />
+              <Logo size={56} />
             </motion.div>
             <motion.h1
               initial={{ opacity: 0 }}
@@ -218,7 +219,7 @@ export default function LoginPage() {
 
                   <div className="relative my-8">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-white/20"></div>
+                      <div className="w-full border-t" style={{ borderColor: 'var(--border-default)' }}></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
                       <span className="px-4 backdrop-blur-sm rounded-full" style={{ background: 'var(--surface-primary)', color: 'var(--text-tertiary)' }}>{t('login.or')}</span>
