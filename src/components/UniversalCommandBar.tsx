@@ -11,8 +11,8 @@ import {
   Sparkles,
   Command,
   ArrowRight,
-  Check,
-  X,
+  CheckCircle,
+  XCircle,
   Edit,
   Trash2,
   Loader2
@@ -48,6 +48,7 @@ export default function UniversalCommandBar({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [commandResult, setCommandResult] = useState<any>(null);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -204,17 +205,35 @@ export default function UniversalCommandBar({
       
       const data = await response.json();
       if (data.type === 'action' && data.action === 'event_created') {
+        // 성공 애니메이션 표시
+        setShowSuccessAnimation(true);
+        setTimeout(() => setShowSuccessAnimation(false), 2000);
+        
         toast.success('일정 생성 완료', data.message);
-        onEventSync();
+        
+        // 캘린더 뷰 즉시 업데이트
+        setTimeout(() => {
+          onEventSync();
+        }, 100);
+        
         setCommandResult({
           type: 'success',
           message: data.message,
           event: data.data
         });
-        setQuery('');
-        setIsOpen(false);
+        
+        // 잠시 후 입력창 초기화
+        setTimeout(() => {
+          setQuery('');
+          setIsOpen(false);
+          setCommandResult(null);
+        }, 2500);
       } else if (data.type === 'error') {
         toast.error('오류', data.message);
+        setCommandResult({
+          type: 'error',
+          message: data.message
+        });
       }
     } catch (error) {
       toast.error('오류', '일정 생성에 실패했습니다');
@@ -287,16 +306,24 @@ export default function UniversalCommandBar({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < suggestions.length - 1 ? prev + 1 : 0
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev < suggestions.length - 1 ? prev + 1 : 0;
+          // 선택된 항목으로 스크롤
+          const element = document.getElementById(`suggestion-${newIndex}`);
+          element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          return newIndex;
+        });
         break;
       
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev > 0 ? prev - 1 : suggestions.length - 1
-        );
+        setSelectedIndex(prev => {
+          const newIndex = prev > 0 ? prev - 1 : suggestions.length - 1;
+          // 선택된 항목으로 스크롤
+          const element = document.getElementById(`suggestion-${newIndex}`);
+          element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          return newIndex;
+        });
         break;
       
       case 'Enter':
@@ -309,6 +336,29 @@ export default function UniversalCommandBar({
       case 'Escape':
         setIsOpen(false);
         setQuery('');
+        inputRef.current?.blur();
+        break;
+      
+      case 'Tab':
+        // Tab 키로도 제안 탐색 가능
+        if (isOpen && suggestions.length > 0) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            setSelectedIndex(prev => {
+              const newIndex = prev > 0 ? prev - 1 : suggestions.length - 1;
+              const element = document.getElementById(`suggestion-${newIndex}`);
+              element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              return newIndex;
+            });
+          } else {
+            setSelectedIndex(prev => {
+              const newIndex = prev < suggestions.length - 1 ? prev + 1 : 0;
+              const element = document.getElementById(`suggestion-${newIndex}`);
+              element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              return newIndex;
+            });
+          }
+        }
         break;
     }
   };
@@ -343,10 +393,37 @@ export default function UniversalCommandBar({
         {/* 입력 필드 */}
         <div className="relative">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-            <Search className="w-5 h-5 text-white/40" />
-            {isLoading && (
-              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-            )}
+            <AnimatePresence mode="wait">
+              {showSuccessAnimation ? (
+                <motion.div
+                  key="success"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                </motion.div>
+              ) : isLoading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="search"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Search className="w-5 h-5 text-white/40" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           
           <input
@@ -357,11 +434,21 @@ export default function UniversalCommandBar({
             onFocus={() => setIsOpen(true)}
             onKeyDown={handleKeyDown}
             placeholder="일정 검색 또는 명령어 입력... (Cmd+K)"
-            className="w-full pl-10 pr-12 py-3 bg-white/5 backdrop-blur-sm 
-                     border border-white/10 rounded-xl text-white 
+            aria-label="일정 검색 및 명령어 입력"
+            aria-expanded={isOpen}
+            aria-controls="command-suggestions"
+            aria-activedescendant={selectedIndex >= 0 ? `suggestion-${selectedIndex}` : undefined}
+            role="combobox"
+            aria-autocomplete="list"
+            className={`w-full pl-12 pr-12 py-3 bg-white/5 backdrop-blur-sm 
+                     border rounded-xl text-white 
                      placeholder:text-white/40 focus:outline-none 
-                     focus:border-purple-500/50 focus:bg-white/10 
-                     transition-all text-sm"
+                     focus:bg-white/10 
+                     transition-all text-sm ${
+                       showSuccessAnimation ? 'border-green-500/50' :
+                       isLoading ? 'border-purple-500/50' :
+                       'border-white/10 focus:border-purple-500/50'
+                     }`}
           />
           
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -370,9 +457,10 @@ export default function UniversalCommandBar({
             </kbd>
           </div>
         </div>
+      </div>
 
-        {/* 드롭다운 결과 */}
-        <AnimatePresence>
+      {/* 드롭다운 결과 */}
+      <AnimatePresence>
           {isOpen && (query || suggestions.length > 0) && (
             <motion.div
               ref={dropdownRef}
@@ -384,19 +472,24 @@ export default function UniversalCommandBar({
                        shadow-2xl shadow-purple-500/10 z-50"
             >
               {/* 제안 목록 */}
-              <div className="py-2">
+              <div className="py-2" role="listbox" id="command-suggestions">
                 {suggestions.map((suggestion, index) => (
                   <button
                     key={index}
+                    id={`suggestion-${index}`}
                     onClick={() => suggestion.action()}
                     onMouseEnter={() => setSelectedIndex(index)}
+                    role="option"
+                    aria-selected={selectedIndex === index}
+                    aria-label={`${suggestion.label}${suggestion.description ? `, ${suggestion.description}` : ''}`}
                     className={`w-full px-4 py-3 flex items-center gap-3 
-                              transition-colors text-left
+                              transition-colors text-left focus:outline-none
+                              focus:bg-purple-500/20 focus:text-white
                               ${selectedIndex === index 
                                 ? 'bg-purple-500/20 text-white' 
                                 : 'text-white/80 hover:bg-white/5'}`}
                   >
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0" aria-hidden="true">
                       {suggestion.icon}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -409,17 +502,33 @@ export default function UniversalCommandBar({
                         </div>
                       )}
                     </div>
-                    <ArrowRight className="w-4 h-4 text-white/30 flex-shrink-0" />
+                    <ArrowRight className="w-4 h-4 text-white/30 flex-shrink-0" aria-hidden="true" />
                   </button>
                 ))}
               </div>
 
               {/* 결과 표시 영역 */}
               {commandResult && (
-                <div className="border-t border-white/10 p-4 bg-white/5">
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="border-t border-white/10 p-4 bg-white/5"
+                >
                   {commandResult.type === 'success' && (
-                    <div className="flex items-center gap-3">
-                      <Check className="w-5 h-5 text-green-400" />
+                    <motion.div 
+                      className="flex items-center gap-3"
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
+                      >
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                      </motion.div>
                       <div>
                         <p className="text-sm font-medium text-green-400">
                           {commandResult.message}
@@ -430,7 +539,32 @@ export default function UniversalCommandBar({
                           </p>
                         )}
                       </div>
-                    </div>
+                    </motion.div>
+                  )}
+                  
+                  {commandResult.type === 'error' && (
+                    <motion.div 
+                      className="flex items-center gap-3"
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
+                      >
+                        <XCircle className="w-5 h-5 text-red-400" />
+                      </motion.div>
+                      <div>
+                        <p className="text-sm font-medium text-red-400">
+                          오류가 발생했습니다
+                        </p>
+                        <p className="text-xs text-white/60 mt-1">
+                          {commandResult.message}
+                        </p>
+                      </div>
+                    </motion.div>
                   )}
                   
                   {commandResult.type === 'answer' && (
@@ -470,7 +604,7 @@ export default function UniversalCommandBar({
                       </div>
                     </div>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* 팁 표시 */}
@@ -482,7 +616,6 @@ export default function UniversalCommandBar({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useToastContext } from '@/providers/ToastProvider';
 import type { CalendarEvent } from '@/types';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { 
   Calendar, 
   Clock, 
@@ -22,18 +22,30 @@ import {
   Grid3x3,
   List,
   Filter,
-  Zap
+  Zap,
+  Menu,
+  X,
+  Search,
+  Plus
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import Link from 'next/link';
+import { FullPageLoader, CalendarSkeleton, EventListSkeleton } from '@/components/LoadingStates';
 
-const UniversalCommandBar = dynamic(() => import('@/components/UniversalCommandBar'), { ssr: false });
-const SimpleCalendar = dynamic(() => import('@/components/SimpleCalendar'), { ssr: false });
+const UniversalCommandBar = dynamic(() => import('@/components/UniversalCommandBar'), { 
+  ssr: false,
+  loading: () => <div className="h-12 bg-white/5 animate-pulse rounded-xl" />
+});
+const SimpleCalendar = dynamic(() => import('@/components/SimpleCalendar'), { 
+  ssr: false,
+  loading: () => <CalendarSkeleton />
+});
 const GoogleCalendarLink = dynamic(() => import('@/components/GoogleCalendarLink'), { ssr: false });
 const SettingsPanel = dynamic(() => import('@/components/SettingsPanel'), { ssr: false });
 
 export default function DashboardPage() {
   const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const { toast } = useToastContext();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,6 +69,7 @@ export default function DashboardPage() {
   }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const checkAuth = async () => {
     try {
@@ -179,30 +192,15 @@ export default function DashboardPage() {
   ]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center"
-        >
-          <div className="w-16 h-16 mx-auto mb-4 relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse-glow" />
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-spin" 
-                 style={{ animation: 'spin 2s linear infinite' }} />
-          </div>
-          <p style={{ color: 'var(--text-tertiary)' }}>{t('common.loading')}</p>
-        </motion.div>
-      </div>
-    );
+    return <FullPageLoader message={t('common.loading')} />;
   }
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Background Effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" style={{ background: 'var(--effect-purple)' }} />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse delay-1000" style={{ background: 'var(--effect-pink)' }} />
       </div>
 
       {/* Navigation Bar */}
@@ -211,36 +209,69 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             {/* Left Section */}
             <div className="flex items-center gap-6">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+                className="lg:hidden p-2 rounded-lg transition-all"
+                style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                aria-label="Menu"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+              
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="relative">
                   <Logo size={32} color="currentColor" className="transition-transform group-hover:scale-110" />
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
                 </div>
-                <span className="text-xl font-medium">Geulpi</span>
+                <span className="text-xl font-medium hidden sm:inline">Geulpi</span>
               </Link>
               
-              <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <span className="text-sm text-purple-200">{events.length} Events</span>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-default)' }}>
+                <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{events.length} Events</span>
               </div>
             </div>
 
             {/* Center - Universal Command Bar */}
-            <div className="flex-1 mx-8">
+            <div className="flex-1 mx-2 sm:mx-4 lg:mx-8 hidden sm:block">
               <UniversalCommandBar
                 events={events}
                 onEventSync={syncEvents}
                 sessionId={sessionId}
               />
             </div>
+            
+            {/* Mobile Search Button */}
+            <button
+              onClick={() => {
+                const input = document.querySelector('input[placeholder*="명령어"]') as HTMLInputElement;
+                const mobileBar = document.getElementById('mobile-command-bar');
+                if (mobileBar) {
+                  mobileBar.style.display = 'block';
+                  setTimeout(() => input?.focus(), 100);
+                }
+              }}
+              className="sm:hidden p-2 rounded-lg transition-all"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              aria-label="Search"
+            >
+              <Search className="w-5 h-5" />
+            </button>
 
             {/* Right Section */}
-            <div className="flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-3">
               <div className="relative">
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 rounded-lg transition-all relative hover:bg-white/10 dark:hover:bg-white/10"
+                  className="p-2 rounded-lg transition-all relative"
                   style={{ color: 'var(--text-tertiary)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   aria-label={t('dashboard.notifications')}
                 >
                   <Bell className="w-5 h-5" />
@@ -254,8 +285,10 @@ export default function DashboardPage() {
               
               <button 
                 onClick={() => setShowSettings(!showSettings)}
-                className="p-2 rounded-lg transition-all hover:bg-white/10 dark:hover:bg-white/10"
+                className="p-2 rounded-lg transition-all"
                 style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 aria-label={t('common.settings')}
               >
                 <Settings className="w-5 h-5" />
@@ -272,7 +305,10 @@ export default function DashboardPage() {
 
               <a
                 href="/api/auth/logout"
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full transition-all"
+                className="flex items-center gap-2 px-4 py-2 backdrop-blur-sm rounded-full transition-all"
+                style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-default)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-secondary)'; e.currentTarget.style.borderColor = 'var(--border-default)'; }}
               >
                 <LogOut className="w-4 h-4" />
                 <span className="text-sm">{t('auth.logout')}</span>
@@ -282,27 +318,124 @@ export default function DashboardPage() {
         </div>
       </nav>
 
+      {/* Mobile Sidebar */}
+      <AnimatePresence>
+        {showMobileSidebar && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMobileSidebar(false)}
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            />
+            
+            {/* Sidebar */}
+            <motion.div
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed left-0 top-0 bottom-0 w-72 z-50 overflow-y-auto lg:hidden"
+              style={{ background: 'var(--bg-primary)' }}
+            >
+              <div className="p-4" style={{ background: 'var(--glass-bg)' }}>
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold">Menu</h2>
+                  <button
+                    onClick={() => setShowMobileSidebar(false)}
+                    className="p-2 rounded-lg transition-all"
+                    style={{ color: 'var(--text-tertiary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Events Count */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-default)' }}>
+                  <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{events.length} Events</span>
+                </div>
+                
+                {/* Menu Items */}
+                <div className="space-y-2">
+                  <button 
+                    onClick={() => { setShowNotifications(!showNotifications); setShowMobileSidebar(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
+                    style={{ color: 'var(--text-primary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <Bell className="w-5 h-5" />
+                    <span>{t('dashboard.notifications')}</span>
+                    {unreadCount > 0 && (
+                      <span className="ml-auto w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  
+                  <button 
+                    onClick={() => { setShowSettings(!showSettings); setShowMobileSidebar(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
+                    style={{ color: 'var(--text-primary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <Settings className="w-5 h-5" />
+                    <span>{t('common.settings')}</span>
+                  </button>
+                  
+                  <div className="pt-2 mt-2" style={{ borderTop: '1px solid var(--border-default)' }}>
+                    <a
+                      href="/api/auth/logout"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
+                      style={{ color: 'var(--text-primary)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <LogOut className="w-5 h-5" />
+                      <span>{t('auth.logout')}</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Main Content */}
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Header Actions */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
               {t('dashboard.title')}
             </h1>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                className="p-2 rounded-lg transition-all"
+                style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="px-4 py-1 bg-white/5 border border-white/10 rounded-lg font-medium">
-                {currentDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })}
+              <span className="px-4 py-1 rounded-lg font-medium" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}>
+                {currentDate.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'long' })}
               </span>
               <button
                 onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                className="p-2 rounded-lg transition-all"
+                style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -312,7 +445,10 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+              className="p-2 rounded-lg transition-all"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
             >
               {viewMode === 'grid' ? <List className="w-5 h-5" /> : <Grid3x3 className="w-5 h-5" />}
             </button>
@@ -327,19 +463,23 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="mb-4 p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-sm border border-purple-500/30 rounded-xl flex items-center gap-3"
+              className="mb-4 p-4 backdrop-blur-sm rounded-xl flex items-center gap-3"
+              style={{ background: 'var(--surface-secondary)', border: '1px solid var(--accent-primary)', opacity: '0.9' }}
             >
-              <Zap className="w-5 h-5 text-purple-400" />
+              <Zap className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
               <div className="flex-1">
-                <strong className="text-purple-200">{t('dashboard.selectedEvent')}:</strong> 
-                <span className="ml-2 text-white/80">{selectedEvent.summary}</span>
+                <strong style={{ color: 'var(--accent-primary)' }}>{t('dashboard.selectedEvent')}:</strong> 
+                <span className="ml-2" style={{ color: 'var(--text-secondary)' }}>{selectedEvent.summary}</span>
               </div>
               <button
                 onClick={() => {
                   setSelectedEvent(null);
                   setSelectedEventId(undefined);
                 }}
-                className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded-full text-sm transition-all"
+                className="px-3 py-1 rounded-full text-sm transition-all"
+                style={{ background: 'var(--surface-tertiary)', color: 'var(--text-primary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-tertiary)'}
               >
                 {t('common.close')}
               </button>
@@ -361,7 +501,7 @@ export default function DashboardPage() {
               onEventClick={handleEventClick}
               onTimeSlotClick={(date, hour) => {
                 setCurrentDate(date);
-                const dateStr = date.toLocaleDateString('ko-KR', { 
+                const dateStr = date.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { 
                   month: 'long', 
                   day: 'numeric',
                   weekday: 'short'
@@ -392,10 +532,12 @@ export default function DashboardPage() {
               const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
               return eventDate >= now && eventDate <= weekFromNow;
             }).length, color: 'from-green-500 to-emerald-500' },
-            { icon: Users, label: t('dashboard.stats.meetings'), value: events.filter(e => 
-              e.summary?.toLowerCase().includes('meeting') || 
-              e.summary?.toLowerCase().includes('미팅')
-            ).length, color: 'from-orange-500 to-red-500' },
+            { icon: Users, label: t('dashboard.stats.meetings'), value: events.filter(e => {
+              const summary = e.summary?.toLowerCase() || '';
+              return summary.includes('meeting') || 
+                     summary.includes('meet') ||
+                     (locale === 'ko' && summary.includes('미팅'));
+            }).length, color: 'from-orange-500 to-red-500' },
             { icon: MapPin, label: t('dashboard.stats.withLocation'), value: events.filter(e => e.location).length, color: 'from-purple-500 to-pink-500' }
           ].map((stat, index) => {
             const Icon = stat.icon;
@@ -480,7 +622,7 @@ export default function DashboardPage() {
                         <div className="flex-1">
                           <p className="text-sm text-white/80">{notification.message}</p>
                           <p className="text-xs text-white/40 mt-1">
-                            {notification.time.toLocaleTimeString('ko-KR', { 
+                            {notification.time.toLocaleTimeString(locale === 'ko' ? 'ko-KR' : 'en-US', { 
                               hour: '2-digit', 
                               minute: '2-digit' 
                             })}
@@ -562,6 +704,79 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Mobile Floating Action Button */}
+      <button
+        onClick={() => {
+          const mobileBar = document.getElementById('mobile-command-bar');
+          if (mobileBar) {
+            mobileBar.style.display = 'flex';
+            setTimeout(() => {
+              const input = mobileBar.querySelector('input') as HTMLInputElement;
+              input?.focus();
+            }, 100);
+          }
+        }}
+        className="sm:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all"
+        style={{
+          background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
+          boxShadow: '0 8px 32px rgba(139, 92, 246, 0.3)'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+        aria-label="Add Event"
+      >
+        <Plus className="w-6 h-6 text-white" />
+      </button>
+      
+      {/* Mobile Command Bar Overlay */}
+      <div 
+        id="mobile-command-bar"
+        className="sm:hidden fixed inset-0 z-50 flex-col items-center justify-end hidden"
+        style={{
+          background: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(10px)'
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            e.currentTarget.style.display = 'none';
+          }
+        }}
+      >
+        <motion.div
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="w-full bg-gradient-to-t from-black to-gray-900 p-4 pb-8 rounded-t-2xl"
+          style={{
+            maxHeight: '70vh',
+            overflowY: 'auto'
+          }}
+        >
+          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+          <UniversalCommandBar
+            events={events}
+            onEventSync={syncEvents}
+            sessionId={sessionId}
+          />
+          <button
+            onClick={() => {
+              const mobileBar = document.getElementById('mobile-command-bar');
+              if (mobileBar) {
+                mobileBar.style.display = 'none';
+              }
+            }}
+            className="mt-4 w-full py-3 bg-white/10 backdrop-blur rounded-xl text-white font-medium"
+          >
+            {t('common.close')}
+          </button>
+        </motion.div>
+      </div>
     </div>
   );
 }

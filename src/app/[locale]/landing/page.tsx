@@ -246,9 +246,9 @@ export default function LandingPage() {
               transition={{ duration: 0.6 }}
               className="mb-6"
             >
-              <span className="inline-flex items-center gap-2 px-4 py-2 border rounded-full text-sm" style={{ background: 'var(--effect-overlay)', borderColor: 'var(--accent-primary)' }}>
-                <Zap className="w-4 h-4 text-purple-400" />
-                <span className="text-purple-200">{t('hero.badge')}</span>
+              <span className="inline-flex items-center gap-2 px-4 py-2 border rounded-full text-sm" style={{ background: 'var(--surface-secondary)', borderColor: 'var(--accent-primary)', opacity: '0.9' }}>
+                <Zap className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                <span style={{ color: 'var(--accent-primary)' }}>{t('hero.badge')}</span>
               </span>
             </motion.div>
 
@@ -257,10 +257,11 @@ export default function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+              style={{ color: 'var(--text-primary)' }}
             >
               {t('hero.title')}
               <br />
-              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
                 {t('hero.subtitle')}
               </span>
             </motion.h1>
@@ -288,13 +289,17 @@ export default function LandingPage() {
             >
               <Link
                 href="/login"
-                className="px-8 py-4 rounded-full font-semibold text-lg transition-all flex items-center gap-2 group"
+                className="px-8 py-4 rounded-full font-semibold text-lg transition-all flex items-center gap-2 group shadow-lg hover:shadow-xl"
                 style={{ 
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)'
+                  background: 'var(--btn-primary-bg)',
+                  color: 'var(--btn-primary-text)'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
                 {t('hero.freeTrialButton')}
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -329,15 +334,15 @@ export default function LandingPage() {
               style={{ color: 'var(--text-quaternary)' }}
             >
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
                 <span>{t('hero.noCreditCard')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
                 <span>{t('hero.startIn5Min')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
                 <span>{t('hero.cancelAnytime')}</span>
               </div>
             </motion.div>
