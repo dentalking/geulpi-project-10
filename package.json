@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "PORT=3000 next dev",
     "dev:force": "lsof -ti:3000 | xargs kill -9 2>/dev/null; PORT=3000 next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "vitest",
