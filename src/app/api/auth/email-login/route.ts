@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loginUser } from '@/lib/auth/vercel-db-auth';
+import { loginUser } from '@/lib/auth/supabase-auth';
 import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
