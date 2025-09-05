@@ -552,7 +552,6 @@ export default function LandingPage() {
                 transition={{ delay: index * 0.1 }}
                 className="rounded-2xl p-8 border"
                 style={{ background: 'var(--effect-overlay)', borderColor: 'var(--border-default)' }}
-                style={{ borderColor: 'var(--border-default)' }}
               >
                 <div className="flex items-center gap-4 mb-6">
                   <div className="text-4xl">{testimonial.avatar}</div>
