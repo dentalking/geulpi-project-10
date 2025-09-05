@@ -1,25 +1,28 @@
 /* Light Theme Variables */
 [data-theme="light"] {
-  /* Background Colors - Natural, soft light colors */
-  --bg-primary: #fafafa;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f4f4f5;
+  /* Background Colors - Clean, modern whites */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f5;
   --bg-elevated: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.04);
   
-  /* Surface Colors - Improved for light mode */
-  --surface-primary: rgba(255, 255, 255, 0.70);
-  --surface-elevated: rgba(255, 255, 255, 0.85);
-  --surface-overlay: rgba(255, 255, 255, 0.95);
+  /* Surface Colors - Crisp whites with depth */
+  --surface-primary: rgba(255, 255, 255, 1);
+  --surface-elevated: rgba(255, 255, 255, 1);
+  --surface-overlay: rgba(255, 255, 255, 0.98);
   --surface-card: rgba(255, 255, 255, 1);
-  --surface-secondary: rgba(255, 255, 255, 0.60);
-  --surface-tertiary: rgba(255, 255, 255, 0.80);
+  --surface-secondary: rgba(248, 249, 250, 1);
+  --surface-tertiary: rgba(241, 243, 245, 1);
   
-  /* Text Colors - WCAG AA Compliant Enhanced Contrast */
-  --text-primary: rgba(0, 0, 0, 0.90);    /* Enhanced from rgba(17, 24, 39, 1) */
-  --text-secondary: rgba(0, 0, 0, 0.75);  /* Enhanced from rgba(55, 65, 81, 1) */
-  --text-tertiary: rgba(0, 0, 0, 0.60);   /* Enhanced from rgba(107, 114, 128, 1) */
-  --text-quaternary: rgba(0, 0, 0, 0.45); /* Enhanced from rgba(156, 163, 175, 1) */
-  --text-disabled: rgba(0, 0, 0, 0.30);
+  /* Text Colors - Maximum readability */
+  --text-primary: #111827;     /* Deep gray-black */
+  --text-secondary: #374151;   /* Dark gray */
+  --text-tertiary: #6b7280;    /* Medium gray */
+  --text-quaternary: #9ca3af;  /* Light gray */
+  --text-disabled: #d1d5db;
+  --text-on-dark: rgba(255, 255, 255, 0.95);
+  --text-on-accent: #ffffff;
   
   /* High Contrast Text */
   --text-high-contrast: #111827;
@@ -29,42 +32,58 @@
   --text-shadow-strong: 0 1px 2px rgba(0, 0, 0, 0.05);
   --text-glow: none;
   
-  /* Glass Effects for Light Theme - Softer and more natural */
-  --glass-bg: rgba(255, 255, 255, 0.72);
+  /* Glass Effects for Light Theme - Bright and airy */
+  --glass-bg: rgba(255, 255, 255, 0.90);
   --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --glass-blur: 16px;
-  --glass-blur-heavy: 24px;
+  --glass-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 48px rgba(0, 0, 0, 0.04);
+  --glass-blur: 12px;
+  --glass-blur-heavy: 20px;
   --glass-blur-light: 8px;
+  --border-default: rgba(0, 0, 0, 0.10);
+  --border-hover: rgba(0, 0, 0, 0.15);
   
-  /* Brand Colors Adjusted for Light Theme - Vibrant but balanced */
-  --accent-primary: #4F46E5;
-  --accent-success: #10B981;
-  --accent-warning: #F59E0B;
-  --accent-danger: #EF4444;
-  --accent-info: #0EA5E9;
+  /* Brand Colors Adjusted for Light Theme - Softer, pastel tones */
+  --accent-primary: #6366F1;
+  --accent-success: #22C55E;
+  --accent-warning: #FBBF24;
+  --accent-danger: #F87171;
+  --accent-info: #38BDF8;
   
-  /* Gradient Adjustments - Softer gradients for light mode */
-  --gradient-purple-pink: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
-  --gradient-blue-cyan: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
-  --gradient-green-emerald: linear-gradient(135deg, #10B981 0%, #34D399 100%);
-  --gradient-orange-red: linear-gradient(135deg, #F97316 0%, #EF4444 100%);
+  /* Gradient Adjustments - Lighter, pastel gradients */
+  --gradient-purple-pink: linear-gradient(135deg, #A78BFA 0%, #F9A8D4 100%);
+  --gradient-blue-cyan: linear-gradient(135deg, #93C5FD 0%, #67E8F9 100%);
+  --gradient-green-emerald: linear-gradient(135deg, #86EFAC 0%, #6EE7B7 100%);
+  --gradient-orange-red: linear-gradient(135deg, #FED7AA 0%, #FCA5A5 100%);
+  
+  /* Background Effects for Light Mode - Nearly invisible */
+  --effect-purple: rgba(139, 92, 246, 0.02);
+  --effect-pink: rgba(236, 72, 153, 0.02);
+  --effect-gradient: linear-gradient(135deg, rgba(139, 92, 246, 0.01) 0%, rgba(236, 72, 153, 0.01) 100%);
+  --effect-overlay: rgba(139, 92, 246, 0.03);
+  
+  /* CTA Section - Light mode specific */
+  --cta-bg: linear-gradient(135deg, #faf5ff 0%, #fdf4ff 50%, #f3f4f6 100%);
+  --cta-text: #111827;
+  --cta-button-primary: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+  --cta-button-primary-text: #ffffff;
+  --cta-button-secondary: #f3f4f6;
+  --cta-button-secondary-text: #6366F1;
   
   /* Focus States */
   --focus-ring: 0 0 0 4px rgba(0, 0, 0, 0.06);
   --focus-ring-tight: 0 0 0 2px rgba(0, 0, 0, 0.12);
   
-  /* Input Styles - Clean and modern */
+  /* Input Styles - Clean with subtle depth */
   --input-bg: rgba(255, 255, 255, 1);
-  --input-border: rgba(209, 213, 219, 1);
-  --input-focus-border: rgba(79, 70, 229, 1);
+  --input-border: rgba(226, 232, 240, 1);
+  --input-focus-border: rgba(99, 102, 241, 1);
   
-  /* Button Styles - Clear and accessible */
-  --btn-primary-bg: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+  /* Button Styles - Vibrant primaries, clean secondaries */
+  --btn-primary-bg: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
   --btn-primary-text: #ffffff;
-  --btn-secondary-bg: rgba(243, 244, 246, 1);
+  --btn-secondary-bg: rgba(248, 250, 252, 1);
   --btn-secondary-text: var(--text-primary);
-  --btn-secondary-border: rgba(209, 213, 219, 1);
+  --btn-secondary-border: rgba(226, 232, 240, 1);
   
   /* Scrollbar for light mode */
   --scrollbar-track: rgba(0, 0, 0, 0.02);
@@ -74,24 +93,27 @@
 
 /* Dark Theme (Default) */
 [data-theme="dark"] {
-  /* Background Colors */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #141414;
+  /* Background Colors - Softer dark tones */
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #242424;
+  --bg-hover: rgba(255, 255, 255, 0.08);
   
-  /* Surface Colors */
-  --surface-primary: rgba(255, 255, 255, 0.08);
-  --surface-elevated: rgba(255, 255, 255, 0.12);
-  --surface-overlay: rgba(0, 0, 0, 0.80);
-  --surface-card: rgba(255, 255, 255, 0.06);
-  --surface-secondary: rgba(255, 255, 255, 0.06);
-  --surface-tertiary: rgba(255, 255, 255, 0.10);
+  /* Surface Colors - Better layering */
+  --surface-primary: rgba(255, 255, 255, 0.06);
+  --surface-elevated: rgba(255, 255, 255, 0.10);
+  --surface-overlay: rgba(18, 18, 18, 0.95);
+  --surface-card: rgba(255, 255, 255, 0.05);
+  --surface-secondary: rgba(255, 255, 255, 0.04);
+  --surface-tertiary: rgba(255, 255, 255, 0.08);
   
-  /* Text Colors */
-  --text-primary: rgba(255, 255, 255, 0.98);
-  --text-secondary: rgba(255, 255, 255, 0.92);
-  --text-tertiary: rgba(255, 255, 255, 0.82);
-  --text-quaternary: rgba(255, 255, 255, 0.60);
+  /* Text Colors - Optimized for dark backgrounds */
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.85);
+  --text-tertiary: rgba(255, 255, 255, 0.70);
+  --text-quaternary: rgba(255, 255, 255, 0.50);
+  --text-on-dark: rgba(255, 255, 255, 0.95);
+  --text-on-accent: #ffffff;
   
   --text-high-contrast: #ffffff;
   --text-medium-contrast: rgba(255, 255, 255, 0.98);
@@ -106,13 +128,35 @@
   --glass-blur: 50px;
   --glass-blur-heavy: 100px;
   --glass-blur-light: 20px;
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-hover: rgba(255, 255, 255, 0.15);
   
-  /* Brand Colors for Dark Theme */
-  --accent-primary: #007AFF;
-  --accent-success: #34C759;
-  --accent-warning: #FF9500;
-  --accent-danger: #FF3B30;
-  --accent-info: #5AC8FA;
+  /* Brand Colors for Dark Theme - Vibrant */
+  --accent-primary: #6366F1;
+  --accent-success: #10B981;
+  --accent-warning: #F59E0B;
+  --accent-danger: #EF4444;
+  --accent-info: #3B82F6;
+  
+  /* Gradients for Dark Mode */
+  --gradient-purple-pink: linear-gradient(135deg, #A855F7 0%, #EC4899 100%);
+  --gradient-blue-cyan: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+  --gradient-green-emerald: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+  --gradient-orange-red: linear-gradient(135deg, #F97316 0%, #EF4444 100%);
+  
+  /* Background Effects for Dark Mode - Subtle glow */
+  --effect-purple: rgba(147, 51, 234, 0.15);
+  --effect-pink: rgba(236, 72, 153, 0.15);
+  --effect-gradient: rgba(147, 51, 234, 0.03);
+  --effect-overlay: rgba(147, 51, 234, 0.08);
+  
+  /* CTA Section - Dark mode specific */
+  --cta-bg: var(--gradient-purple-pink);
+  --cta-text: #ffffff;
+  --cta-button-primary: #ffffff;
+  --cta-button-primary-text: #000000;
+  --cta-button-secondary: rgba(255, 255, 255, 0.2);
+  --cta-button-secondary-text: #ffffff;
   
   --input-bg: rgba(255, 255, 255, 0.08);
   --input-border: rgba(255, 255, 255, 0.15);
@@ -183,11 +227,12 @@ select:focus {
   border: 1px solid var(--btn-secondary-border);
 }
 
-/* Gradient overlays for light theme - Subtle and elegant */
+/* Gradient overlays for light theme - Ultra soft and airy */
 [data-theme="light"] body::before {
   background: 
-    radial-gradient(ellipse 800px 400px at 50% -30%, rgba(79, 70, 229, 0.03), transparent),
-    radial-gradient(ellipse 600px 400px at 80% 100%, rgba(236, 72, 153, 0.02), transparent);
+    radial-gradient(ellipse 1000px 600px at 50% -20%, rgba(199, 189, 255, 0.04), transparent),
+    radial-gradient(ellipse 800px 500px at 85% 100%, rgba(255, 200, 230, 0.03), transparent),
+    radial-gradient(circle at 15% 50%, rgba(180, 210, 255, 0.025), transparent);
 }
 
 /* Adjust animations for light theme */
@@ -202,9 +247,11 @@ select:focus {
 
 /* Event cards in light theme */
 [data-theme="light"] .event-card {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(229, 231, 235, 1);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 1);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  box-shadow: 
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 2px 8px -2px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .event-card:hover {
@@ -217,13 +264,14 @@ select:focus {
 
 /* Light theme specific glass styles */
 [data-theme="light"] .glass-panel {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  border: 1px solid rgba(229, 231, 235, 0.8);
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  border: 1px solid rgba(209, 213, 219, 0.8);
   box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 12px 48px -12px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 /* Light theme button enhancements */
@@ -241,17 +289,19 @@ select:focus {
 
 /* Light theme card styles */
 [data-theme="light"] .card {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(229, 231, 235, 1);
+  background: rgba(255, 255, 255, 1);
+  border: 1px solid rgba(209, 213, 219, 0.7);
   box-shadow: 
-    0 1px 3px 0 rgba(0, 0, 0, 0.1),
-    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px -4px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 [data-theme="light"] .card:hover {
   box-shadow: 
-    0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    0 12px 20px -4px rgba(0, 0, 0, 0.12),
+    0 4px 8px -2px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
 }
 
 /* Input field styles for light theme */

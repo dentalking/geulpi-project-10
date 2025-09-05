@@ -12,9 +12,11 @@ interface ShortcutConfig {
   description?: string;
 }
 
-export const useKeyboardShortcuts = (shortcuts: ShortcutConfig[]) => {
+export const useKeyboardShortcuts = (shortcuts: ShortcutConfig[] = []) => {
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
-    shortcuts.forEach((shortcut) => {
+    // Ensure shortcuts is an array
+    const shortcutArray = Array.isArray(shortcuts) ? shortcuts : [];
+    shortcutArray.forEach((shortcut) => {
       const isCtrlPressed = shortcut.ctrl ? (event.ctrlKey || event.metaKey) : true;
       const isMetaPressed = shortcut.meta ? event.metaKey : true;
       const isShiftPressed = shortcut.shift ? event.shiftKey : !shortcut.shift || event.shiftKey === false;

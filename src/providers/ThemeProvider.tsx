@@ -16,8 +16,8 @@ interface ThemeContextType {
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light');
-  const [actualTheme, setActualTheme] = useState<'dark' | 'light'>('light');
+  const [theme, setTheme] = useState<Theme>('dark'); // 기본값을 dark로 변경
+  const [actualTheme, setActualTheme] = useState<'dark' | 'light'>('dark'); // 기본값을 dark로 변경
   const [fontSize, setFontSize] = useState<FontSize>('normal');
   const [mounted, setMounted] = useState(false);
 

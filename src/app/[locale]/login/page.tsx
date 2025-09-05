@@ -21,6 +21,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+  const [name, setName] = useState('');
 
   useEffect(() => {
     const errorParam = searchParams?.get('error');
@@ -68,11 +70,70 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // Email login logic here
-      console.log('Email login:', email, password);
+      const response = await fetch('/api/auth/email-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Login successful - redirect to dashboard
+        router.push(`/${locale}/dashboard`);
+      } else {
+        setError(data.error || t('auth.invalidCredentials'));
+      }
     } catch (error) {
       console.error('Email login error:', error);
       setError(t('auth.invalidCredentials'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, name })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Signup successful - now login
+        const loginResponse = await fetch('/api/auth/email-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password })
+        });
+
+        const loginData = await loginResponse.json();
+        if (loginResponse.ok && loginData.success) {
+          router.push(`/${locale}/dashboard`);
+        }
+      } else {
+        setError(data.error || 'Failed to create account');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      setError('Failed to create account');
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +146,7 @@ export default function LoginPage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href={`/${locale}/landing`} className="flex items-center gap-3 group">
             <div className="relative">
-              <Logo size={32} color="#fff" className="transition-transform group-hover:scale-110" />
+              <Logo size={32} className="transition-transform group-hover:scale-110" />
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
             </div>
             <span className="text-2xl font-medium" style={{ color: 'var(--text-primary)' }}>GEULPI</span>
@@ -104,9 +165,9 @@ export default function LoginPage() {
 
       {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full filter blur-3xl dark:from-purple-500/10 dark:to-pink-500/10"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full filter blur-3xl dark:bg-purple-500/5"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-pink-500/10 rounded-full filter blur-3xl dark:bg-pink-500/5"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full filter blur-3xl" style={{ background: 'var(--effect-gradient)' }}></div>
+        <div className="absolute top-0 right-0 w-96 h-96 rounded-full filter blur-3xl" style={{ background: 'var(--effect-purple)' }}></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full filter blur-3xl" style={{ background: 'var(--effect-pink)' }}></div>
       </div>
 
       {/* Main Content */}
@@ -122,7 +183,8 @@ export default function LoginPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-3 rounded-2xl mb-6 text-center text-sm"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 p-3 rounded-2xl mb-6 text-center text-sm"
+              style={{ color: 'var(--text-on-accent)' }}
             >
               {planFromUrl === 'pro' && t('login.planSelected.pro')}
               {planFromUrl === 'team' && t('login.planSelected.team')}
@@ -138,7 +200,7 @@ export default function LoginPage() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="flex items-center justify-center gap-3 mb-6"
             >
-              <Logo size={56} color="#fff" />
+              <Logo size={56} />
             </motion.div>
             <motion.h1
               initial={{ opacity: 0 }}
@@ -169,7 +231,12 @@ export default function LoginPage() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-3 text-sm text-red-400 rounded-xl bg-red-500/10 border border-red-500/20"
+                className="mb-6 p-3 text-sm rounded-xl"
+                style={{ 
+                  color: 'var(--accent-danger)', 
+                  background: 'rgba(239, 68, 68, 0.1)', 
+                  border: '1px solid rgba(239, 68, 68, 0.2)' 
+                }}
               >
                 {error}
               </motion.div>
@@ -211,14 +278,22 @@ export default function LoginPage() {
 
                   <div className="text-center text-sm mb-6" style={{ color: 'var(--text-tertiary)' }}>
                     {t('login.noAccount')}{' '}
-                    <a href="#" className="hover:opacity-100 transition-opacity" style={{ color: 'var(--text-secondary)' }}>
+                    <button
+                      onClick={() => {
+                        setIsSignup(true);
+                        setShowEmailLogin(true);
+                        setError(null);
+                      }}
+                      className="hover:opacity-100 transition-opacity underline"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
                       {t('login.signUp')}
-                    </a>
+                    </button>
                   </div>
 
                   <div className="relative my-8">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-white/20"></div>
+                      <div className="w-full border-t" style={{ borderColor: 'var(--border-default)' }}></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
                       <span className="px-4 backdrop-blur-sm rounded-full" style={{ background: 'var(--surface-primary)', color: 'var(--text-tertiary)' }}>{t('login.or')}</span>
@@ -298,7 +373,7 @@ export default function LoginPage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
-                  onSubmit={handleEmailLogin}
+                  onSubmit={isSignup ? handleSignup : handleEmailLogin}
                 >
                   <button
                     type="button"
@@ -315,9 +390,24 @@ export default function LoginPage() {
                   </button>
 
                   <div className="mb-6 p-4 rounded-2xl" style={{ background: 'var(--surface-primary)', border: '1px solid var(--glass-border)' }}>
-                    <p className="text-sm mb-1" style={{ color: 'var(--text-tertiary)' }}>{t('login.loginEmail')}</p>
+                    <p className="text-sm mb-1" style={{ color: 'var(--text-tertiary)' }}>{isSignup ? 'Creating account for' : t('login.loginEmail')}</p>
                     <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{email}</p>
                   </div>
+
+                  {isSignup && (
+                    <input
+                      type="text"
+                      placeholder="Your name (optional)"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full px-6 py-4 rounded-full mb-4 transition-all"
+                      style={{
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--input-border)',
+                        color: 'var(--text-primary)'
+                      }}
+                    />
+                  )}
 
                   <div className="relative mb-6">
                     <input

@@ -13,6 +13,7 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewType, setViewType] = useState<'list' | 'week' | 'month' | 'day'>('month');
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [focusedDayIndex, setFocusedDayIndex] = useState<number>(-1);
 
     const today = new Date();
     const isToday = (date: Date) => date.toDateString() === today.toDateString();
@@ -695,6 +696,54 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
             ) : viewType === 'month' ? (
                 /* 월간 캘린더 그리드 */
                 <div style={{ position: 'relative' }}>
+                    {/* 빈 상태 메시지 */}
+                    {events.length === 0 && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            textAlign: 'center',
+                            padding: 'var(--space-8)',
+                            zIndex: 1
+                        }}>
+                            <div style={{
+                                fontSize: '48px',
+                                marginBottom: 'var(--space-4)',
+                                opacity: 0.5
+                            }}>📅</div>
+                            <h3 style={{
+                                fontSize: 'var(--font-lg)',
+                                fontWeight: '600',
+                                color: 'var(--text-secondary)',
+                                marginBottom: 'var(--space-2)'
+                            }}>일정이 없습니다</h3>
+                            <p style={{
+                                fontSize: 'var(--font-sm)',
+                                color: 'var(--text-tertiary)',
+                                marginBottom: 'var(--space-4)'
+                            }}>Command Bar를 사용하거나 날짜를 클릭하여<br/>새 일정을 추가해보세요</p>
+                            <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-2)',
+                                padding: 'var(--space-2) var(--space-4)',
+                                background: 'rgba(139, 92, 246, 0.1)',
+                                border: '1px solid rgba(139, 92, 246, 0.3)',
+                                borderRadius: 'var(--radius-full)',
+                                fontSize: 'var(--font-sm)',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                <kbd style={{
+                                    padding: '2px 6px',
+                                    background: 'rgba(255, 255, 255, 0.1)',
+                                    borderRadius: '4px',
+                                    fontSize: '11px'
+                                }}>⌘K</kbd>
+                                <span>또는 날짜 클릭</span>
+                            </div>
+                        </div>
+                    )}
                     {/* 요일 헤더 */}
                     <div style={{ 
                         display: 'grid', 
@@ -737,6 +786,7 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                             const isCurrentMonth = day.getMonth() === currentDate.getMonth();
                             const isDayToday = isToday(day);
                             const dayOfWeek = day.getDay();
+                            const isFocused = focusedDayIndex === index;
                             
                             return (
                                 <div
@@ -749,6 +799,7 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                                        isCurrentMonth ? 'rgba(255, 255, 255, 0.05)' :
                                                        'rgba(255, 255, 255, 0.02)',
                                         border: isDayToday ? '0.5px solid rgba(0, 122, 255, 0.3)' :
+                                               isFocused ? '1px solid rgba(139, 92, 246, 0.5)' :
                                                '0.5px solid rgba(255, 255, 255, 0.08)',
                                         borderRadius: 'var(--radius-md)',
                                         cursor: 'pointer',
@@ -756,11 +807,67 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                         position: 'relative',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        opacity: isCurrentMonth ? 1 : 0.4
+                                        opacity: isCurrentMonth ? 1 : 0.4,
+                                        outline: isFocused ? '2px solid rgba(139, 92, 246, 0.5)' : 'none',
+                                        outlineOffset: '2px'
                                     }}
+                                    tabIndex={isCurrentMonth ? 0 : -1}
+                                    role="gridcell"
+                                    aria-label={`${day.toLocaleDateString('ko-KR', { 
+                                        year: 'numeric', 
+                                        month: 'long', 
+                                        day: 'numeric',
+                                        weekday: 'long'
+                                    })}${dayEvents.length > 0 ? `, ${dayEvents.length}개의 일정` : ''}`}
+                                    aria-selected={isFocused}
                                     onClick={() => {
+                                        setFocusedDayIndex(index);
                                         // 날짜 클릭 시 해당 날짜의 오전 9시로 일정 생성 제안
                                         onTimeSlotClick?.(day, 9);
+                                    }}
+                                    onFocus={() => setFocusedDayIndex(index)}
+                                    onBlur={() => setFocusedDayIndex(-1)}
+                                    onKeyDown={(e) => {
+                                        const gridWidth = 7;
+                                        let newIndex = index;
+                                        
+                                        switch(e.key) {
+                                            case 'ArrowLeft':
+                                                e.preventDefault();
+                                                newIndex = Math.max(0, index - 1);
+                                                break;
+                                            case 'ArrowRight':
+                                                e.preventDefault();
+                                                newIndex = Math.min(41, index + 1);
+                                                break;
+                                            case 'ArrowUp':
+                                                e.preventDefault();
+                                                newIndex = Math.max(0, index - gridWidth);
+                                                break;
+                                            case 'ArrowDown':
+                                                e.preventDefault();
+                                                newIndex = Math.min(41, index + gridWidth);
+                                                break;
+                                            case 'Enter':
+                                            case ' ':
+                                                e.preventDefault();
+                                                onTimeSlotClick?.(day, 9);
+                                                return;
+                                            case 'Home':
+                                                e.preventDefault();
+                                                newIndex = 0;
+                                                break;
+                                            case 'End':
+                                                e.preventDefault();
+                                                newIndex = 41;
+                                                break;
+                                            default:
+                                                return;
+                                        }
+                                        
+                                        setFocusedDayIndex(newIndex);
+                                        const cells = document.querySelectorAll('[role="gridcell"]');
+                                        (cells[newIndex] as HTMLElement)?.focus();
                                     }}
                                     onMouseEnter={(e) => {
                                         if (isCurrentMonth) {
@@ -821,6 +928,16 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                                         e.stopPropagation();
                                                         onEventClick?.(event);
                                                     }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            onEventClick?.(event);
+                                                        }
+                                                    }}
+                                                    tabIndex={0}
+                                                    role="button"
+                                                    aria-label={`일정: ${event.summary}`}
                                                     title={`${event.summary} (카테고리 색상 적용)`}
                                                     onMouseEnter={(e) => {
                                                         e.currentTarget.style.backgroundColor = eventColors.hoverBg;
@@ -1155,6 +1272,61 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                 </div>
             ) : (
                 <div style={{ position: 'relative' }}>
+                    {/* 빈 상태 메시지 - 리스트 뷰 */}
+                    {upcomingEvents.length === 0 && (
+                        <div style={{
+                            textAlign: 'center',
+                            padding: 'var(--space-10) var(--space-6)',
+                        }}>
+                            <div style={{
+                                fontSize: '48px',
+                                marginBottom: 'var(--space-4)',
+                                opacity: 0.5
+                            }}>📭</div>
+                            <h3 style={{
+                                fontSize: 'var(--font-lg)',
+                                fontWeight: '600',
+                                color: 'var(--text-secondary)',
+                                marginBottom: 'var(--space-2)'
+                            }}>예정된 일정이 없습니다</h3>
+                            <p style={{
+                                fontSize: 'var(--font-sm)',
+                                color: 'var(--text-tertiary)',
+                                marginBottom: 'var(--space-6)'
+                            }}>Command Bar를 사용하여 새 일정을 추가해보세요</p>
+                            <button
+                                onClick={() => {
+                                    const input = document.querySelector('input[placeholder*="명령어"]') as HTMLInputElement;
+                                    input?.focus();
+                                }}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 'var(--space-2)',
+                                    padding: 'var(--space-3) var(--space-5)',
+                                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%)',
+                                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                                    borderRadius: 'var(--radius-lg)',
+                                    fontSize: 'var(--font-sm)',
+                                    fontWeight: '500',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    transition: 'var(--transition-fast)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(139, 92, 246, 0.2)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                <span>✨</span>
+                                <span>첫 일정 추가하기</span>
+                            </button>
+                        </div>
+                    )}
                     {upcomingEvents.map((event, index) => {
                         const startTime = event.start?.dateTime || event.start?.date || '';
                         const eventDate = startTime ? new Date(startTime) : new Date();

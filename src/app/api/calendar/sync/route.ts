@@ -4,10 +4,48 @@ import { getCalendarClient } from '@/lib/google-auth';
 import { contextManager } from '@/lib/context-manager';
 import { handleApiError, AuthError } from '@/lib/api-errors';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
+import { verifyToken } from '@/lib/auth/email-auth';
+import { LocalCalendarService, createDemoEvents } from '@/lib/local-calendar';
 
 export async function GET(request: Request) {
-    const accessToken = cookies().get('access_token')?.value;
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('access_token')?.value;
+    const authToken = cookieStore.get('auth-token')?.value;
 
+    // Check for email auth first
+    if (authToken) {
+        try {
+            const user = await verifyToken(authToken);
+            const { searchParams } = new URL(request.url);
+            const sessionId = searchParams.get('sessionId') || 'anonymous';
+            
+            // Use local calendar for email-auth users
+            const localCalendar = new LocalCalendarService(user.id);
+            
+            // Create demo events for first-time users
+            if (localCalendar.getEvents().length === 0) {
+                createDemoEvents(user.id);
+            }
+            
+            const events = localCalendar.getEvents();
+            
+            // Update context
+            contextManager.updateRecentEvents(sessionId, events);
+            contextManager.updatePatterns(sessionId, events);
+            
+            return NextResponse.json({
+                success: true,
+                events,
+                total: events.length,
+                syncTime: new Date().toISOString(),
+                source: 'local'
+            });
+        } catch (error) {
+            console.error('Email auth token validation failed:', error);
+        }
+    }
+
+    // Fall back to Google OAuth
     if (!accessToken) {
         return handleApiError(new AuthError());
     }

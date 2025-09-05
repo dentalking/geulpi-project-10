@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import LanguageSelector from '@/components/LanguageSelector';
-import SettingsPanel from '@/components/SettingsPanel';
 
 export default function LandingPage() {
   const t = useTranslations('landing');
@@ -136,11 +135,11 @@ export default function LandingPage() {
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-3 group">
               <div className="relative">
-                <Logo size={32} color="#fff" className="transition-transform group-hover:scale-110" />
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
+                <Logo size={32} className="transition-transform group-hover:scale-110" />
+                <div className="absolute inset-0 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" style={{ background: 'var(--gradient-purple-pink)' }} />
               </div>
-              <span className="text-xl font-medium">Geulpi</span>
-              <span className="text-xs text-white/40 hidden md:inline">Geulpi</span>
+              <span className="text-xl font-medium" style={{ color: 'var(--text-primary)' }}>Geulpi</span>
+              <span className="text-xs hidden md:inline" style={{ color: 'var(--text-quaternary)' }}>Geulpi</span>
             </Link>
 
             <div className="hidden md:flex items-center gap-8">
@@ -153,7 +152,10 @@ export default function LandingPage() {
                 <a
                   key={item.key}
                   href={`#${item.key}`}
-                  className="text-white/70 hover:text-white transition-colors text-sm font-medium"
+                  className="transition-colors text-sm font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
                 >
                   {item.label}
                 </a>
@@ -162,18 +164,24 @@ export default function LandingPage() {
 
             <div className="flex items-center gap-3">
               <LanguageSelector />
-              <SettingsPanel />
               
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 text-white/80 hover:text-white"
+                className="md:hidden p-2 transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
               >
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
 
               <Link
                 href={`/${locale}/login`}
-                className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all"
+                className="px-6 py-2.5 rounded-full font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all"
+                style={{ 
+                  background: 'var(--gradient-purple-pink)',
+                  color: 'var(--text-on-accent)'
+                }}
               >
                 {t('hero.freeTrialButton').replace('14-Day ', '').replace('14일 ', '')}
               </Link>
@@ -186,7 +194,8 @@ export default function LandingPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden border-t border-white/10 mt-4"
+              className="md:hidden border-t mt-4"
+              style={{ borderColor: 'var(--border-default)' }}
             >
               <div className="py-4 space-y-2">
                 {[t('navigation.features'), t('navigation.pricing'), t('navigation.testimonials'), t('navigation.contact')].map((item) => (
@@ -194,7 +203,22 @@ export default function LandingPage() {
                     key={item}
                     href={`#${item}`}
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                    className="block px-4 py-2 rounded-lg transition-all"
+                    style={{ 
+                      color: 'var(--text-secondary)',
+                      ':hover': {
+                        color: 'var(--text-primary)',
+                        background: 'var(--bg-hover)'
+                      }
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--text-primary)';
+                      e.currentTarget.style.background = 'var(--bg-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.background = 'transparent';
+                    }}
                   >
                     {item}
                   </a>
@@ -209,9 +233,9 @@ export default function LandingPage() {
       <section className="relative min-h-screen flex items-center pt-20">
         {/* Background Effects */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" style={{ background: 'var(--effect-purple)' }} />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse delay-1000" style={{ background: 'var(--effect-pink)' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-3xl" style={{ background: 'var(--effect-gradient)' }} />
         </div>
 
         <div className="max-w-7xl mx-auto px-6 relative z-10">
@@ -222,9 +246,9 @@ export default function LandingPage() {
               transition={{ duration: 0.6 }}
               className="mb-6"
             >
-              <span className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full text-sm">
-                <Zap className="w-4 h-4 text-purple-400" />
-                <span className="text-purple-200">{t('hero.badge')}</span>
+              <span className="inline-flex items-center gap-2 px-4 py-2 border rounded-full text-sm" style={{ background: 'var(--surface-secondary)', borderColor: 'var(--accent-primary)', opacity: '0.9' }}>
+                <Zap className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+                <span style={{ color: 'var(--accent-primary)' }}>{t('hero.badge')}</span>
               </span>
             </motion.div>
 
@@ -233,10 +257,11 @@ export default function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+              style={{ color: 'var(--text-primary)' }}
             >
               {t('hero.title')}
               <br />
-              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
                 {t('hero.subtitle')}
               </span>
             </motion.h1>
@@ -245,7 +270,8 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-xl md:text-2xl text-white/70 mb-10 leading-relaxed"
+              className="text-xl md:text-2xl mb-10 leading-relaxed"
+              style={{ color: 'var(--text-tertiary)' }}
             >
               {t('hero.description').split('\n').map((line, index) => (
                 <span key={index}>
@@ -263,7 +289,17 @@ export default function LandingPage() {
             >
               <Link
                 href="/login"
-                className="px-8 py-4 bg-white text-black rounded-full font-semibold text-lg hover:bg-white/90 transition-all flex items-center gap-2 group"
+                className="px-8 py-4 rounded-full font-semibold text-lg transition-all flex items-center gap-2 group shadow-lg hover:shadow-xl"
+                style={{ 
+                  background: 'var(--btn-primary-bg)',
+                  color: 'var(--btn-primary-text)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
                 {t('hero.freeTrialButton')}
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -271,7 +307,20 @@ export default function LandingPage() {
 
               <a
                 href="#demo"
-                className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-full font-semibold text-lg hover:bg-white/20 transition-all border border-white/20"
+                className="px-8 py-4 backdrop-blur-sm rounded-full font-semibold text-lg transition-all border"
+                style={{ 
+                  background: 'var(--surface-primary)',
+                  color: 'var(--text-primary)',
+                  borderColor: 'var(--border-default)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-elevated)';
+                  e.currentTarget.style.borderColor = 'var(--border-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-primary)';
+                  e.currentTarget.style.borderColor = 'var(--border-default)';
+                }}
               >
                 {t('hero.demoButton')}
               </a>
@@ -281,18 +330,19 @@ export default function LandingPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="mt-12 flex items-center gap-8 text-sm text-white/50"
+              className="mt-12 flex items-center gap-8 text-sm"
+              style={{ color: 'var(--text-quaternary)' }}
             >
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
                 <span>{t('hero.noCreditCard')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
                 <span>{t('hero.startIn5Min')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
                 <span>{t('hero.cancelAnytime')}</span>
               </div>
             </motion.div>
@@ -315,7 +365,7 @@ export default function LandingPage() {
                 {t('demo.titleHighlight')}
               </span>
             </h2>
-            <p className="text-xl text-white/70">
+            <p className="text-xl" style={{ color: 'var(--text-tertiary)' }}>
               {t('demo.subtitle')}
             </p>
           </motion.div>
@@ -333,19 +383,27 @@ export default function LandingPage() {
                   transition={{ delay: index * 0.1 }}
                   className="relative"
                 >
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-purple-500/50 transition-all">
+                  <div 
+                    className="backdrop-blur-sm rounded-2xl p-8 border transition-all"
+                    style={{ 
+                      background: 'var(--surface-primary)',
+                      borderColor: 'var(--border-default)'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                  >
                     <div className="flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-bold text-xl">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                         {step.step}
                       </div>
                       <Icon className={`w-8 h-8 ${step.color}`} />
                     </div>
                     <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                    <p className="text-white/60">{step.description}</p>
+                    <p style={{ color: 'var(--text-tertiary)' }}>{step.description}</p>
                   </div>
                   {index < demoSteps.length - 1 && (
                     <div className="hidden md:block absolute top-1/2 -right-4 z-10">
-                      <ArrowRight className="w-8 h-8 text-white/20" />
+                      <ArrowRight className="w-8 h-8" style={{ color: 'var(--text-quaternary)' }} />
                     </div>
                   )}
                 </motion.div>
@@ -358,15 +416,27 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-3xl p-12 border border-white/10"
+            className="rounded-3xl p-12 border" style={{ background: 'var(--effect-overlay)' }}
+            style={{ borderColor: 'var(--border-default)' }}
           >
             <div className="text-center">
-              <div className="inline-flex items-center justify-center w-32 h-32 bg-white/10 rounded-3xl mb-6 group cursor-pointer hover:bg-white/20 transition-all">
-                <Upload className="w-16 h-16 text-white/70 group-hover:scale-110 transition-transform" />
+              <div 
+                className="inline-flex items-center justify-center w-32 h-32 rounded-3xl mb-6 group cursor-pointer transition-all"
+                style={{ background: 'var(--surface-primary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-primary)'}
+              >
+                <Upload className="w-16 h-16 group-hover:scale-110 transition-transform" style={{ color: 'var(--text-secondary)' }} />
               </div>
               <h3 className="text-2xl font-semibold mb-4">{t('demo.uploadArea.dragDrop')}</h3>
-              <p className="text-white/60 mb-8">{t('demo.uploadArea.clickToSelect')}</p>
-              <button className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all">
+              <p className="mb-8" style={{ color: 'var(--text-tertiary)' }}>{t('demo.uploadArea.clickToSelect')}</p>
+              <button 
+                className="px-8 py-3 rounded-full font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all"
+                style={{ 
+                  background: 'var(--gradient-purple-pink)',
+                  color: 'var(--text-on-accent)'
+                }}
+              >
                 {t('demo.uploadArea.startDemo')}
               </button>
             </div>
@@ -375,7 +445,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-32 bg-white/[0.02]">
+      <section id="features" className="py-32" style={{ background: 'var(--bg-tertiary)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0 }}
@@ -386,7 +456,7 @@ export default function LandingPage() {
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               {t('features.title')}
             </h2>
-            <p className="text-xl text-white/70">
+            <p className="text-xl" style={{ color: 'var(--text-tertiary)' }}>
               {t('features.subtitle')}
             </p>
           </motion.div>
@@ -438,13 +508,19 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-purple-500/50 transition-all group"
+                  className="backdrop-blur-sm rounded-2xl p-8 border transition-all group"
+                  style={{ 
+                    background: 'var(--surface-primary)',
+                    borderColor: 'var(--border-default)'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-default)'}
                 >
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                    <Icon className="w-7 h-7 text-white" />
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform" style={{ background: 'var(--gradient-purple-pink)' }}>
+                    <Icon className="w-7 h-7" style={{ color: 'var(--text-on-accent)' }} />
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                  <p className="text-white/60 mb-4">{feature.description}</p>
+                  <p className="mb-4" style={{ color: 'var(--text-tertiary)' }}>{feature.description}</p>
                   <div className="text-sm text-purple-400 font-medium">{feature.stats}</div>
                 </motion.div>
               );
@@ -465,7 +541,7 @@ export default function LandingPage() {
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               {t('testimonials.title')}
             </h2>
-            <p className="text-xl text-white/70">
+            <p className="text-xl" style={{ color: 'var(--text-tertiary)' }}>
               {t('testimonials.subtitle')}
             </p>
           </motion.div>
@@ -478,16 +554,18 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-2xl p-8 border border-white/10"
+                className="rounded-2xl p-8 border"
+                style={{ background: 'var(--effect-overlay)', borderColor: 'var(--border-default)' }}
+                style={{ borderColor: 'var(--border-default)' }}
               >
                 <div className="flex items-center gap-4 mb-6">
                   <div className="text-4xl">{testimonial.avatar}</div>
                   <div>
                     <div className="font-semibold">{testimonial.name}</div>
-                    <div className="text-sm text-white/60">{testimonial.role}</div>
+                    <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>{testimonial.role}</div>
                   </div>
                 </div>
-                <p className="text-white/80 mb-6 italic">"{testimonial.content}"</p>
+                <p className="mb-6 italic" style={{ color: 'var(--text-secondary)' }}>"{testimonial.content}"</p>
                 <div className="flex items-center gap-2 text-green-400">
                   <CheckCircle className="w-5 h-5" />
                   <span className="font-medium">{testimonial.saved}</span>
@@ -499,7 +577,7 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-32 bg-white/[0.02]">
+      <section id="pricing" className="py-32" style={{ background: 'var(--bg-tertiary)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <motion.div
             initial={{ opacity: 0 }}
@@ -510,7 +588,7 @@ export default function LandingPage() {
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               {t('pricing.title')}
             </h2>
-            <p className="text-xl text-white/70">
+            <p className="text-xl" style={{ color: 'var(--text-tertiary)' }}>
               {t('pricing.subtitle')}
             </p>
           </motion.div>
@@ -522,28 +600,41 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10"
+              className="backdrop-blur-sm rounded-2xl p-8 border"
+              style={{ 
+                background: 'var(--surface-primary)',
+                borderColor: 'var(--border-default)'
+              }}
             >
               <h3 className="text-2xl font-bold mb-2">{t('pricing.plans.free.name')}</h3>
-              <p className="text-white/60 mb-6">{t('pricing.plans.free.description')}</p>
-              <div className="text-4xl font-bold mb-6">{t('pricing.plans.free.price')}<span className="text-base font-normal text-white/60">{t('pricing.plans.free.priceUnit')}</span></div>
+              <p className="mb-6" style={{ color: 'var(--text-tertiary)' }}>{t('pricing.plans.free.description')}</p>
+              <div className="text-4xl font-bold mb-6">{t('pricing.plans.free.price')}<span className="text-base font-normal" style={{ color: 'var(--text-tertiary)' }}>{t('pricing.plans.free.priceUnit')}</span></div>
               
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-white/80">{t('pricing.plans.free.features.0')}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t('pricing.plans.free.features.0')}</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-white/80">{t('pricing.plans.free.features.1')}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t('pricing.plans.free.features.1')}</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-400" />
-                  <span className="text-white/80">{t('pricing.plans.free.features.2')}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t('pricing.plans.free.features.2')}</span>
                 </li>
               </ul>
               
-              <Link href="/login?plan=free" className="block w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium text-center transition-all">
+              <Link 
+                href="/login?plan=free" 
+                className="block w-full py-3 rounded-full font-medium text-center transition-all"
+                style={{ 
+                  background: 'var(--surface-primary)',
+                  color: 'var(--text-primary)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-primary)'}
+              >
                 {t('pricing.plans.free.button')}
               </Link>
             </motion.div>
@@ -554,9 +645,13 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
-              className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-2xl p-8 border border-purple-500/30 relative"
+              className="backdrop-blur-sm rounded-2xl p-8 border relative"
+              style={{ 
+                background: 'var(--effect-overlay)', 
+                borderColor: 'var(--accent-primary)' 
+              }}
             >
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-sm font-semibold">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-sm font-semibold" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                 {t('pricing.mostPopular')}
               </div>
               
@@ -587,7 +682,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link href="/login?plan=pro" className="block w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/25 text-white rounded-full font-medium text-center transition-all">
+              <Link href="/login?plan=pro" className="block w-full py-3 hover:shadow-lg hover:shadow-purple-500/25 rounded-full font-medium text-center transition-all" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                 {t('hero.freeTrialButton')}
               </Link>
             </motion.div>
@@ -598,7 +693,11 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.3 }}
-              className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10"
+              className="backdrop-blur-sm rounded-2xl p-8 border"
+              style={{ 
+                background: 'var(--surface-primary)',
+                borderColor: 'var(--border-default)'
+              }}
             >
               <h3 className="text-2xl font-bold mb-2">{t('pricing.plans.team.name')}</h3>
               <p className="text-white/60 mb-6">{t('pricing.plans.team.description')}</p>
@@ -627,7 +726,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link href="/login?plan=team" className="block w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium text-center transition-all">
+              <Link href="/login?plan=team" className="block w-full py-3 rounded-full font-medium text-center transition-all" style={{ background: 'var(--surface-primary)', color: 'var(--text-primary)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-primary)'}>
                 {t('pricing.plans.team.button')}
               </Link>
             </motion.div>
@@ -642,7 +741,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl p-16"
+            className="rounded-3xl p-16" style={{ background: 'var(--cta-bg)' }}
           >
             <h2 className="text-4xl md:text-5xl font-bold mb-6">
               {t('cta.title')}
@@ -658,13 +757,13 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/login"
-                className="px-8 py-4 bg-white text-black rounded-full font-semibold text-lg hover:bg-white/90 transition-all"
+                className="px-8 py-4 rounded-full font-semibold text-lg transition-all" style={{ background: 'var(--cta-button-primary)', color: 'var(--cta-button-primary-text)' }}
               >
                 {t('cta.startButton')}
               </Link>
               <Link
                 href="/subscription"
-                className="px-8 py-4 bg-white/20 text-white rounded-full font-semibold text-lg hover:bg-white/30 transition-all border border-white/30"
+                className="px-8 py-4 rounded-full font-semibold text-lg transition-all border" style={{ background: 'var(--cta-button-secondary)', color: 'var(--cta-button-secondary-text)', borderColor: 'var(--border-default)' }}
               >
                 {t('cta.viewPlans')}
               </Link>
@@ -683,15 +782,15 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-16 border-t border-white/10">
+      <footer className="py-16 border-t" style={{ borderColor: 'var(--border-default)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <Logo size={24} color="#fff" />
+                <Logo size={24} />
                 <span className="font-medium">Geulpi</span>
               </div>
-              <p className="text-sm text-white/60">
+              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
                 {t('footer.tagline').split('\n').map((line, index) => (
                   <span key={index}>
                     {line}
@@ -704,38 +803,38 @@ export default function LandingPage() {
             <div>
               <h4 className="font-semibold mb-4">{t('footer.product.title')}</h4>
               <ul className="space-y-2">
-                <li><a href="#features" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.product.features')}</a></li>
-                <li><a href="#pricing" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.product.pricing')}</a></li>
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.product.updates')}</a></li>
+                <li><a href="#features" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.product.features')}</a></li>
+                <li><a href="#pricing" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.product.pricing')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.product.updates')}</a></li>
               </ul>
             </div>
             
             <div>
               <h4 className="font-semibold mb-4">{t('footer.company.title')}</h4>
               <ul className="space-y-2">
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.company.about')}</a></li>
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.company.careers')}</a></li>
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.company.blog')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.company.about')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.company.careers')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.company.blog')}</a></li>
               </ul>
             </div>
             
             <div>
               <h4 className="font-semibold mb-4">{t('footer.support.title')}</h4>
               <ul className="space-y-2">
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.support.help')}</a></li>
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.support.contact')}</a></li>
-                <li><a href="#" className="text-sm text-white/60 hover:text-white transition-colors">{t('footer.support.apiDocs')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.support.help')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.support.contact')}</a></li>
+                <li><a href="#" className="text-sm transition-colors" style={{ color: 'var(--text-tertiary)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.support.apiDocs')}</a></li>
               </ul>
             </div>
           </div>
           
-          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-white/40">
+          <div className="pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: 'var(--border-default)' }}>
+            <div className="text-sm" style={{ color: 'var(--text-quaternary)' }}>
               {t('footer.copyright')}
             </div>
             
-            <div className="flex items-center gap-6 text-sm text-white/60">
-              <Link href="/terms" className="hover:text-white transition-colors">{t('footer.legal.terms')}</Link>
+            <div className="flex items-center gap-6 text-sm" style={{ color: 'var(--text-tertiary)' }}>
+              <Link href="/terms" className="transition-colors" onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.legal.terms')}</Link>
               <Link href="/privacy" className="hover:text-white transition-colors">{t('footer.legal.privacy')}</Link>
               <Link href="/cookies" className="hover:text-white transition-colors">{t('footer.legal.cookies')}</Link>
             </div>

@@ -101,31 +101,10 @@
   --gray-50: #f2f2f7;
   --white: #ffffff;
   
-  /* Default to dark theme values - overridden by theme CSS */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --surface-primary: rgba(255, 255, 255, 0.08);
-  --surface-elevated: rgba(255, 255, 255, 0.12);
-  --surface-overlay: rgba(0, 0, 0, 0.80);
-  --text-primary: rgba(255, 255, 255, 0.98);
-  --text-secondary: rgba(255, 255, 255, 0.92);
-  --text-tertiary: rgba(255, 255, 255, 0.82);
-  --text-quaternary: rgba(255, 255, 255, 0.60);
+  /* Theme variables will be set by themes.css - DO NOT set default values here */
+  /* These are placeholders that will be overridden by theme-specific values */
   
-  /* High Contrast Text for Better Readability */
-  --text-high-contrast: #ffffff;
-  --text-medium-contrast: rgba(255, 255, 255, 0.98);
-  --text-on-glass: rgba(255, 255, 255, 1);
-  --text-shadow-subtle: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.3);
-  --text-shadow-strong: 0 2px 12px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.6);
-  --text-glow: 0 0 12px rgba(255, 255, 255, 0.2);
-  
-  /* Brand Colors - Consistent Palette */
-  --accent-primary: #007AFF;
-  --accent-success: #34C759;
-  --accent-warning: #FF9500;
-  --accent-danger: #FF3B30;
-  --accent-info: #5AC8FA;
+  /* These values will be overridden by themes.css */
   
   /* Gradient colors from backup project */
   --gradient-purple-pink: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
@@ -1189,6 +1168,47 @@ html {
   transform: translateY(0);
 }
 
+/* Keyboard Focus Styles */
+:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.6);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.6);
+  outline-offset: 2px;
+}
+
+/* Skip to Content Link for Screen Readers */
+.skip-to-content {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.skip-to-content:focus {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  width: auto;
+  height: auto;
+  padding: 16px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 2px solid var(--accent-primary);
+  border-radius: var(--radius-md);
+  z-index: 10000;
+  text-decoration: none;
+  font-weight: 600;
+}
+
 /* Focus Visible Improvements */
 .focus-ring:focus-visible {
   outline: none;
@@ -1412,5 +1432,89 @@ html {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Mobile Touch Target Improvements */
+@media (max-width: 768px) {
+  /* Increase button sizes for mobile */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Larger touch targets for icon buttons */
+  button[aria-label],
+  a[aria-label] {
+    padding: 12px !important;
+  }
+  
+  /* Input fields with larger tap targets */
+  input:not([type="checkbox"]):not([type="radio"]), 
+  textarea, 
+  select {
+    min-height: 48px;
+    padding: 12px 16px !important;
+    font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+  
+  /* Calendar cells with better touch targets */
+  .calendar-day,
+  [class*="calendar"] button {
+    min-height: 50px !important;
+    min-width: 50px !important;
+  }
+  
+  /* Command bar adjustments */
+  input[placeholder*="검색"],
+  input[placeholder*="Search"],
+  input[placeholder*="명령어"] {
+    min-height: 52px !important;
+    font-size: 16px !important;
+  }
+  
+  /* Dropdown and menu items */
+  [role="button"],
+  [role="menuitem"],
+  .dropdown-item {
+    min-height: 48px !important;
+    padding: 12px 16px !important;
+  }
+  
+  /* Modal and dialog buttons */
+  [role="dialog"] button,
+  .modal button {
+    min-height: 44px;
+    padding: 12px 24px !important;
+  }
+  
+  /* Increase spacing between interactive elements */
+  .flex > button + button,
+  .flex > a + a {
+    margin-left: 8px;
+  }
+  
+  /* Swipeable areas */
+  .swipe-area {
+    min-height: 60px;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  button {
+    min-height: 40px;
+  }
+  
+  input:not([type="checkbox"]):not([type="radio"]), 
+  textarea, 
+  select {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+  
+  .calendar-day {
+    min-height: 45px !important;
+    min-width: 45px !important;
   }
 }
