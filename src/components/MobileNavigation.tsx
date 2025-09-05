@@ -204,6 +204,8 @@ export function MobileSideMenu({
                   }
                   
                   const Icon = item.icon;
+                  if (!Icon) return null;
+                  
                   return (
                     <Link
                       key={item.label}
