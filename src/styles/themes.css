@@ -55,6 +55,20 @@
   --gradient-green-emerald: linear-gradient(135deg, #10B981 0%, #34D399 100%);
   --gradient-orange-red: linear-gradient(135deg, #F97316 0%, #EF4444 100%);
   
+  /* Background Effects for Light Mode */
+  --effect-purple: rgba(139, 92, 246, 0.1);
+  --effect-pink: rgba(236, 72, 153, 0.1);
+  --effect-gradient: rgba(139, 92, 246, 0.05);
+  --effect-overlay: rgba(139, 92, 246, 0.08);
+  
+  /* CTA Section - Light mode specific */
+  --cta-bg: var(--gradient-purple-pink);
+  --cta-text: #ffffff;
+  --cta-button-primary: #ffffff;
+  --cta-button-primary-text: #8B5CF6;
+  --cta-button-secondary: rgba(255, 255, 255, 0.2);
+  --cta-button-secondary-text: #ffffff;
+  
   /* Focus States */
   --focus-ring: 0 0 0 4px rgba(0, 0, 0, 0.06);
   --focus-ring-tight: 0 0 0 2px rgba(0, 0, 0, 0.12);
@@ -123,6 +137,26 @@
   --accent-warning: #FF9500;
   --accent-danger: #FF3B30;
   --accent-info: #5AC8FA;
+  
+  /* Gradients for Dark Mode */
+  --gradient-purple-pink: linear-gradient(135deg, #A855F7 0%, #EC4899 100%);
+  --gradient-blue-cyan: linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%);
+  --gradient-green-emerald: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+  --gradient-orange-red: linear-gradient(135deg, #F97316 0%, #EF4444 100%);
+  
+  /* Background Effects for Dark Mode */
+  --effect-purple: rgba(168, 85, 247, 0.2);
+  --effect-pink: rgba(236, 72, 153, 0.2);
+  --effect-gradient: rgba(168, 85, 247, 0.05);
+  --effect-overlay: rgba(168, 85, 247, 0.1);
+  
+  /* CTA Section - Dark mode specific */
+  --cta-bg: var(--gradient-purple-pink);
+  --cta-text: #ffffff;
+  --cta-button-primary: #ffffff;
+  --cta-button-primary-text: #000000;
+  --cta-button-secondary: rgba(255, 255, 255, 0.2);
+  --cta-button-secondary-text: #ffffff;
   
   --input-bg: rgba(255, 255, 255, 0.08);
   --input-border: rgba(255, 255, 255, 0.15);

@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import LanguageSelector from '@/components/LanguageSelector';
-import SettingsPanel from '@/components/SettingsPanel';
 
 export default function LandingPage() {
   const t = useTranslations('landing');
@@ -137,7 +136,7 @@ export default function LandingPage() {
             <Link href="/" className="flex items-center gap-3 group">
               <div className="relative">
                 <Logo size={32} className="transition-transform group-hover:scale-110" />
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
+                <div className="absolute inset-0 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" style={{ background: 'var(--gradient-purple-pink)' }} />
               </div>
               <span className="text-xl font-medium" style={{ color: 'var(--text-primary)' }}>Geulpi</span>
               <span className="text-xs hidden md:inline" style={{ color: 'var(--text-quaternary)' }}>Geulpi</span>
@@ -165,7 +164,6 @@ export default function LandingPage() {
 
             <div className="flex items-center gap-3">
               <LanguageSelector />
-              <SettingsPanel />
               
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -235,9 +233,9 @@ export default function LandingPage() {
       <section className="relative min-h-screen flex items-center pt-20">
         {/* Background Effects */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" style={{ background: 'var(--effect-purple)' }} />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse delay-1000" style={{ background: 'var(--effect-pink)' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-3xl" style={{ background: 'var(--effect-gradient)' }} />
         </div>
 
         <div className="max-w-7xl mx-auto px-6 relative z-10">
@@ -248,7 +246,7 @@ export default function LandingPage() {
               transition={{ duration: 0.6 }}
               className="mb-6"
             >
-              <span className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full text-sm">
+              <span className="inline-flex items-center gap-2 px-4 py-2 border rounded-full text-sm" style={{ background: 'var(--effect-overlay)', borderColor: 'var(--accent-primary)' }}>
                 <Zap className="w-4 h-4 text-purple-400" />
                 <span className="text-purple-200">{t('hero.badge')}</span>
               </span>
@@ -390,7 +388,7 @@ export default function LandingPage() {
                     onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-default)'}
                   >
                     <div className="flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-bold text-xl">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                         {step.step}
                       </div>
                       <Icon className={`w-8 h-8 ${step.color}`} />
@@ -413,7 +411,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-3xl p-12 border"
+            className="rounded-3xl p-12 border" style={{ background: 'var(--effect-overlay)' }}
             style={{ borderColor: 'var(--border-default)' }}
           >
             <div className="text-center">
@@ -513,7 +511,7 @@ export default function LandingPage() {
                   onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-default)'}
                 >
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform" style={{ background: 'var(--gradient-purple-pink)' }}>
                     <Icon className="w-7 h-7" style={{ color: 'var(--text-on-accent)' }} />
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
@@ -551,7 +549,8 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-2xl p-8 border"
+                className="rounded-2xl p-8 border"
+                style={{ background: 'var(--effect-overlay)', borderColor: 'var(--border-default)' }}
                 style={{ borderColor: 'var(--border-default)' }}
               >
                 <div className="flex items-center gap-4 mb-6">
@@ -641,9 +640,13 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
-              className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-2xl p-8 border border-purple-500/30 relative"
+              className="backdrop-blur-sm rounded-2xl p-8 border relative"
+              style={{ 
+                background: 'var(--effect-overlay)', 
+                borderColor: 'var(--accent-primary)' 
+              }}
             >
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-sm font-semibold">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-sm font-semibold" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                 {t('pricing.mostPopular')}
               </div>
               
@@ -674,7 +677,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link href="/login?plan=pro" className="block w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg hover:shadow-purple-500/25 text-white rounded-full font-medium text-center transition-all">
+              <Link href="/login?plan=pro" className="block w-full py-3 hover:shadow-lg hover:shadow-purple-500/25 rounded-full font-medium text-center transition-all" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                 {t('hero.freeTrialButton')}
               </Link>
             </motion.div>
@@ -718,7 +721,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link href="/login?plan=team" className="block w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium text-center transition-all">
+              <Link href="/login?plan=team" className="block w-full py-3 rounded-full font-medium text-center transition-all" style={{ background: 'var(--surface-primary)', color: 'var(--text-primary)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-primary)'}>
                 {t('pricing.plans.team.button')}
               </Link>
             </motion.div>
@@ -733,7 +736,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl p-16"
+            className="rounded-3xl p-16" style={{ background: 'var(--cta-bg)' }}
           >
             <h2 className="text-4xl md:text-5xl font-bold mb-6">
               {t('cta.title')}
@@ -749,13 +752,13 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/login"
-                className="px-8 py-4 bg-white text-black rounded-full font-semibold text-lg hover:bg-white/90 transition-all"
+                className="px-8 py-4 rounded-full font-semibold text-lg transition-all" style={{ background: 'var(--cta-button-primary)', color: 'var(--cta-button-primary-text)' }}
               >
                 {t('cta.startButton')}
               </Link>
               <Link
                 href="/subscription"
-                className="px-8 py-4 bg-white/20 text-white rounded-full font-semibold text-lg hover:bg-white/30 transition-all border border-white/30"
+                className="px-8 py-4 rounded-full font-semibold text-lg transition-all border" style={{ background: 'var(--cta-button-secondary)', color: 'var(--cta-button-secondary-text)', borderColor: 'var(--border-default)' }}
               >
                 {t('cta.viewPlans')}
               </Link>
