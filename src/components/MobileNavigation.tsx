@@ -80,7 +80,7 @@ export function MobileBottomNav({ notificationCount = 0, onAddEvent }: MobileNav
               >
                 <div className="relative">
                   <Icon className="w-6 h-6" />
-                  {item.badge > 0 && (
+                  {item.badge && item.badge > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                       {item.badge}
                     </span>

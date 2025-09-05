@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export default function KeyboardShortcutsProvider({ children }: { children: React.ReactNode }) {
-  // Pass an empty array or define shortcuts if needed
-  useKeyboardShortcuts([]);
+  // Pass an empty object for keyboard shortcuts options
+  useKeyboardShortcuts({});
 
   // Listen for show keyboard help event
   useEffect(() => {
