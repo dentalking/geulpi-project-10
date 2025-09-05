@@ -205,11 +205,7 @@ export default function LandingPage() {
                     onClick={() => setMobileMenuOpen(false)}
                     className="block px-4 py-2 rounded-lg transition-all"
                     style={{ 
-                      color: 'var(--text-secondary)',
-                      ':hover': {
-                        color: 'var(--text-primary)',
-                        background: 'var(--bg-hover)'
-                      }
+                      color: 'var(--text-secondary)'
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = 'var(--text-primary)';
