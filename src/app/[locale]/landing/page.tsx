@@ -412,8 +412,8 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="rounded-3xl p-12 border" style={{ background: 'var(--effect-overlay)' }}
-            style={{ borderColor: 'var(--border-default)' }}
+            className="rounded-3xl p-12 border" 
+            style={{ background: 'var(--effect-overlay)', borderColor: 'var(--border-default)' }}
           >
             <div className="text-center">
               <div 
