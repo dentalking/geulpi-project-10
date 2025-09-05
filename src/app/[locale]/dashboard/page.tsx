@@ -176,21 +176,9 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [events, notifications]);
 
-  useKeyboardShortcuts([
-    {
-      key: '?',
-      shift: true,
-      handler: () => {
-        setShowHelp(!showHelp);
-      }
-    },
-    {
-      key: 'Escape',
-      handler: () => {
-        setShowHelp(false);
-      }
-    }
-  ]);
+  useKeyboardShortcuts({
+    openSettings: true
+  });
 
   if (loading) {
     return <FullPageLoader message={t('common.loading')} />;
