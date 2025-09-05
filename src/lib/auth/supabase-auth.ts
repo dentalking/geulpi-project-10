@@ -93,7 +93,7 @@ export async function verifyToken(token: string): Promise<User | null> {
     
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name')
+      .select('id, email, name, created_at')
       .eq('id', decoded.userId)
       .single();
     
@@ -104,5 +104,63 @@ export async function verifyToken(token: string): Promise<User | null> {
     return user;
   } catch (error) {
     return null;
+  }
+}
+
+export async function updateUserProfile(userId: string, updates: { name?: string; email?: string }): Promise<User> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select('id, email, name, created_at')
+      .single();
+    
+    if (error) {
+      throw error;
+    }
+    
+    return data;
+  } catch (error: any) {
+    console.error('Update profile error:', error);
+    throw error;
+  }
+}
+
+export async function changeUserPassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+  try {
+    // First, verify the current password
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('password')
+      .eq('id', userId)
+      .single();
+    
+    if (fetchError || !user) {
+      throw new Error('User not found');
+    }
+    
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isCurrentPasswordValid) {
+      throw new Error('Invalid current password');
+    }
+    
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update password
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password: hashedNewPassword })
+      .eq('id', userId);
+    
+    if (updateError) {
+      throw updateError;
+    }
+  } catch (error: any) {
+    console.error('Change password error:', error);
+    throw error;
   }
 }
