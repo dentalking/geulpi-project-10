@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { registerUser } from '@/lib/auth/db-auth';
+import { registerUser } from '@/lib/auth/vercel-db-auth';
 
 export async function POST(request: NextRequest) {
   try {
