@@ -207,7 +207,7 @@ export function MobileSideMenu({
                   return (
                     <Link
                       key={item.label}
-                      href={item.href}
+                      href={item.href || '#'}
                       onClick={item.isLogout ? undefined : onClose}
                       className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all touch-manipulation"
                       style={{
