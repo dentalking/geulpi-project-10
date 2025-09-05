@@ -93,3 +93,4 @@ public/uploads/
 # Misc
 *.pem
 .now
+/src/generated/prisma

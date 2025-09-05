@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Check, X } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useTranslations, useLocale } from 'next-intl';
 import LanguageSelector from '@/components/LanguageSelector';
@@ -15,27 +15,13 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planFromUrl = searchParams?.get('plan') || null;
-  const registered = searchParams?.get('registered') === 'true';
-  
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [passwordTouched, setPasswordTouched] = useState(false);
-  
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const passwordValid = password.length >= 6;
-  const isFormValid = emailValid && passwordValid;
 
   useEffect(() => {
-    if (registered) {
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 5000);
-    }
-    
     const errorParam = searchParams?.get('error');
     if (errorParam) {
       switch (errorParam) {
@@ -49,23 +35,22 @@ export default function LoginPage() {
           setError(t('common.error'));
       }
     }
-  }, [searchParams, registered]);
+  }, [searchParams]);
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setError(null);
+    // 실제 Google OAuth 로그인
     window.location.href = '/api/auth/login';
   };
 
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!isFormValid) {
-      setEmailTouched(true);
-      setPasswordTouched(true);
+    if (!password) {
+      setError(t('auth.passwordRequired'));
       return;
     }
-    
     setIsLoading(true);
     setError(null);
 
@@ -81,10 +66,8 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setSuccess(true);
-        setTimeout(() => {
-          router.push(`/${locale}/dashboard`);
-        }, 1000);
+        // Login successful - redirect to dashboard
+        router.push(`/${locale}/dashboard`);
       } else {
         setError(data.error || t('auth.invalidCredentials'));
       }
@@ -95,6 +78,7 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
@@ -184,111 +168,74 @@ export default function LoginPage() {
               boxShadow: 'var(--glass-shadow)',
             }}
           >
-            {/* Success Message */}
-            {(success || registered) && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mb-6 p-3 rounded-xl flex items-center gap-2"
-                style={{ 
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '1px solid rgba(34, 197, 94, 0.3)'
-                }}
-              >
-                <Check className="h-5 w-5 text-green-500" />
-                <span className="text-green-500 text-sm">
-                  {registered ? 'Account created! Please login.' : 'Login successful! Redirecting...'}
-                </span>
-              </motion.div>
-            )}
-            
-            {/* Error Message */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-3 rounded-xl flex items-center gap-2"
+                className="mb-6 p-3 text-sm rounded-xl"
                 style={{ 
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.2)'
+                  color: 'var(--accent-danger)', 
+                  background: 'rgba(239, 68, 68, 0.1)', 
+                  border: '1px solid rgba(239, 68, 68, 0.2)' 
                 }}
               >
-                <X className="h-5 w-5 text-red-500" />
-                <span className="text-red-500 text-sm">{error}</span>
+                {error}
               </motion.div>
             )}
 
             <form onSubmit={handleEmailLogin} className="space-y-4">
               {/* Email Field */}
-              <div>
+              <input
+                type="email"
+                placeholder={t('login.emailPlaceholder')}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-6 py-4 rounded-full transition-all"
+                style={{
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--input-border)',
+                  color: 'var(--text-primary)'
+                }}
+                required
+              />
+
+              {/* Password Field */}
+              <div className="relative">
                 <input
-                  type="email"
-                  placeholder={t('login.emailPlaceholder')}
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError(null);
-                  }}
-                  onBlur={() => setEmailTouched(true)}
-                  className="w-full px-6 py-4 rounded-full transition-all"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder={t('login.passwordPlaceholder')}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-6 py-4 rounded-full pr-14 transition-all"
                   style={{
                     background: 'var(--input-bg)',
-                    border: emailTouched && !emailValid ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
+                    border: '1px solid var(--input-border)',
                     color: 'var(--text-primary)'
                   }}
                   required
                 />
-                {emailTouched && !emailValid && email && (
-                  <p className="text-xs text-red-500 mt-2 ml-4">Please enter a valid email address</p>
-                )}
-              </div>
-
-              {/* Password Field */}
-              <div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder={t('login.passwordPlaceholder')}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setError(null);
-                    }}
-                    onBlur={() => setPasswordTouched(true)}
-                    className="w-full px-6 py-4 rounded-full pr-14 transition-all"
-                    style={{
-                      background: 'var(--input-bg)',
-                      border: passwordTouched && !passwordValid ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
-                      color: 'var(--text-primary)'
-                    }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-6 top-1/2 -translate-y-1/2 hover:opacity-100 transition-opacity"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-                {passwordTouched && !passwordValid && password && (
-                  <p className="text-xs text-red-500 mt-2 ml-4">Password must be at least 6 characters</p>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 hover:opacity-100 transition-opacity"
+                  style={{ color: 'var(--text-tertiary)' }}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
               </div>
 
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading || (emailTouched && passwordTouched && !isFormValid)}
+                disabled={isLoading}
                 className="w-full py-4 font-medium rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
-                  background: isFormValid || (!emailTouched && !passwordTouched) ? 'var(--btn-primary-bg)' : 'var(--border-default)',
-                  color: isFormValid || (!emailTouched && !passwordTouched) ? 'var(--btn-primary-text)' : 'var(--text-tertiary)'
+                  background: 'var(--btn-primary-bg)',
+                  color: 'var(--btn-primary-text)'
                 }}
               >
                 {isLoading ? (

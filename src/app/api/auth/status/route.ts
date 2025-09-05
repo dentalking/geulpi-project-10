@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getCalendarClient } from '@/lib/google-auth';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/db-auth';
 
 export async function GET() {
   const cookieStore = await cookies();

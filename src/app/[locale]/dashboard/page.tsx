@@ -31,6 +31,7 @@ import {
 import { Logo } from '@/components/Logo';
 import Link from 'next/link';
 import { FullPageLoader, CalendarSkeleton, EventListSkeleton } from '@/components/LoadingStates';
+import { MobileBottomNav, MobileHeader, MobileSideMenu } from '@/components/MobileNavigation';
 
 const UniversalCommandBar = dynamic(() => import('@/components/UniversalCommandBar'), { 
   ssr: false,
@@ -196,15 +197,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+    <div className="min-h-screen pb-safe-bottom" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Background Effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" style={{ background: 'var(--effect-purple)' }} />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse delay-1000" style={{ background: 'var(--effect-pink)' }} />
       </div>
 
-      {/* Navigation Bar */}
-      <nav className="sticky top-0 z-50 backdrop-blur-xl border-b" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
+      {/* Mobile Header - Only on Mobile */}
+      <div className="md:hidden">
+        <MobileHeader onMenuClick={() => setShowMobileSidebar(true)} />
+      </div>
+
+      {/* Navigation Bar - Desktop Only */}
+      <nav className="hidden md:block sticky top-0 z-50 backdrop-blur-xl border-b" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
         <div className="max-w-[1400px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Left Section */}
@@ -318,99 +324,14 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {/* Mobile Sidebar */}
-      <AnimatePresence>
-        {showMobileSidebar && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowMobileSidebar(false)}
-              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-            />
-            
-            {/* Sidebar */}
-            <motion.div
-              initial={{ x: -300 }}
-              animate={{ x: 0 }}
-              exit={{ x: -300 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed left-0 top-0 bottom-0 w-72 z-50 overflow-y-auto lg:hidden"
-              style={{ background: 'var(--bg-primary)' }}
-            >
-              <div className="p-4" style={{ background: 'var(--glass-bg)' }}>
-                {/* Sidebar Header */}
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold">Menu</h2>
-                  <button
-                    onClick={() => setShowMobileSidebar(false)}
-                    className="p-2 rounded-lg transition-all"
-                    style={{ color: 'var(--text-tertiary)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                
-                {/* Events Count */}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-default)' }}>
-                  <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{events.length} Events</span>
-                </div>
-                
-                {/* Menu Items */}
-                <div className="space-y-2">
-                  <button 
-                    onClick={() => { setShowNotifications(!showNotifications); setShowMobileSidebar(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
-                    style={{ color: 'var(--text-primary)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Bell className="w-5 h-5" />
-                    <span>{t('dashboard.notifications')}</span>
-                    {unreadCount > 0 && (
-                      <span className="ml-auto w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </button>
-                  
-                  <button 
-                    onClick={() => { setShowSettings(!showSettings); setShowMobileSidebar(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
-                    style={{ color: 'var(--text-primary)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Settings className="w-5 h-5" />
-                    <span>{t('common.settings')}</span>
-                  </button>
-                  
-                  <div className="pt-2 mt-2" style={{ borderTop: '1px solid var(--border-default)' }}>
-                    <a
-                      href="/api/auth/logout"
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all"
-                      style={{ color: 'var(--text-primary)' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <LogOut className="w-5 h-5" />
-                      <span>{t('auth.logout')}</span>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Mobile Side Menu */}
+      <MobileSideMenu 
+        isOpen={showMobileSidebar} 
+        onClose={() => setShowMobileSidebar(false)} 
+      />
 
       {/* Main Content */}
-      <div className="max-w-[1400px] mx-auto px-6 py-6">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 sm:py-6 mb-20 md:mb-0">
         {/* Header Actions */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -776,6 +697,23 @@ export default function DashboardPage() {
             {t('common.close')}
           </button>
         </motion.div>
+      </div>
+
+      {/* Mobile Bottom Navigation - Only on Mobile */}
+      <div className="md:hidden">
+        <MobileBottomNav 
+          notificationCount={unreadCount}
+          onAddEvent={() => {
+            const mobileBar = document.getElementById('mobile-command-bar');
+            if (mobileBar) {
+              mobileBar.style.display = 'flex';
+              setTimeout(() => {
+                const input = document.querySelector('input[placeholder*="명령어"]') as HTMLInputElement;
+                input?.focus();
+              }, 100);
+            }
+          }}
+        />
       </div>
     </div>
   );
