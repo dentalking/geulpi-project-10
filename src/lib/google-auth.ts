@@ -2,16 +2,22 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
 export function getGoogleAuthClient() {
+  // 프로덕션 환경에서는 Vercel URL 사용, 로컬에서는 localhost 사용
+  const redirectUri = process.env.NODE_ENV === 'production' 
+    ? 'https://geulpi-project-10.vercel.app/api/auth/callback'
+    : (process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/auth/callback');
+
   console.log('Google OAuth Config:', {
     clientId: process.env.GOOGLE_CLIENT_ID ? '***' : 'MISSING',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ? '***' : 'MISSING',
-    redirectUri: process.env.GOOGLE_REDIRECT_URI
+    redirectUri: redirectUri,
+    env: process.env.NODE_ENV
   });
 
   const oauth2Client = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    redirectUri
   );
 
   return oauth2Client;
