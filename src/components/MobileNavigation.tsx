@@ -5,10 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Home,
   Calendar,
   Plus,
-  Bell,
   User,
   Menu,
   X,
@@ -20,79 +18,25 @@ import {
 import { useTranslations, useLocale } from 'next-intl';
 
 interface MobileNavigationProps {
-  notificationCount?: number;
   onAddEvent?: () => void;
 }
 
-export function MobileBottomNav({ notificationCount = 0, onAddEvent }: MobileNavigationProps) {
-  const pathname = usePathname();
-  const locale = useLocale();
-  const t = useTranslations();
-  
-  const navItems = [
-    { icon: Home, label: 'Home', href: `/${locale}/landing` },
-    { icon: Calendar, label: 'Calendar', href: `/${locale}/dashboard` },
-    { icon: Plus, label: 'Add', action: onAddEvent, isAction: true },
-    { icon: Bell, label: 'Alerts', href: `/${locale}/notifications`, badge: notificationCount },
-    { icon: User, label: 'Profile', href: `/${locale}/profile` }
-  ];
-
+export function MobileBottomNav({ onAddEvent }: MobileNavigationProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden">
-      <div 
-        className="backdrop-blur-xl border-t px-2 py-2 safe-area-bottom"
-        style={{ 
-          background: 'var(--glass-bg)',
-          borderColor: 'var(--glass-border)' 
+    <>
+      {/* FAB Style AI Chat Button */}
+      <button
+        onClick={onAddEvent}
+        className="fixed bottom-6 right-6 z-40 md:hidden w-14 h-14 rounded-full shadow-lg transition-all transform active:scale-95 hover:scale-105"
+        style={{
+          background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
+          boxShadow: '0 6px 20px rgba(139, 92, 246, 0.4)'
         }}
+        aria-label="AI Chat"
       >
-        <div className="flex items-center justify-around">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            
-            if (item.isAction) {
-              return (
-                <button
-                  key={item.label}
-                  onClick={item.action}
-                  className="relative p-3 rounded-full transition-all transform active:scale-95"
-                  style={{
-                    background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
-                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
-                  }}
-                  aria-label={item.label}
-                >
-                  <Icon className="w-6 h-6 text-white" />
-                </button>
-              );
-            }
-            
-            return (
-              <Link
-                key={item.label}
-                href={item.href || '#'}
-                className={`relative flex flex-col items-center min-w-[64px] min-h-[56px] justify-center rounded-lg transition-all ${
-                  isActive ? 'text-purple-400' : 'text-gray-400'
-                }`}
-                aria-label={item.label}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <div className="relative">
-                  <Icon className="w-6 h-6" />
-                  {item.badge && item.badge > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs mt-1">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </nav>
+        <Plus className="w-7 h-7 text-white mx-auto" />
+      </button>
+    </>
   );
 }
 
@@ -146,12 +90,12 @@ export function MobileSideMenu({
   const t = useTranslations();
   
   const menuItems = [
-    { icon: Home, label: t('navigation.home'), href: `/${locale}/landing` },
-    { icon: Calendar, label: t('navigation.calendar'), href: `/${locale}/dashboard` },
-    { icon: Bell, label: t('navigation.notifications'), href: `/${locale}/notifications` },
-    { icon: Settings, label: t('navigation.settings'), href: `/${locale}/settings` },
+    { icon: Calendar, label: 'Today', href: `/${locale}/dashboard` },
+    { icon: Search, label: 'Search', href: `/${locale}/search` },
+    { icon: User, label: 'Profile', href: `/${locale}/profile` },
+    { icon: Settings, label: 'Settings', href: `/${locale}/settings` },
     { divider: true },
-    { icon: LogOut, label: t('auth.logout'), href: '/api/auth/logout', isLogout: true }
+    { icon: LogOut, label: 'Logout', href: '/api/auth/logout', isLogout: true }
   ];
 
   return (

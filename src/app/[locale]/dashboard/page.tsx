@@ -32,6 +32,8 @@ import { Logo } from '@/components/Logo';
 import Link from 'next/link';
 import { FullPageLoader, CalendarSkeleton, EventListSkeleton } from '@/components/LoadingStates';
 import { MobileBottomNav, MobileHeader, MobileSideMenu } from '@/components/MobileNavigation';
+import { AIChatInterface } from '@/components/AIChatInterface';
+import { EmptyState } from '@/components/EmptyState';
 
 const UniversalCommandBar = dynamic(() => import('@/components/UniversalCommandBar'), { 
   ssr: false,
@@ -71,6 +73,7 @@ export default function DashboardPage() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const checkAuth = async () => {
     try {
@@ -396,31 +399,35 @@ export default function DashboardPage() {
           )}
         </AnimatePresence>
 
-        {/* Main Calendar - Full Width */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-          className="backdrop-blur-xl rounded-2xl border overflow-hidden"
-          style={{ background: 'var(--surface-primary)', borderColor: 'var(--glass-border)' }}
-        >
-          <div className="p-6" style={{ height: 'calc(100vh - 250px)', overflowY: 'auto' }}>
-            <SimpleCalendar
-              events={events}
-              onEventClick={handleEventClick}
-              onTimeSlotClick={(date, hour) => {
-                setCurrentDate(date);
-                const dateStr = date.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { 
-                  month: 'long', 
-                  day: 'numeric',
-                  weekday: 'short'
-                });
-                const timeStr = `${hour}:00`;
-                toast.info(t('dashboard.timeSelected'), t('dashboard.timeSelectedDesc', {date: dateStr, time: timeStr}));
-              }}
-            />
-          </div>
-        </motion.div>
+        {/* Main Calendar or Empty State - Full Width */}
+        {events.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="backdrop-blur-xl rounded-2xl border overflow-hidden"
+            style={{ background: 'var(--surface-primary)', borderColor: 'var(--glass-border)' }}
+          >
+            <div className="p-6" style={{ height: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+              <SimpleCalendar
+                events={events}
+                onEventClick={handleEventClick}
+                onTimeSlotClick={(date, hour) => {
+                  setCurrentDate(date);
+                  const dateStr = date.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { 
+                    month: 'long', 
+                    day: 'numeric',
+                    weekday: 'short'
+                  });
+                  const timeStr = `${hour}:00`;
+                  toast.info(t('dashboard.timeSelected'), t('dashboard.timeSelectedDesc', {date: dateStr, time: timeStr}));
+                }}
+              />
+            </div>
+          </motion.div>
+        ) : (
+          <EmptyState onAddEvent={() => setShowAIChat(true)} />
+        )}
 
         {/* Quick Stats */}
         <motion.div
@@ -614,93 +621,21 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       
-      {/* Mobile Floating Action Button */}
-      <button
-        onClick={() => {
-          const mobileBar = document.getElementById('mobile-command-bar');
-          if (mobileBar) {
-            mobileBar.style.display = 'flex';
-            setTimeout(() => {
-              const input = mobileBar.querySelector('input') as HTMLInputElement;
-              input?.focus();
-            }, 100);
-          }
+      {/* AI Chat Interface */}
+      <AIChatInterface
+        isOpen={showAIChat}
+        onClose={() => setShowAIChat(false)}
+        onSubmit={(input, type) => {
+          // Handle AI chat submission
+          console.log('AI Chat:', { input, type });
+          toast.info('Processing your request...');
         }}
-        className="sm:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all"
-        style={{
-          background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
-          boxShadow: '0 8px 32px rgba(139, 92, 246, 0.3)'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
-        aria-label="Add Event"
-      >
-        <Plus className="w-6 h-6 text-white" />
-      </button>
-      
-      {/* Mobile Command Bar Overlay */}
-      <div 
-        id="mobile-command-bar"
-        className="sm:hidden fixed inset-0 z-50 flex-col items-center justify-end hidden"
-        style={{
-          background: 'rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(10px)'
-        }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            e.currentTarget.style.display = 'none';
-          }
-        }}
-      >
-        <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="w-full bg-gradient-to-t from-black to-gray-900 p-4 pb-8 rounded-t-2xl"
-          style={{
-            maxHeight: '70vh',
-            overflowY: 'auto'
-          }}
-        >
-          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4" />
-          <UniversalCommandBar
-            events={events}
-            onEventSync={syncEvents}
-            sessionId={sessionId}
-          />
-          <button
-            onClick={() => {
-              const mobileBar = document.getElementById('mobile-command-bar');
-              if (mobileBar) {
-                mobileBar.style.display = 'none';
-              }
-            }}
-            className="mt-4 w-full py-3 bg-white/10 backdrop-blur rounded-xl text-white font-medium"
-          >
-            {t('common.close')}
-          </button>
-        </motion.div>
-      </div>
+      />
 
       {/* Mobile Bottom Navigation - Only on Mobile */}
       <div className="md:hidden">
-        <MobileBottomNav 
-          notificationCount={unreadCount}
-          onAddEvent={() => {
-            const mobileBar = document.getElementById('mobile-command-bar');
-            if (mobileBar) {
-              mobileBar.style.display = 'flex';
-              setTimeout(() => {
-                const input = document.querySelector('input[placeholder*="명령어"]') as HTMLInputElement;
-                input?.focus();
-              }, 100);
-            }
-          }}
+        <MobileBottomNav
+          onAddEvent={() => setShowAIChat(true)}
         />
       </div>
     </div>

@@ -316,7 +316,6 @@ export default function MobileOptimizedDashboard() {
       {/* Mobile Bottom Navigation - Only on Mobile */}
       <div className="md:hidden">
         <MobileBottomNav 
-          notificationCount={unreadCount}
           onAddEvent={handleAddEvent}
         />
       </div>
@@ -378,6 +377,17 @@ export default function MobileOptimizedDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* AI Chat Interface */}
+      <AIChatInterface
+        isOpen={showAIChat}
+        onClose={() => setShowAIChat(false)}
+        onSubmit={(input, type) => {
+          // Handle AI chat submission
+          console.log('AI Chat:', { input, type });
+          toast.info('Processing your request...');
+        }}
+      />
     </div>
   );
 }
