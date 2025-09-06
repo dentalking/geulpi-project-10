@@ -2,6 +2,12 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
 export function getGoogleAuthClient() {
+  console.log('Google OAuth Config:', {
+    clientId: process.env.GOOGLE_CLIENT_ID ? '***' : 'MISSING',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ? '***' : 'MISSING',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI
+  });
+
   const oauth2Client = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
