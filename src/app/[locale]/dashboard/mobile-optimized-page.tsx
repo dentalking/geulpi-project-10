@@ -23,6 +23,8 @@ import {
 import { Logo } from '@/components/Logo';
 import { MobileBottomNav, MobileHeader, MobileSideMenu } from '@/components/MobileNavigation';
 import { FullPageLoader } from '@/components/LoadingStates';
+import { AIChatInterface } from '@/components/AIChatInterface';
+import { EmptyState } from '@/components/EmptyState';
 
 const UniversalCommandBar = dynamic(() => import('@/components/UniversalCommandBar'), { 
   ssr: false 
@@ -44,7 +46,7 @@ export default function MobileOptimizedDashboard() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [unreadCount, setUnreadCount] = useState(3);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [showCommandBar, setShowCommandBar] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const checkAuth = async () => {
     try {
@@ -78,7 +80,7 @@ export default function MobileOptimizedDashboard() {
   };
 
   const handleAddEvent = () => {
-    setShowCommandBar(true);
+    setShowAIChat(true);
   };
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -183,61 +185,38 @@ export default function MobileOptimizedDashboard() {
           </div>
         </div>
 
-        {/* Mobile Command Bar (Hidden by default) */}
-        <AnimatePresence>
-          {showCommandBar && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="md:hidden mb-4"
-            >
-              <UniversalCommandBar
-                events={events}
-                onEventSync={syncEvents}
-                sessionId={sessionId}
-              />
-              <button
-                onClick={() => setShowCommandBar(false)}
-                className="mt-2 w-full py-3 min-h-touch backdrop-blur-sm rounded-xl text-sm"
-                style={{ 
-                  background: 'var(--surface-secondary)',
-                  border: '1px solid var(--border-default)'
-                }}
-              >
-                {t('common.close')}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Calendar - Responsive Height */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="backdrop-blur-xl rounded-xl sm:rounded-2xl border overflow-hidden mb-20 md:mb-6"
-          style={{ 
-            background: 'var(--surface-primary)', 
-            borderColor: 'var(--glass-border)',
-            minHeight: '400px'
-          }}
-        >
-          <div className="p-3 sm:p-4 md:p-6" 
-               style={{ 
-                 height: 'calc(100vh - 280px)',
-                 maxHeight: '600px',
-                 overflowY: 'auto' 
-               }}>
-            <SimpleCalendar
-              events={events}
-              onEventClick={handleEventClick}
-              onTimeSlotClick={(date, hour) => {
-                const message = `${date.toLocaleDateString()} ${hour}:00`;
-                toast.info(message);
-              }}
-            />
-          </div>
-        </motion.div>
+        {/* Calendar or Empty State - Responsive Height */}
+        {events.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="backdrop-blur-xl rounded-xl sm:rounded-2xl border overflow-hidden mb-20 md:mb-6"
+            style={{ 
+              background: 'var(--surface-primary)', 
+              borderColor: 'var(--glass-border)',
+              minHeight: '400px'
+            }}
+          >
+            <div className="p-3 sm:p-4 md:p-6" 
+                 style={{ 
+                   height: 'calc(100vh - 280px)',
+                   maxHeight: '600px',
+                   overflowY: 'auto' 
+                 }}>
+              <SimpleCalendar
+                events={events}
+                onEventClick={handleEventClick}
+                onTimeSlotClick={(date, hour) => {
+                  const message = `${date.toLocaleDateString()} ${hour}:00`;
+                  toast.info(message);
+                }}
+              />
+            </div>
+          </motion.div>
+        ) : (
+          <EmptyState onAddEvent={() => setShowAIChat(true)} />
+        )}
 
         {/* Quick Stats - Responsive Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-20 md:mb-0">
