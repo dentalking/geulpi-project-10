@@ -23,6 +23,21 @@ import Link from 'next/link';
 import { useToastContext } from '@/providers/ToastProvider';
 import { MobileHeader, MobileBottomNav } from '@/components/MobileNavigation';
 
+interface SettingItem {
+  icon: any;
+  label: string;
+  value: string;
+  action: () => void;
+  toggle?: boolean;
+  checked?: boolean;
+  danger?: boolean;
+}
+
+interface SettingSection {
+  title: string;
+  items: SettingItem[];
+}
+
 export default function SettingsPage() {
   const t = useTranslations();
   const locale = useLocale();
@@ -37,7 +52,7 @@ export default function SettingsPage() {
     updates: false
   });
 
-  const settingsSections = [
+  const settingsSections: SettingSection[] = [
     {
       title: t('settings.account'),
       items: [
