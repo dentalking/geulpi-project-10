@@ -349,5 +349,11 @@
       "meetings": "Meetings",
       "withLocation": "With Location"
     }
+  },
+  "navigation": {
+    "home": "Home",
+    "calendar": "Calendar", 
+    "notifications": "Notifications",
+    "settings": "Settings"
   }
 }

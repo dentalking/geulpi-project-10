@@ -349,5 +349,11 @@
       "meetings": "미팅",
       "withLocation": "장소 포함"
     }
+  },
+  "navigation": {
+    "home": "홈",
+    "calendar": "캘린더", 
+    "notifications": "알림",
+    "settings": "설정"
   }
 }
