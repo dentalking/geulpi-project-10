@@ -38,19 +38,50 @@ export async function POST(request: Request) {
         const userId = sessionId || 'anonymous';
         const context = contextManager.getContext(userId);
 
+        // Get refresh token as well
+        const refreshToken = cookies().get('refresh_token')?.value;
+        
         // Calendar 연결 테스트
         try {
-            const calendar = getCalendarClient(accessToken);
+            const calendar = getCalendarClient(accessToken, refreshToken);
             const testResponse = await calendar.events.list({
                 calendarId: 'primary',
                 maxResults: 1
             });
-            console.log('Calendar connection OK');
-        } catch (calError) {
-            console.error('Calendar connection failed:', calError);
+            console.log('[AI Chat] Calendar connection OK');
+        } catch (calError: any) {
+            console.error('[AI Chat] Calendar connection failed:', calError);
+            
+            // If token expired, try to refresh
+            if (calError?.code === 401 && refreshToken) {
+                console.log('[AI Chat] Attempting to refresh token...');
+                try {
+                    const { refreshAccessToken } = await import('@/lib/google-auth');
+                    const newTokens = await refreshAccessToken(refreshToken);
+                    
+                    // Update cookies with new token
+                    cookies().set('access_token', newTokens.access_token || '', {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: 'lax',
+                        maxAge: 60 * 60 * 24 * 7
+                    });
+                    
+                    // Continue with new token
+                    // Note: we should update the accessToken variable here
+                    // but for now, return error to user
+                    return NextResponse.json({
+                        type: 'error',
+                        message: 'Session expired. Please refresh the page and try again.'
+                    });
+                } catch (refreshError) {
+                    console.error('[AI Chat] Token refresh failed:', refreshError);
+                }
+            }
+            
             return NextResponse.json({
                 type: 'error',
-                message: '캘린더 연결에 실패했습니다. 다시 로그인해주세요.'
+                message: 'Calendar connection failed. Please login again. 캘린더 연결에 실패했습니다. 다시 로그인해주세요.'
             });
         }
 

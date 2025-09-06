@@ -31,6 +31,35 @@ class AIRouter {
     }
 
     private async classifyIntent(message: string, context: UserContext, selectedEventId?: string): Promise<AIIntent> {
+        const lowerMessage = message.toLowerCase();
+        
+        // Keyword-based fallback for calendar/schedule queries
+        const calendarKeywords = [
+            'schedule', 'calendar', 'event', 'meeting', 'appointment',
+            '일정', '캘린더', '스케줄', '미팅', '약속', '일정표'
+        ];
+        
+        const searchKeywords = [
+            'show', 'what', 'list', 'get', 'find', 'view', 'see',
+            '보여', '뭐', '찾', '확인', '알려', '있'
+        ];
+        
+        const timeKeywords = [
+            'today', 'tomorrow', 'week', 'weekend', 'month',
+            '오늘', '내일', '이번주', '주말', '이달'
+        ];
+        
+        // Check if message is asking about schedule/calendar
+        const hasCalendarKeyword = calendarKeywords.some(keyword => lowerMessage.includes(keyword));
+        const hasSearchKeyword = searchKeywords.some(keyword => lowerMessage.includes(keyword));
+        const hasTimeKeyword = timeKeywords.some(keyword => lowerMessage.includes(keyword));
+        
+        // If it clearly looks like a schedule query, bypass Gemini
+        if ((hasCalendarKeyword || hasTimeKeyword) && (hasSearchKeyword || hasTimeKeyword)) {
+            console.log('[AI Router] Keyword match detected - forcing SEARCH_EVENTS intent');
+            return { type: 'SEARCH_EVENTS', confidence: 0.95, parameters: {} };
+        }
+        
         const prompt = `
 Analyze the user message and classify the intent. Support both English and Korean.
 현재 시간 / Current time: ${context.currentTime.toLocaleString('ko-KR')}
@@ -64,9 +93,22 @@ Examples:
             const cleaned = response.replace(/```json\n?/g, '').replace(/```/g, '').trim();
             const parsedIntent = JSON.parse(cleaned);
             console.log('[AI Router] Parsed intent:', parsedIntent);
+            
+            // Double-check: if Gemini says CONVERSATION but we detected calendar keywords, override
+            if (parsedIntent.type === 'CONVERSATION' && (hasCalendarKeyword || hasTimeKeyword)) {
+                console.log('[AI Router] Overriding CONVERSATION to SEARCH_EVENTS based on keywords');
+                return { type: 'SEARCH_EVENTS', confidence: 0.8, parameters: {} };
+            }
+            
             return parsedIntent;
         } catch (error) {
             console.error('[AI Router] Intent classification error:', error);
+            
+            // Fallback based on keywords if Gemini fails
+            if (hasCalendarKeyword || hasTimeKeyword) {
+                return { type: 'SEARCH_EVENTS', confidence: 0.7, parameters: {} };
+            }
+            
             return { type: 'CONVERSATION', confidence: 0.5, parameters: {} };
         }
     }
