@@ -35,7 +35,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
     
     const newMessage: Message = {
@@ -46,19 +46,48 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
     };
     
     setMessages(prev => [...prev, newMessage]);
-    onSubmit(input, 'text');
+    const userInput = input;
     setInput('');
     
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Call the actual AI API
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userInput,
+          sessionId: Date.now().toString(),
+        }),
+      });
+
+      const data = await response.json();
+      
+      // Handle the AI response
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: 'Got it! I\'ll add that to your calendar.',
+        text: data.message || 'Sorry, I couldn\'t process your request.',
         sender: 'ai',
         timestamp: new Date()
       };
+      
       setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+      
+      // If there's an action, notify the parent component
+      if (data.type === 'action' || data.type === 'data') {
+        onSubmit(userInput, 'text');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, there was an error processing your request. Please try again.',
+        sender: 'ai',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
   };
 
   const handleVoiceInput = () => {
@@ -208,7 +237,12 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
                   placeholder="Type or speak..."
                   className="flex-1 px-4 py-2 rounded-lg"
                   style={{

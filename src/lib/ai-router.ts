@@ -13,7 +13,7 @@ class AIRouter {
             case 'CREATE_EVENT':
                 return this.handleEventCreation(intent, context, message, accessToken, pendingEventData);
             case 'SEARCH_EVENTS':
-                return this.handleEventSearch(intent, context, accessToken);
+                return this.handleEventSearch(intent, context, accessToken, message);
             case 'GET_BRIEFING':
                 return this.handleBriefing(intent, context, accessToken);
             case 'UPDATE_EVENT':
@@ -29,26 +29,27 @@ class AIRouter {
 
     private async classifyIntent(message: string, context: UserContext, selectedEventId?: string): Promise<AIIntent> {
         const prompt = `
-사용자 메시지를 분석하여 의도를 분류해주세요.
-현재 시간: ${context.currentTime.toLocaleString('ko-KR')}
-최근 일정: ${context.recentEvents.slice(0, 3).map(e => e.summary).join(', ')}
-${selectedEventId ? '선택된 일정이 있음 (수정/삭제 의도일 가능성 높음)' : ''}
+Analyze the user message and classify the intent. Support both English and Korean.
+현재 시간 / Current time: ${context.currentTime.toLocaleString('ko-KR')}
+최근 일정 / Recent events: ${context.recentEvents.slice(0, 3).map(e => e.summary).join(', ')}
+${selectedEventId ? '선택된 일정이 있음 / Event selected (likely update/delete intent)' : ''}
 
-메시지: "${message}"
+메시지 / Message: "${message}"
 
-다음 JSON 형식으로 응답:
+Response in JSON format:
 {
   "type": "CREATE_EVENT|SEARCH_EVENTS|GET_BRIEFING|UPDATE_EVENT|DELETE_EVENT|BATCH_OPERATION|CONVERSATION",
   "confidence": 0.0-1.0,
   "parameters": {}
 }
 
-예시:
-- "내일 2시 미팅" → CREATE_EVENT
-- "이번 주 일정 보여줘" → SEARCH_EVENTS  
-- "오늘 브리핑" → GET_BRIEFING
-- "미팅 시간 변경" → UPDATE_EVENT
-- "중복 일정 정리" → BATCH_OPERATION
+Examples:
+- "내일 2시 미팅" / "Meeting tomorrow at 2pm" → CREATE_EVENT
+- "이번 주 일정 보여줘" / "Show me this week's schedule" → SEARCH_EVENTS
+- "show me this weekend's schedule" → SEARCH_EVENTS  
+- "오늘 브리핑" / "Today's briefing" → GET_BRIEFING
+- "미팅 시간 변경" / "Change meeting time" → UPDATE_EVENT
+- "중복 일정 정리" / "Clean up duplicate events" → BATCH_OPERATION
 `;
 
         try {
@@ -109,34 +110,118 @@ ${selectedEventId ? '선택된 일정이 있음 (수정/삭제 의도일 가능�
         }
     }
 
-    private async handleEventSearch(intent: AIIntent, context: UserContext, accessToken: string) {
+    private async handleEventSearch(intent: AIIntent, context: UserContext, accessToken: string, message?: string) {
         try {
             const calendar = getCalendarClient(accessToken);
             const now = new Date();
+            
+            // Parse time range from message
+            let timeMin = now;
+            let timeMax = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // Default 2 weeks
+            
+            if (message) {
+                const lowerMessage = message.toLowerCase();
+                
+                // Weekend detection
+                if (lowerMessage.includes('weekend') || lowerMessage.includes('주말')) {
+                    const currentDay = now.getDay();
+                    const daysUntilSaturday = (6 - currentDay + 7) % 7 || 7;
+                    const saturday = new Date(now);
+                    saturday.setDate(now.getDate() + daysUntilSaturday);
+                    saturday.setHours(0, 0, 0, 0);
+                    
+                    const sunday = new Date(saturday);
+                    sunday.setDate(saturday.getDate() + 1);
+                    sunday.setHours(23, 59, 59, 999);
+                    
+                    timeMin = saturday;
+                    timeMax = sunday;
+                }
+                // Today
+                else if (lowerMessage.includes('today') || lowerMessage.includes('오늘')) {
+                    timeMin = new Date(now);
+                    timeMin.setHours(0, 0, 0, 0);
+                    timeMax = new Date(now);
+                    timeMax.setHours(23, 59, 59, 999);
+                }
+                // Tomorrow
+                else if (lowerMessage.includes('tomorrow') || lowerMessage.includes('내일')) {
+                    timeMin = new Date(now);
+                    timeMin.setDate(timeMin.getDate() + 1);
+                    timeMin.setHours(0, 0, 0, 0);
+                    timeMax = new Date(timeMin);
+                    timeMax.setHours(23, 59, 59, 999);
+                }
+                // This week
+                else if (lowerMessage.includes('this week') || lowerMessage.includes('이번 주')) {
+                    const currentDay = now.getDay();
+                    const startOfWeek = new Date(now);
+                    startOfWeek.setDate(now.getDate() - currentDay);
+                    startOfWeek.setHours(0, 0, 0, 0);
+                    
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    endOfWeek.setHours(23, 59, 59, 999);
+                    
+                    timeMin = startOfWeek;
+                    timeMax = endOfWeek;
+                }
+                // Next week
+                else if (lowerMessage.includes('next week') || lowerMessage.includes('다음 주')) {
+                    const currentDay = now.getDay();
+                    const startOfNextWeek = new Date(now);
+                    startOfNextWeek.setDate(now.getDate() - currentDay + 7);
+                    startOfNextWeek.setHours(0, 0, 0, 0);
+                    
+                    const endOfNextWeek = new Date(startOfNextWeek);
+                    endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+                    endOfNextWeek.setHours(23, 59, 59, 999);
+                    
+                    timeMin = startOfNextWeek;
+                    timeMax = endOfNextWeek;
+                }
+            }
 
-            // 기본적으로 앞으로 2주간의 일정 조회
             const events = await calendar.events.list({
                 calendarId: 'primary',
-                timeMin: now.toISOString(),
-                timeMax: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                timeMin: timeMin.toISOString(),
+                timeMax: timeMax.toISOString(),
                 maxResults: 20,
                 singleEvents: true,
                 orderBy: 'startTime',
             });
 
             const eventItems = events.data.items || [];
+            
+            // Format the response message with event details
+            let responseMessage = '';
+            if (eventItems.length === 0) {
+                responseMessage = 'No events found for the specified period.';
+            } else {
+                responseMessage = `Found ${eventItems.length} event${eventItems.length > 1 ? 's' : ''}:\n\n`;
+                eventItems.forEach((event: any, index: number) => {
+                    const start = event.start?.dateTime || event.start?.date;
+                    const startDate = new Date(start);
+                    responseMessage += `${index + 1}. ${event.summary || 'Untitled'}\n`;
+                    responseMessage += `   📅 ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n`;
+                    if (event.location) {
+                        responseMessage += `   📍 ${event.location}\n`;
+                    }
+                    responseMessage += '\n';
+                });
+            }
 
             return {
                 type: 'data',
                 action: 'events_found',
-                message: `${eventItems.length}개의 일정을 찾았습니다.`,
+                message: responseMessage.trim(),
                 data: { events: eventItems }
             };
         } catch (error) {
             console.error('Event search error:', error);
             return {
                 type: 'error',
-                message: `일정 검색 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+                message: `Error searching events: ${error instanceof Error ? error.message : 'Unknown error'}`
             };
         }
     }
@@ -364,13 +449,13 @@ ${i + 1}. ${event.summary}
     private async handleConversation(message: string, context: UserContext) {
         try {
             const prompt = `
-당신은 친근하고 도움이 되는 AI 캘린더 비서입니다.
-사용자의 메시지에 자연스럽게 응답하되, 필요한 경우 캘린더 관련 기능을 제안하세요.
+You are a friendly and helpful AI calendar assistant. Support both English and Korean.
+Respond naturally to the user's message, and suggest calendar-related features when appropriate.
 
-현재 시간: ${context.currentTime.toLocaleString('ko-KR')}
-사용자 메시지: "${message}"
+Current time: ${context.currentTime.toLocaleString()}
+User message: "${message}"
 
-자연스럽고 간결하게 응답해주세요.
+Respond naturally and concisely in the same language as the user's message.
 `;
 
             const result = await geminiService.model.generateContent(prompt);
@@ -384,7 +469,7 @@ ${i + 1}. ${event.summary}
             console.error('Conversation error:', error);
             return {
                 type: 'text',
-                message: '죄송합니다. 다시 말씀해 주시겠어요?'
+                message: 'Sorry, could you please say that again?'
             };
         }
     }
