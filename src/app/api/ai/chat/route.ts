@@ -10,17 +10,21 @@ import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
 export async function POST(request: Request) {
     const accessToken = cookies().get('access_token')?.value;
 
+    console.log('[AI Chat] Request received, accessToken exists:', !!accessToken);
+
     if (!accessToken) {
+        console.log('[AI Chat] No access token found - user needs to login');
         return NextResponse.json({
             type: 'error',
-            message: '로그인이 필요합니다.'
+            message: 'Please login to use the calendar assistant. 로그인이 필요합니다.'
         });
     }
 
     try {
         const { message, sessionId, selectedEventId, pendingEventData } = await request.json();
 
-        console.log('Received message:', message, 'SessionId:', sessionId, 'SelectedEventId:', selectedEventId, 'PendingEventData:', pendingEventData);
+        console.log('[AI Chat] Processing message:', message);
+        console.log('[AI Chat] SessionId:', sessionId, 'SelectedEventId:', selectedEventId);
 
         // 임시 테스트 응답
         if (message.includes('테스트')) {

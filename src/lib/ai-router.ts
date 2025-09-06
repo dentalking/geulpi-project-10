@@ -7,6 +7,9 @@ class AIRouter {
     async processMessage(message: string, context: UserContext, accessToken: string, selectedEventId?: string, pendingEventData?: any) {
         // 1. 의도 분류
         const intent = await this.classifyIntent(message, context, selectedEventId);
+        
+        console.log('[AI Router] Message:', message);
+        console.log('[AI Router] Classified intent:', intent);
 
         // 2. 적절한 핸들러로 라우팅
         switch (intent.type) {
@@ -46,7 +49,9 @@ Response in JSON format:
 Examples:
 - "내일 2시 미팅" / "Meeting tomorrow at 2pm" → CREATE_EVENT
 - "이번 주 일정 보여줘" / "Show me this week's schedule" → SEARCH_EVENTS
-- "show me this weekend's schedule" → SEARCH_EVENTS  
+- "show me this weekend's schedule" → SEARCH_EVENTS
+- "show me the schedule of today" / "show me today's schedule" → SEARCH_EVENTS
+- "what's on my calendar today" → SEARCH_EVENTS  
 - "오늘 브리핑" / "Today's briefing" → GET_BRIEFING
 - "미팅 시간 변경" / "Change meeting time" → UPDATE_EVENT
 - "중복 일정 정리" / "Clean up duplicate events" → BATCH_OPERATION
@@ -55,10 +60,13 @@ Examples:
         try {
             const result = await geminiService.model.generateContent(prompt);
             const response = await result.response.text();
+            console.log('[AI Router] Raw intent response:', response);
             const cleaned = response.replace(/```json\n?/g, '').replace(/```/g, '').trim();
-            return JSON.parse(cleaned);
+            const parsedIntent = JSON.parse(cleaned);
+            console.log('[AI Router] Parsed intent:', parsedIntent);
+            return parsedIntent;
         } catch (error) {
-            console.error('Intent classification error:', error);
+            console.error('[AI Router] Intent classification error:', error);
             return { type: 'CONVERSATION', confidence: 0.5, parameters: {} };
         }
     }
@@ -111,6 +119,8 @@ Examples:
     }
 
     private async handleEventSearch(intent: AIIntent, context: UserContext, accessToken: string, message?: string) {
+        console.log('[AI Router] handleEventSearch called with message:', message);
+        
         try {
             const calendar = getCalendarClient(accessToken);
             const now = new Date();
@@ -121,6 +131,7 @@ Examples:
             
             if (message) {
                 const lowerMessage = message.toLowerCase();
+                console.log('[AI Router] Parsing time range from message:', lowerMessage);
                 
                 // Weekend detection
                 if (lowerMessage.includes('weekend') || lowerMessage.includes('주말')) {
@@ -182,6 +193,8 @@ Examples:
                 }
             }
 
+            console.log('[AI Router] Calling Google Calendar API with timeMin:', timeMin.toISOString(), 'timeMax:', timeMax.toISOString());
+            
             const events = await calendar.events.list({
                 calendarId: 'primary',
                 timeMin: timeMin.toISOString(),
@@ -192,6 +205,7 @@ Examples:
             });
 
             const eventItems = events.data.items || [];
+            console.log('[AI Router] Found', eventItems.length, 'events');
             
             // Format the response message with event details
             let responseMessage = '';
