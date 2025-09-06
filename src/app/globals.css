@@ -2,23 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Geulpi Unified Design System - Primary */
-@import '../styles/geulpi-design-system.css';
+/* Core Design System - Optimized and Unified */
+@import '../styles/core.css';
 
-/* Legacy Design Systems - Will be phased out */
-@import '../styles/design-tokens.css';
-@import '../styles/apple-design-system.css';
-@import '../styles/design-system-utils.css';
-
-/* Animation Performance Optimizations */
-@import '../styles/animation-optimizations.css';
-
-/* Theme Styles */
-@import '../styles/themes.css';
-@import '../styles/high-contrast.css';
-
-/* Language-specific Font Optimization */
-@import '../styles/language-fonts.css';
+/* Component Specific Styles - Loaded on demand */
+/* Dashboard styles are loaded as CSS modules in the component */
 
 :root {
   /* Apple 8-Point Grid Spacing System */
