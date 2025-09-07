@@ -79,25 +79,33 @@ export class GeminiService {
   }
 
   /**
-   * 이미지에서 일정 정보 추출
+   * 이미지에서 일정 정보 추출 (개선된 파싱 및 검증)
    */
   async parseEventFromImage(imageData: string, mimeType: string): Promise<ImageParseResult> {
+    const currentDate = new Date();
+    const defaultDate = currentDate.toISOString().split('T')[0];
+    const defaultTime = '09:00';
+    
     const prompt = `
       이 이미지에서 일정 또는 이벤트 정보를 추출해주세요.
+      현재 날짜: ${defaultDate}
       
       반드시 유효한 JSON 형식으로만 반환하세요. 다음 필드를 포함해주세요:
       {
-        "title": "이벤트 제목",
-        "date": "YYYY-MM-DD 형식의 날짜",
-        "time": "HH:MM 형식의 시간",
-        "duration": 예상 소요 시간(분, 숫자),
-        "location": "장소",
-        "description": "설명",
+        "title": "이벤트 제목 (필수)",
+        "date": "YYYY-MM-DD 형식의 날짜 (필수, 확실하지 않으면 ${defaultDate})",
+        "time": "HH:MM 형식의 시간 (필수, 확실하지 않으면 ${defaultTime})",
+        "duration": 예상 소요 시간(분, 숫자, 기본값 60),
+        "location": "장소 (선택사항)",
+        "description": "설명 (선택사항)",
         "confidence": 추출 신뢰도 (0-1 사이의 숫자),
-        "extractedText": "이미지에서 추출한 텍스트"
+        "extractedText": "이미지에서 추출한 주요 텍스트"
       }
       
-      **중요**: JSON만 반환하고, 코드 블록 마커나 다른 설명은 절대 포함하지 마세요.
+      **중요**: 
+      1. JSON만 반환하고, 코드 블록 마커나 다른 설명은 절대 포함하지 마세요.
+      2. 날짜와 시간은 반드시 유효한 형식이어야 합니다.
+      3. 확실하지 않은 정보는 기본값을 사용하세요.
     `;
 
     try {
@@ -114,23 +122,29 @@ export class GeminiService {
       const response = result.response;
       let jsonText = response.text();
       
-      console.log('Raw Gemini response:', jsonText.substring(0, 500));
+      console.log('Raw Gemini response (first 500 chars):', jsonText.substring(0, 500));
 
-      // Clean up the response
-      // Remove code block markers if present
-      jsonText = jsonText.replace(/`{3}json\s*/gi, '').replace(/`{3}\s*/g, '');
+      // Aggressive cleanup
+      // Remove all markdown code blocks
+      jsonText = jsonText.replace(/```[\s\S]*?```/g, (match) => {
+        const content = match.replace(/```json\s*|```\s*/g, '');
+        return content;
+      });
       
-      // Extract JSON object
-      const jsonMatch = jsonText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
-      if (jsonMatch) {
+      // Remove any remaining backticks
+      jsonText = jsonText.replace(/`/g, '');
+      
+      // Try to find JSON object with multiple patterns
+      let jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        // Try to find anything that looks like JSON
+        const startIdx = jsonText.indexOf('{');
+        const endIdx = jsonText.lastIndexOf('}');
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+          jsonText = jsonText.substring(startIdx, endIdx + 1);
+        }
+      } else {
         jsonText = jsonMatch[0];
-      }
-      
-      // Additional cleanup: remove any text before the first { and after the last }
-      const firstBrace = jsonText.indexOf('{');
-      const lastBrace = jsonText.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        jsonText = jsonText.substring(firstBrace, lastBrace + 1);
       }
 
       console.log('Cleaned JSON text:', jsonText);
@@ -139,40 +153,107 @@ export class GeminiService {
       try {
         parsedData = JSON.parse(jsonText);
       } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Failed to parse:', jsonText);
+        console.error('JSON parse error, attempting regex extraction:', parseError);
         
-        // Fallback: try to extract basic information manually
-        const titleMatch = jsonText.match(/"title"\s*:\s*"([^"]*)"/);
-        const dateMatch = jsonText.match(/"date"\s*:\s*"([^"]*)"/);
-        const timeMatch = jsonText.match(/"time"\s*:\s*"([^"]*)"/);
-        const locationMatch = jsonText.match(/"location"\s*:\s*"([^"]*)"/);
+        // Enhanced fallback with multiple extraction patterns
+        const extractField = (fieldName: string): string | undefined => {
+          // Try different regex patterns
+          const patterns = [
+            new RegExp(`"${fieldName}"\\s*:\\s*"([^"]*)"`, 'i'),
+            new RegExp(`'${fieldName}'\\s*:\\s*'([^']*)'`, 'i'),
+            new RegExp(`${fieldName}\\s*:\\s*"([^"]*)"`, 'i'),
+            new RegExp(`${fieldName}\\s*:\\s*'([^']*)'`, 'i')
+          ];
+          
+          for (const pattern of patterns) {
+            const match = jsonText.match(pattern);
+            if (match && match[1]) {
+              return match[1];
+            }
+          }
+          return undefined;
+        };
+        
+        const extractNumber = (fieldName: string): number => {
+          const patterns = [
+            new RegExp(`"${fieldName}"\\s*:\\s*(\\d+)`, 'i'),
+            new RegExp(`'${fieldName}'\\s*:\\s*(\\d+)`, 'i'),
+            new RegExp(`${fieldName}\\s*:\\s*(\\d+)`, 'i')
+          ];
+          
+          for (const pattern of patterns) {
+            const match = jsonText.match(pattern);
+            if (match && match[1]) {
+              return parseInt(match[1], 10);
+            }
+          }
+          return fieldName === 'duration' ? 60 : 0;
+        };
         
         parsedData = {
-          title: titleMatch ? titleMatch[1] : '추출된 일정',
-          date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
-          time: timeMatch ? timeMatch[1] : '09:00',
-          duration: 60,
-          location: locationMatch ? locationMatch[1] : undefined,
-          description: '이미지에서 추출된 일정',
-          confidence: 0.5,
-          extractedText: jsonText
+          title: extractField('title') || '이미지에서 추출된 일정',
+          date: extractField('date') || defaultDate,
+          time: extractField('time') || defaultTime,
+          duration: extractNumber('duration'),
+          location: extractField('location'),
+          description: extractField('description') || extractField('desc'),
+          confidence: 0.3, // Lower confidence for regex extraction
+          extractedText: jsonText.substring(0, 500)
         };
       }
 
-      return {
+      // Validate and clean extracted data
+      const validateDate = (dateStr: string): string => {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+          console.warn(`Invalid date "${dateStr}", using default`);
+          return defaultDate;
+        }
+        return dateStr;
+      };
+
+      const validateTime = (timeStr: string): string => {
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+        if (!timeRegex.test(timeStr)) {
+          console.warn(`Invalid time "${timeStr}", using default`);
+          return defaultTime;
+        }
+        return timeStr;
+      };
+
+      // Ensure required fields and validate
+      const finalResult: ImageParseResult = {
         title: parsedData.title || '추출된 일정',
-        date: parsedData.date || new Date().toISOString().split('T')[0],
-        time: parsedData.time || '09:00',
-        duration: parsedData.duration || 60,
+        date: validateDate(parsedData.date || defaultDate),
+        time: validateTime(parsedData.time || defaultTime),
+        duration: Math.max(15, Math.min(480, parsedData.duration || 60)), // Clamp between 15 min and 8 hours
         location: parsedData.location,
         description: parsedData.description,
-        confidence: parsedData.confidence || 0.5,
+        confidence: Math.max(0, Math.min(1, parsedData.confidence || 0.5)),
         extractedText: parsedData.extractedText
       };
+
+      // Final validation
+      if (!finalResult.title || finalResult.title.trim() === '') {
+        throw new Error('제목을 추출할 수 없습니다');
+      }
+
+      console.log('Extracted event data:', finalResult);
+      return finalResult;
+      
     } catch (error) {
       console.error('Error parsing event from image:', error);
-      throw new Error('이미지 처리 중 오류가 발생했습니다');
+      
+      // Return minimal valid data as last resort
+      return {
+        title: '이미지 일정',
+        date: defaultDate,
+        time: defaultTime,
+        duration: 60,
+        description: '이미지에서 자동 추출된 일정입니다',
+        confidence: 0.1,
+        extractedText: '추출 실패'
+      };
     }
   }
 

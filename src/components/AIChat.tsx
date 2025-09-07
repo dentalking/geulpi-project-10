@@ -110,15 +110,16 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
         }
     };
 
-    // Convert blob to base64
-    const blobToBase64 = (blob: Blob): Promise<string> => {
+    // Convert blob to base64 with proper MIME type extraction
+    const blobToBase64 = (blob: Blob): Promise<{ base64: string; mimeType: string }> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => {
-                const base64String = reader.result as string;
-                // Remove data:image/xxx;base64, prefix
-                const base64Data = base64String.split(',')[1];
-                resolve(base64Data);
+                const dataUrl = reader.result as string;
+                // Extract MIME type and base64 data separately
+                const [header, base64] = dataUrl.split(',');
+                const mimeType = header.match(/:(.*?);/)?.[1] || blob.type || 'image/png';
+                resolve({ base64, mimeType });
             };
             reader.onerror = reject;
             reader.readAsDataURL(blob);
@@ -135,19 +136,23 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
         const blob = imageItem.getAsFile();
         if (!blob) return;
         
-        // Get the correct mime type
-        const mimeType = blob.type || imageItem.type || 'image/png';
-        console.log('Image pasted - MIME type:', mimeType, 'Blob type:', blob.type, 'Item type:', imageItem.type);
+        // Check image size (5MB limit)
+        const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+        if (blob.size > MAX_IMAGE_SIZE) {
+            toast.error('이미지 크기 초과', '5MB 이하의 이미지를 사용해주세요');
+            return;
+        }
         
         // Show preview
         const previewUrl = URL.createObjectURL(blob);
         setImagePreview(previewUrl);
         
         try {
-            // Convert to base64 and store for later processing
-            const base64 = await blobToBase64(blob);
+            // Convert to base64 with MIME type
+            const { base64, mimeType } = await blobToBase64(blob);
             setImageData({ base64, mimeType });
             
+            console.log('Image processed - Size:', blob.size, 'MIME type:', mimeType);
             toast.info('이미지 업로드됨', '전송 버튼을 눌러 일정을 분석하세요');
         } catch (error) {
             console.error('Image conversion error:', error);
@@ -157,7 +162,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
         }
     };
 
-    // Process image and extract event data
+    // Process image and extract event data with retry logic
     const processImage = async () => {
         if (!imageData) return;
         
@@ -165,26 +170,58 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
         
         console.log('Processing image with MIME type:', imageData.mimeType);
         
-        try {
-            // Send to API for processing
-            const response = await fetch('/api/ai/process-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    image: imageData.base64,
-                    mimeType: imageData.mimeType || 'image/png',
-                    sessionId
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success && data.eventData) {
-                // Store the pending event data
-                setPendingEventData(data.eventData);
+        const MAX_RETRIES = 2;
+        const TIMEOUT_MS = 30000; // 30 seconds timeout
+        let retries = 0;
+        
+        while (retries <= MAX_RETRIES) {
+            try {
+                // Create timeout promise
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Request timeout')), TIMEOUT_MS)
+                );
                 
-                // Show extracted event data to user for confirmation
-                const confirmMessage = `
+                // Create fetch promise
+                const fetchPromise = fetch('/api/ai/process-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: imageData.base64,
+                        mimeType: imageData.mimeType || 'image/png',
+                        sessionId
+                    })
+                });
+                
+                // Race between fetch and timeout
+                const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.eventData) {
+                    // Validate extracted event data
+                    const eventDate = new Date(data.eventData.date + ' ' + data.eventData.time);
+                    const now = new Date();
+                    
+                    // Check if date is valid
+                    if (isNaN(eventDate.getTime())) {
+                        toast.error('날짜 오류', '추출된 날짜가 유효하지 않습니다');
+                        break;
+                    }
+                    
+                    // Warn if date is in the past
+                    if (eventDate < now) {
+                        toast.warning('과거 일정', '추출된 일정이 과거 시점입니다');
+                    }
+                    
+                    // Store the pending event data
+                    setPendingEventData(data.eventData);
+                    
+                    // Show extracted event data to user for confirmation
+                    const confirmMessage = `
 스크린샷에서 다음 일정을 추출했습니다:
 
 📅 제목: ${data.eventData.title}
@@ -194,54 +231,68 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
 ⏱️ 소요시간: ${data.eventData.duration}분
 
 이 일정을 등록하시겠습니까? (예/아니오)
-                `.trim();
+                    `.trim();
+                    
+                    const assistantMessage: AIMessage = {
+                        id: Date.now().toString(),
+                        role: 'assistant',
+                        content: confirmMessage,
+                        timestamp: new Date(),
+                        type: 'text',
+                        data: { pendingEvent: data.eventData }
+                    };
+                    
+                    setMessages(prev => [...prev, assistantMessage]);
+                    
+                    // Set quick actions for confirmation
+                    setSuggestions([
+                        {
+                            id: 'confirm-event',
+                            title: '✅ 일정 등록',
+                            action: `예, "${data.eventData.title}" 일정을 등록해주세요`,
+                            icon: '✅'
+                        },
+                        {
+                            id: 'cancel-event',
+                            title: '❌ 취소',
+                            action: '아니오, 취소합니다',
+                            icon: '❌'
+                        },
+                        {
+                            id: 'edit-event',
+                            title: '✏️ 수정',
+                            action: `"${data.eventData.title}" 일정을 수정하고 싶습니다`,
+                            icon: '✏️'
+                        }
+                    ]);
+                    
+                    toast.success('이미지 분석 완료', '일정 정보를 추출했습니다');
+                    break; // Success, exit retry loop
+                } else {
+                    throw new Error('일정 정보를 추출할 수 없습니다');
+                }
                 
-                const assistantMessage: AIMessage = {
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    content: confirmMessage,
-                    timestamp: new Date(),
-                    type: 'text',
-                    data: { pendingEvent: data.eventData }
-                };
+            } catch (error: any) {
+                console.error(`Image processing attempt ${retries + 1} failed:`, error);
                 
-                setMessages(prev => [...prev, assistantMessage]);
-                
-                // Set quick actions for confirmation
-                setSuggestions([
-                    {
-                        id: 'confirm-event',
-                        title: '✅ 일정 등록',
-                        action: `예, "${data.eventData.title}" 일정을 등록해주세요`,
-                        icon: '✅'
-                    },
-                    {
-                        id: 'cancel-event',
-                        title: '❌ 취소',
-                        action: '아니오, 취소합니다',
-                        icon: '❌'
-                    },
-                    {
-                        id: 'edit-event',
-                        title: '✏️ 수정',
-                        action: `"${data.eventData.title}" 일정을 수정하고 싶습니다`,
-                        icon: '✏️'
-                    }
-                ]);
-                
-                toast.success('이미지 분석 완료', '일정 정보를 추출했습니다');
-            } else {
-                toast.error('일정 추출 실패', '이미지에서 일정 정보를 찾을 수 없습니다');
+                if (retries === MAX_RETRIES) {
+                    // Final attempt failed
+                    toast.error('이미지 처리 실패', error.message === 'Request timeout' 
+                        ? '요청 시간이 초과되었습니다' 
+                        : '이미지를 처리할 수 없습니다');
+                } else {
+                    // Retry after delay
+                    retries++;
+                    console.log(`Retrying... (attempt ${retries + 1}/${MAX_RETRIES + 1})`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+                }
             }
-        } catch (error) {
-            console.error('Image processing error:', error);
-            toast.error('이미지 처리 오류', '이미지를 처리하는 중 오류가 발생했습니다');
-        } finally {
-            setIsProcessingImage(false);
-            // Clear image data after processing
-            setImageData(null);
-            setImagePreview(null);
         }
+        
+        setIsProcessingImage(false);
+        // Clear image data after processing
+        setImageData(null);
+        setImagePreview(null);
     };
 
     // Clear uploaded image
@@ -756,8 +807,24 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                             fontSize: 'var(--font-xs)',
                             color: 'var(--text-tertiary)'
                         }}>
-                            {isProcessingImage ? 'AI가 일정 정보를 추출하고 있습니다' : '전송 버튼을 눌러 일정을 분석하세요'}
+                            {isProcessingImage ? 'AI가 일정 정보를 추출하고 있습니다 (최대 30초)' : '전송 버튼을 눌러 일정을 분석하세요'}
                         </p>
+                        {isProcessingImage && (
+                            <div style={{
+                                marginTop: '8px',
+                                height: '2px',
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                borderRadius: '1px',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    height: '100%',
+                                    background: 'var(--accent-primary)',
+                                    width: '0%',
+                                    animation: 'progressBar 30s linear forwards'
+                                }} />
+                            </div>
+                        )}
                     </div>
                     {isProcessingImage ? (
                         <div style={{
