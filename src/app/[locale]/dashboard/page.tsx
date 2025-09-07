@@ -98,9 +98,7 @@ export default function SimplifiedDashboardPage() {
     }
   }, [sessionId, t, toast]);
   
-  const handleEventClick = useCallback((event: CalendarEvent) => {
-    toast.info(event.summary || t('dashboard.eventSelected'));
-  }, [t, toast]);
+  // Remove the handleEventClick function - let the calendar component handle event clicks internally
   
   useEffect(() => {
     checkAuth();
@@ -397,7 +395,7 @@ export default function SimplifiedDashboardPage() {
                 locale={locale}
                 isDesktop={!isMobile}
                 onEventClick={(event) => {
-                  handleEventClick(event);
+                  // Let the calendar component handle event clicks internally with its modal system
                   if (event.start) {
                     const eventDate = new Date(event.start.dateTime || event.start.date || '');
                     setSelectedDate(eventDate);

@@ -327,7 +327,7 @@ export function UnifiedCalendarView({
                             key={eventIndex}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onEventClick(event);
+                              handleEventClick(event);
                             }}
                             className="leading-tight truncate px-1 py-0.5 rounded"
                             style={{

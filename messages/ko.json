@@ -351,7 +351,13 @@
       "thisWeek": "이번 주",
       "meetings": "미팅",
       "withLocation": "장소 포함"
-    }
+    },
+    "today": "오늘",
+    "upcomingEvents": "다가오는 일정",
+    "eventsInNextHour": "1시간 내 일정",
+    "eventCreated": "일정이 생성되었습니다",
+    "eventCreationFailed": "일정 생성에 실패했습니다",
+    "eventCreationError": "일정 생성 중 오류가 발생했습니다"
   },
   "navigation": {
     "home": "홈",

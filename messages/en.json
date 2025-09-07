@@ -351,7 +351,13 @@
       "thisWeek": "This Week",
       "meetings": "Meetings",
       "withLocation": "With Location"
-    }
+    },
+    "today": "Today",
+    "upcomingEvents": "Upcoming Events",
+    "eventsInNextHour": "events in the next hour",
+    "eventCreated": "Event created successfully",
+    "eventCreationFailed": "Failed to create event",
+    "eventCreationError": "Error occurred while creating event"
   },
   "navigation": {
     "home": "Home",
