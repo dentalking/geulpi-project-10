@@ -128,10 +128,17 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
 
     // Handle paste event for images
     const handlePaste = async (e: React.ClipboardEvent) => {
+        console.log('[handlePaste] Paste event triggered');
         const items = Array.from(e.clipboardData.items);
+        console.log('[handlePaste] Clipboard items:', items.map(item => item.type));
+        
         const imageItem = items.find(item => item.type.startsWith('image/'));
         
-        if (!imageItem) return;
+        if (!imageItem) {
+            console.log('[handlePaste] No image found in clipboard');
+            return;
+        }
+        console.log('[handlePaste] Image found:', imageItem.type);
         
         const blob = imageItem.getAsFile();
         if (!blob) return;
@@ -164,11 +171,16 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
 
     // Process image and extract event data with retry logic
     const processImage = async () => {
-        if (!imageData) return;
+        console.log('[processImage] Starting...', { hasImageData: !!imageData });
+        if (!imageData) {
+            console.log('[processImage] No image data, returning');
+            return;
+        }
         
         setIsProcessingImage(true);
         
-        console.log('Processing image with MIME type:', imageData.mimeType);
+        console.log('[processImage] Processing image with MIME type:', imageData.mimeType);
+        console.log('[processImage] Image data length:', imageData.base64?.length);
         
         const MAX_RETRIES = 2;
         const TIMEOUT_MS = 30000; // 30 seconds timeout
@@ -182,6 +194,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                 );
                 
                 // Create fetch promise
+                console.log(`[processImage] Attempt ${retries + 1} - Sending to API...`);
                 const fetchPromise = fetch('/api/ai/process-image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -194,6 +207,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                 
                 // Race between fetch and timeout
                 const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+                console.log(`[processImage] Response received:`, response.status);
                 
                 if (!response.ok) {
                     throw new Error(`Server error: ${response.status}`);
@@ -280,6 +294,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                     toast.error('이미지 처리 실패', error.message === 'Request timeout' 
                         ? '요청 시간이 초과되었습니다' 
                         : '이미지를 처리할 수 없습니다');
+                    break; // Exit the retry loop
                 } else {
                     // Retry after delay
                     retries++;
@@ -357,14 +372,23 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
 
     const sendMessage = async (text?: string) => {
         const messageText = text || input;
+        console.log('[sendMessage] Called with:', { 
+            hasText: !!messageText?.trim(), 
+            hasImageData: !!imageData,
+            textLength: messageText?.length 
+        });
         
         // If there's an image, process it first
         if (imageData && !messageText.trim()) {
+            console.log('[sendMessage] Processing image (no text)');
             await processImage();
             return;
         }
         
-        if (!messageText.trim()) return;
+        if (!messageText.trim()) {
+            console.log('[sendMessage] No text and no image, returning');
+            return;
+        }
 
         const userMessage: AIMessage = {
             id: Date.now().toString(),
