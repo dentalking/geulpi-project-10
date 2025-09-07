@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { GeminiService } from '@/services/ai/GeminiService';
+import { getCalendarClient } from '@/lib/google-auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,10 +10,11 @@ export async function POST(request: NextRequest) {
       hasImage: !!body.image, 
       imageLength: body.image?.length,
       mimeType: body.mimeType,
-      sessionId: body.sessionId 
+      sessionId: body.sessionId,
+      autoCreate: body.autoCreate 
     });
     
-    const { image, mimeType, sessionId } = body;
+    const { image, mimeType, sessionId, autoCreate = false } = body;
 
     if (!image || !mimeType) {
       console.log('Missing required fields:', { image: !!image, mimeType: !!mimeType });
@@ -28,11 +31,56 @@ export async function POST(request: NextRequest) {
 
     // Process image to extract event data
     const eventData = await geminiService.parseEventFromImage(image, mimeType);
+    console.log('Extracted event data:', eventData);
 
-    // Return extracted event data
+    // If autoCreate is true, create the event in Google Calendar
+    let createdEvent = null;
+    if (autoCreate) {
+      const cookieStore = cookies();
+      const accessToken = cookieStore.get('access_token')?.value;
+      
+      if (accessToken) {
+        try {
+          const calendar = getCalendarClient(accessToken);
+          
+          // Convert extracted data to calendar event format
+          const startDateTime = new Date(`${eventData.date}T${eventData.time}:00`);
+          const endDateTime = new Date(startDateTime.getTime() + eventData.duration * 60000);
+          
+          const event = {
+            summary: eventData.title,
+            description: eventData.description || '이미지에서 추출된 일정',
+            location: eventData.location,
+            start: {
+              dateTime: startDateTime.toISOString(),
+              timeZone: 'Asia/Seoul',
+            },
+            end: {
+              dateTime: endDateTime.toISOString(),
+              timeZone: 'Asia/Seoul',
+            }
+          };
+          
+          console.log('Creating calendar event:', event);
+          const result = await calendar.events.insert({
+            calendarId: 'primary',
+            requestBody: event,
+          });
+          
+          createdEvent = result.data;
+          console.log('Event created successfully:', createdEvent.id);
+        } catch (calendarError) {
+          console.error('Failed to create calendar event:', calendarError);
+          // Don't fail the entire request if calendar creation fails
+        }
+      }
+    }
+
+    // Return extracted event data with creation status
     return NextResponse.json({
       success: true,
       eventData,
+      createdEvent,
       sessionId
     });
 

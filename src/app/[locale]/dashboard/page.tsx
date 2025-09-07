@@ -819,7 +819,7 @@ export default function DashboardPage() {
           
           if (type === 'image') {
             console.log('[Dashboard] Processing image input');
-            toast.info('Processing screenshot...');
+            toast.info('스크린샷 처리 중...', '일정 정보를 추출하고 있습니다');
             
             try {
               // Extract base64 data from data URL
@@ -828,16 +828,17 @@ export default function DashboardPage() {
                 ? input.split(':')[1].split(';')[0] 
                 : 'image/png';
               
-              console.log('[Dashboard] Sending to API, mimeType:', mimeType);
+              console.log('[Dashboard] Sending to API with autoCreate, mimeType:', mimeType);
               
-              // Send to API for processing
+              // Send to API for processing and auto-create event
               const response = await fetch('/api/ai/process-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   image: base64Data,
                   mimeType: mimeType,
-                  sessionId: sessionId
+                  sessionId: sessionId,
+                  autoCreate: true  // Auto-create the event in Google Calendar
                 })
               });
               
@@ -845,17 +846,30 @@ export default function DashboardPage() {
               console.log('[Dashboard] API response:', data);
               
               if (data.success && data.eventData) {
-                toast.success('Event extracted!', `Found: ${data.eventData.title}`);
-                // You can add logic here to create the event
+                if (data.createdEvent) {
+                  // Event was successfully created in Google Calendar
+                  toast.success('일정이 등록되었습니다!', `"${data.eventData.title}" - ${data.eventData.date} ${data.eventData.time}`);
+                  
+                  // Sync calendar to show the new event
+                  await syncEvents();
+                  
+                  // Close the chat interface after successful creation
+                  setTimeout(() => {
+                    setShowAIChat(false);
+                  }, 2000);
+                } else {
+                  // Event was extracted but not created
+                  toast.warning('일정 추출 완료', `"${data.eventData.title}" - 캘린더 등록은 수동으로 진행해주세요`);
+                }
               } else {
-                toast.error('Failed to extract event', 'Could not find event information in the image');
+                toast.error('일정 추출 실패', '이미지에서 일정 정보를 찾을 수 없습니다');
               }
             } catch (error) {
               console.error('[Dashboard] Image processing error:', error);
-              toast.error('Processing failed', 'Could not process the screenshot');
+              toast.error('처리 실패', '스크린샷을 처리할 수 없습니다');
             }
           } else {
-            toast.info('Processing your request...');
+            toast.info('요청 처리 중...');
             // Handle text/voice input
           }
         }}
