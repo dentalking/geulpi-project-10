@@ -105,9 +105,15 @@ ${userContext?.lastExtractedEvent ? `
 세션 ID: ${sessionId}
 
 현재 등록된 일정 (${currentEvents.length}개):
-${currentEvents.slice(0, 10).map(e => 
-  `- ${e.summary}: ${new Date(e.start?.dateTime || e.start?.date).toLocaleString('ko-KR')}`
-).join('\n')}
+${currentEvents.slice(0, 10).map(e => {
+  const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+  // Use toLocaleDateString with Asia/Seoul timezone
+  const dateStr = startDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }); // en-CA gives YYYY-MM-DD format
+  const timeStr = e.start?.dateTime 
+    ? startDate.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
+    : '종일';
+  return `- [ID: ${e.id}] ${e.summary}: ${dateStr} ${timeStr}`;
+}).join('\n')}
 
 사용자 메시지: "${message}"
 
@@ -117,7 +123,9 @@ ${currentEvents.slice(0, 10).map(e =>
    - CREATE: 새 일정 추가 (예: "내일 3시 회의 추가해줘")
      * "이것을 등록해줘", "register this" 같은 참조 명령은 최근 추출된 일정을 등록하는 것임
    - UPDATE: 기존 일정 수정 (예: "회의 시간 4시로 변경")
-   - DELETE: 일정 삭제 (예: "오늘 회의 취소해줘")
+   - DELETE: 일정 삭제 (예: "오늘 회의 취소해줘", "중복 제거해줘")
+     * 중복 삭제 시: 같은 제목과 시간의 이벤트 중 하나를 삭제 (eventId 필수)
+     * DELETE action에는 반드시 eventId를 포함시켜야 함
    - SEARCH: 일정 검색/조회 (예: "이번 주 일정 보여줘")
    - CHAT: 일반 대화 (예: "안녕", "고마워")
 
@@ -136,6 +144,14 @@ ${currentEvents.slice(0, 10).map(e =>
 {"type":"create","data":{"title":"회의","date":"2024-01-11","time":"15:00","duration":60}}
 ---SUGGESTIONS---
 회의 장소 추가하기, 참석자 이메일 추가하기, 오늘 일정 확인하기
+
+중복 삭제 예시:
+---RESPONSE---
+중복된 "회의" 일정 중 하나를 삭제했습니다.
+---ACTION---
+{"type":"delete","data":{"eventId":"abc123xyz"}}
+---SUGGESTIONS---
+남은 일정 확인하기, 다른 중복 일정 찾기, 새 일정 추가하기
 
 ${isEnglish ? `
 IMPORTANT:
