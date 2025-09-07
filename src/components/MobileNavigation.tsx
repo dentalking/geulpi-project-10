@@ -169,7 +169,7 @@ export function MobileSideMenu({
                   const props = item.onClick 
                     ? { 
                         onClick: () => {
-                          item.onClick();
+                          item.onClick?.();
                           onClose();
                         },
                         type: 'button' as const
@@ -182,7 +182,7 @@ export function MobileSideMenu({
                   return (
                     <Component
                       key={item.label}
-                      {...props}
+                      {...props as any}
                       className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all touch-manipulation w-full text-left"
                       style={{
                         minHeight: '48px',
