@@ -16,6 +16,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
+import { Logo } from '@/components/Logo';
 
 interface MobileNavigationProps {
   onAddEvent?: () => void;
@@ -70,9 +71,10 @@ export function MobileHeader({
             <Menu className="w-6 h-6" />
           </button>
           
-          <h1 className="text-lg font-semibold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Geulpi
-          </h1>
+          <Link href="/" className="flex items-center gap-2">
+            <Logo size={24} color="currentColor" />
+            <span className="text-lg font-medium">Geulpi</span>
+          </Link>
           
           <button
             onClick={onSearchClick || (() => router.push(`/${locale}/search`))}
@@ -138,7 +140,10 @@ export function MobileSideMenu({
             <div className="p-4">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Menu</h2>
+                <div className="flex items-center gap-2">
+                  <Logo size={24} color="currentColor" />
+                  <span className="text-xl font-semibold">Geulpi</span>
+                </div>
                 <button
                   onClick={onClose}
                   className="p-2 rounded-lg transition-all touch-manipulation"

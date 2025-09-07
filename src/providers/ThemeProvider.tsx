@@ -126,6 +126,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.style.setProperty('--font-3xl', `${34 * scaleFactor}px`);
     document.documentElement.style.setProperty('--font-4xl', `${48 * scaleFactor}px`);
     
+    // Calendar specific font sizes
+    document.documentElement.style.setProperty('--calendar-event-text', `${7 * scaleFactor}px`);
+    document.documentElement.style.setProperty('--calendar-event-time', `${6 * scaleFactor}px`);
+    
     // Cleanup timeout on unmount or when dependencies change
     return () => clearTimeout(timeout);
   }, [actualTheme, fontSize, mounted]);
