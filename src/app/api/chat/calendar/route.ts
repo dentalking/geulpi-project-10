@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { ChatCalendarService } from '@/services/ai/ChatCalendarService';
 import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
+import type { CalendarEvent } from '@/types';
 
 const chatService = new ChatCalendarService();
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     const calendar = getCalendarClient(accessToken);
 
     // Get current events for context
-    let currentEvents = [];
+    let currentEvents: CalendarEvent[] = [];
     try {
       const now = new Date();
       const response = await calendar.events.list({
