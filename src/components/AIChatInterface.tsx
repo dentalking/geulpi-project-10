@@ -232,7 +232,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
               const syncData = await syncResponse.json();
               if (syncData.success && onSubmit) {
                 // Call onSubmit to update parent component's events
-                onSubmit('');
+                onSubmit('', 'text');
               }
             } catch (syncError) {
               console.error('[AIChatInterface] Error syncing calendar:', syncError);
@@ -371,7 +371,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
               const syncData = await syncResponse.json();
               if (syncData.success && onSubmit) {
                 // Call onSubmit to update parent component's events
-                onSubmit('');
+                onSubmit('', 'text');
               }
             } catch (syncError) {
               console.error('[AIChatInterface] Error syncing calendar:', syncError);
