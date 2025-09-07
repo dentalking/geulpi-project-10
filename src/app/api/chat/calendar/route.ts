@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { ChatCalendarService } from '@/services/ai/ChatCalendarService';
+import { ChatCalendarService, type ChatResponse } from '@/services/ai/ChatCalendarService';
 import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
 import type { CalendarEvent } from '@/types';
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       console.error('Failed to fetch events:', error);
     }
 
-    let chatResponse;
+    let chatResponse: ChatResponse;
     
     // Process based on type
     if (type === 'image' && imageData) {
