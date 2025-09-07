@@ -163,15 +163,15 @@ export function FullPageLoader({ message = '로딩 중...' }: { message?: string
               </svg>
             </motion.div>
             
-            {/* 중앙 아이콘 */}
+            {/* 중앙 로고 */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className="text-3xl"
-              >
-                📅
-              </motion.div>
+              <motion.img
+                src="/images/logo.svg"
+                alt="Loading"
+                animate={{ scale: [1, 1.1, 1], rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="w-12 h-12"
+              />
             </div>
           </div>
         </div>
@@ -259,7 +259,9 @@ export function ErrorState({
       animate={{ opacity: 1, y: 0 }}
       className="text-center py-12"
     >
-      <div className="text-5xl mb-4">😢</div>
+      <div className="mb-4">
+        <img src="/images/logo.svg" alt="Error" className="w-16 h-16 mx-auto opacity-50" />
+      </div>
       <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
         {title}
       </h3>

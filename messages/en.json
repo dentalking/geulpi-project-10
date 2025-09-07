@@ -314,6 +314,7 @@
     "title": "Dashboard",
     "previousMonth": "Previous Month",
     "nextMonth": "Next Month",
+    "searchOrAskAI": "Search or Ask AI",
     "sync": {
       "success": "Sync Complete",
       "failed": "Sync Failed",

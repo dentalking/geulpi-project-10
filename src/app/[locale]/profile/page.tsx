@@ -12,7 +12,8 @@ interface UserProfile {
   id: string;
   email: string;
   name: string;
-  created_at: string;
+  picture?: string;
+  created_at?: string;
 }
 
 export default function ProfilePage() {
@@ -23,6 +24,7 @@ export default function ProfilePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [authType, setAuthType] = useState<'google' | 'email' | null>(null);
   
   // Profile form states
   const [profileForm, setProfileForm] = useState({
@@ -57,6 +59,7 @@ export default function ProfilePage() {
       if (data.authenticated && data.user) {
         setIsAuthenticated(true);
         setUser(data.user);
+        setAuthType(data.authType || null);
         setProfileForm({
           name: data.user.name || '',
           email: data.user.email || ''
@@ -198,9 +201,17 @@ export default function ProfilePage() {
           style={{ background: 'var(--surface-primary)', border: '1px solid var(--glass-border)' }}
         >
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-              <User className="w-8 h-8 text-white" />
-            </div>
+            {user?.picture ? (
+              <img 
+                src={user.picture} 
+                alt={user.name} 
+                className="w-16 h-16 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <User className="w-8 h-8 text-white" />
+              </div>
+            )}
             <div>
               <h2 className="text-2xl font-semibold">{user?.name}</h2>
               <p style={{ color: 'var(--text-secondary)' }}>{user?.email}</p>
@@ -224,7 +235,7 @@ export default function ProfilePage() {
                 <User className="w-5 h-5" />
                 Profile Information
               </h3>
-              {!isEditing && (
+              {!isEditing && authType === 'email' && (
                 <button
                   onClick={() => setIsEditing(true)}
                   className="p-2 rounded-lg transition-all"
@@ -261,6 +272,14 @@ export default function ProfilePage() {
               </motion.div>
             )}
 
+            {authType === 'google' && (
+              <div className="mb-4 p-3 rounded-xl" style={{ background: 'var(--surface-secondary)' }}>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Your profile information is managed through your Google account and cannot be edited here.
+                </p>
+              </div>
+            )}
+            
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
@@ -343,17 +362,18 @@ export default function ProfilePage() {
             </form>
           </motion.div>
 
-          {/* Change Password */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="p-6 rounded-2xl backdrop-blur-sm"
-            style={{ background: 'var(--surface-primary)', border: '1px solid var(--glass-border)' }}
-          >
-            <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <Lock className="w-5 h-5" />
-              Change Password
-            </h3>
+          {/* Change Password - Only show for email auth */}
+          {authType === 'email' ? (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="p-6 rounded-2xl backdrop-blur-sm"
+              style={{ background: 'var(--surface-primary)', border: '1px solid var(--glass-border)' }}
+            >
+              <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Change Password
+              </h3>
 
             {passwordSuccess && (
               <motion.div
@@ -485,6 +505,33 @@ export default function ProfilePage() {
               </button>
             </form>
           </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="p-6 rounded-2xl backdrop-blur-sm"
+              style={{ background: 'var(--surface-primary)', border: '1px solid var(--glass-border)' }}
+            >
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Password Management
+              </h3>
+              <div className="p-4 rounded-xl" style={{ background: 'var(--surface-secondary)' }}>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  You are signed in with Google. Password management is handled through your Google account.
+                </p>
+                <a 
+                  href="https://myaccount.google.com/security" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 mt-3 text-sm"
+                  style={{ color: 'var(--accent-primary)' }}
+                >
+                  Manage Google Account Security →
+                </a>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Account Actions */}

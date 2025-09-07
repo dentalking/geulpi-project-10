@@ -14,6 +14,7 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
     const [viewType, setViewType] = useState<'list' | 'week' | 'month' | 'day'>('month');
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [focusedDayIndex, setFocusedDayIndex] = useState<number>(-1);
+    const [showMonthsWithEvents, setShowMonthsWithEvents] = useState(false);
 
     const today = new Date();
     const isToday = (date: Date) => date.toDateString() === today.toDateString();
@@ -22,6 +23,24 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
         tomorrow.setDate(tomorrow.getDate() + 1);
         return date.toDateString() === tomorrow.toDateString();
     };
+
+    // Get months that have events
+    const getMonthsWithEvents = () => {
+        const monthsMap = new Map<string, number>();
+        events.forEach(event => {
+            const eventDate = event.start?.dateTime || event.start?.date;
+            if (eventDate) {
+                const date = new Date(eventDate);
+                const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+                monthsMap.set(monthKey, (monthsMap.get(monthKey) || 0) + 1);
+            }
+        });
+        return monthsMap;
+    };
+
+    const monthsWithEvents = getMonthsWithEvents();
+    const currentMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
+    const currentMonthEventCount = monthsWithEvents.get(currentMonthKey) || 0;
 
     // 월간 캘린더 그리드 생성
     const generateCalendarDays = (date: Date) => {
@@ -296,10 +315,25 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                 textAlign: 'center'
                             }}>
                                 {viewType === 'month' ? 
-                                    currentDate.toLocaleDateString('ko-KR', { 
-                                        year: 'numeric', 
-                                        month: 'long' 
-                                    }) :
+                                    <>
+                                        {currentDate.toLocaleDateString('ko-KR', { 
+                                            year: 'numeric', 
+                                            month: 'long' 
+                                        })}
+                                        {currentMonthEventCount > 0 && (
+                                            <span style={{
+                                                marginLeft: 'var(--space-2)',
+                                                fontSize: 'var(--font-xs)',
+                                                background: 'var(--surface-accent)',
+                                                color: 'var(--text-accent)',
+                                                padding: '2px 8px',
+                                                borderRadius: 'var(--radius-sm)',
+                                                fontWeight: '600'
+                                            }}>
+                                                {currentMonthEventCount}개
+                                            </span>
+                                        )}
+                                    </> :
                                     viewType === 'week' ?
                                     `${weekDays[0].toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} - ${weekDays[6].toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}` :
                                     selectedDate.toLocaleDateString('ko-KR', {
@@ -337,17 +371,39 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                             >
                                 →
                             </button>
+                            {/* Today button */}
+                            {(currentDate.getMonth() !== today.getMonth() || currentDate.getFullYear() !== today.getFullYear()) && (
+                                <button
+                                    onClick={() => {
+                                        setCurrentDate(new Date());
+                                        setSelectedDate(new Date());
+                                    }}
+                                    className="glass-light interactive focus-ring"
+                                    style={{
+                                        padding: 'var(--space-2) var(--space-3)',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: 'var(--font-sm)',
+                                        fontWeight: '600',
+                                        background: 'var(--surface-accent)',
+                                        color: 'var(--text-accent)',
+                                        border: '1px solid var(--border-accent)',
+                                        marginLeft: 'var(--space-2)'
+                                    }}
+                                >
+                                    오늘
+                                </button>
+                            )}
                         </div>
                     )}
                     
                     {/* 뷰 타입 버튼 */}
                     <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                         {[
-                            { key: 'month', label: '월간', icon: '📅' },
-                            { key: 'week', label: '주간', icon: '📊' },
-                            { key: 'day', label: '일간', icon: '🌅' },
-                            { key: 'list', label: '목록', icon: '📋' }
-                        ].map(({ key, label, icon }) => (
+                            { key: 'month', label: '월간' },
+                            { key: 'week', label: '주간' },
+                            { key: 'day', label: '일간' },
+                            { key: 'list', label: '목록' }
+                        ].map(({ key, label }) => (
                             <button
                                 key={key}
                                 onClick={() => setViewType(key as any)}
@@ -377,7 +433,6 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                 aria-label={`${label} 보기`}
                                 aria-pressed={viewType === key}
                             >
-                                <span style={{ fontSize: '14px' }}>{icon}</span>
                                 {label}
                             </button>
                         ))}
@@ -574,6 +629,61 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                         maxWidth: '300px',
                         width: '300px'
                     }}>
+                        {/* Month Quick Navigation */}
+                        {Array.from(monthsWithEvents.entries()).length > 0 && (
+                            <div style={{
+                                marginBottom: 'var(--space-4)',
+                                padding: 'var(--space-3)',
+                                background: 'var(--surface-secondary)',
+                                borderRadius: 'var(--radius-md)',
+                                border: '0.5px solid var(--border-default)'
+                            }}>
+                                <div style={{
+                                    fontSize: 'var(--font-xs)',
+                                    color: 'var(--text-secondary)',
+                                    marginBottom: 'var(--space-2)',
+                                    fontWeight: '600'
+                                }}>
+                                    일정이 있는 달
+                                </div>
+                                <div style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 'var(--space-1)'
+                                }}>
+                                    {Array.from(monthsWithEvents.entries())
+                                        .sort(([a], [b]) => a.localeCompare(b))
+                                        .slice(0, 6)
+                                        .map(([monthKey, count]) => {
+                                            const [year, month] = monthKey.split('-').map(Number);
+                                            const monthDate = new Date(year, month);
+                                            const isCurrentMonth = monthKey === currentMonthKey;
+                                            return (
+                                                <button
+                                                    key={monthKey}
+                                                    onClick={() => setCurrentDate(monthDate)}
+                                                    className="glass-light interactive hover-lift"
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        fontSize: 'var(--font-xs)',
+                                                        borderRadius: 'var(--radius-sm)',
+                                                        border: isCurrentMonth ? '1px solid var(--border-accent)' : '0.5px solid var(--border-default)',
+                                                        background: isCurrentMonth ? 'var(--surface-accent)' : undefined,
+                                                        color: isCurrentMonth ? 'var(--text-accent)' : 'var(--text-secondary)',
+                                                        fontWeight: isCurrentMonth ? '600' : '500',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                >
+                                                    {monthDate.toLocaleDateString('ko-KR', { month: 'short' })}
+                                                    <span style={{ opacity: 0.7 }}>{count}</span>
+                                                </button>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        )}
                         <h3 style={{
                             margin: '0 0 var(--space-4) 0',
                             fontSize: 'var(--font-lg)',
@@ -674,7 +784,11 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                     borderRadius: 'var(--radius-lg)',
                                     border: '0.5px solid rgba(255, 255, 255, 0.08)'
                                 }}>
-                                    <div style={{ fontSize: '48px', marginBottom: 'var(--space-3)' }}>📅</div>
+                                    <img 
+                                        src="/images/logo.svg" 
+                                        alt="Calendar" 
+                                        style={{ width: '48px', height: '48px', marginBottom: 'var(--space-3)' }} 
+                                    />
                                     <div style={{
                                         fontSize: 'var(--font-sm)',
                                         color: 'var(--text-secondary)',
@@ -711,7 +825,13 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                 fontSize: '48px',
                                 marginBottom: 'var(--space-4)',
                                 opacity: 0.5
-                            }}>📅</div>
+                            }}>
+                                <img 
+                                    src="/images/logo.svg" 
+                                    alt="Calendar" 
+                                    style={{ width: '48px', height: '48px' }} 
+                                />
+                            </div>
                             <h3 style={{
                                 fontSize: 'var(--font-lg)',
                                 fontWeight: '600',
@@ -1176,7 +1296,13 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                         marginBottom: 'var(--space-4)',
                         animation: 'floatSmooth 6s ease-in-out infinite',
                         filter: 'grayscale(0.2)'
-                    }}>📅</div>
+                    }}>
+                        <img 
+                            src="/images/logo.svg" 
+                            alt="Calendar" 
+                            style={{ width: '48px', height: '48px' }} 
+                        />
+                    </div>
                     
                     <h3 className="text-on-glass-strong" style={{ 
                         margin: '0 0 var(--space-2) 0', 
@@ -1215,9 +1341,9 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                         }}>예시 명령어</p>
                         
                         {[
-                            { icon: '☕', text: '"내일 오전 10시 팀 미팅"' },
-                            { icon: '🍽️', text: '"금요일 저녁 7시 친구와 저녁"' },
-                            { icon: '✈️', text: '"다음주 월요일 출장"' }
+                            { text: '"내일 오전 10시 팀 미팅"' },
+                            { text: '"금요일 저녁 7시 친구와 저녁"' },
+                            { text: '"다음주 월요일 출장"' }
                         ].map((example, index) => (
                             <div
                                 key={index}
@@ -1244,7 +1370,6 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
                                     e.currentTarget.style.transform = 'translateX(0)';
                                 }}
                             >
-                                <span style={{ fontSize: '18px' }}>{example.icon}</span>
                                 <span style={{ fontStyle: 'italic' }}>{example.text}</span>
                             </div>
                         ))}

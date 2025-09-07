@@ -2,41 +2,59 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Mic, Camera, Sparkles } from 'lucide-react';
+import { X, Send, Mic, Camera, Sparkles, Calendar, Clock, MapPin } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai';
   timestamp: Date;
+  events?: any[];
+  action?: {
+    type: 'create' | 'update' | 'delete' | 'search' | 'list';
+    data?: any;
+  };
 }
 
 interface AIChatInterfaceProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (input: string, type: 'text' | 'voice' | 'image') => void;
+  locale?: string;
 }
 
-export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfaceProps) {
+export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AIChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Hi! Tell me about your schedule. You can type, speak, or share a screenshot.',
+      text: locale === 'ko' 
+        ? '안녕하세요! 캘린더 관리를 도와드릴게요. 일정을 말씀해주시거나 스크린샷을 공유해주세요.'
+        : 'Hi! I can help manage your calendar. Tell me about your schedule or share a screenshot.',
       sender: 'ai',
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(
+    locale === 'ko' 
+      ? ['내일 3시 회의 추가해줘', '이번 주 일정 보여줘', '오늘 일정 확인']
+      : ['Add meeting tomorrow at 3pm', 'Show this week schedule', 'Check today events']
+  );
+  const [lastExtractedEvent, setLastExtractedEvent] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef<string>(Date.now().toString());
+  const router = useRouter();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isProcessing) return;
     
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -48,45 +66,71 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
     setMessages(prev => [...prev, newMessage]);
     const userInput = input;
     setInput('');
+    setIsProcessing(true);
     
     try {
-      // Call the actual AI API
-      const response = await fetch('/api/ai/chat', {
+      // Call the unified chat/calendar API
+      const response = await fetch('/api/chat/calendar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           message: userInput,
-          sessionId: Date.now().toString(),
+          type: 'text',
+          sessionId: sessionIdRef.current,
+          locale: locale,
+          lastExtractedEvent: lastExtractedEvent,
         }),
       });
 
       const data = await response.json();
       
-      // Handle the AI response
+      // Handle the AI response with calendar actions
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: data.message || 'Sorry, I couldn\'t process your request.',
+        text: data.message || (locale === 'ko' ? '죄송합니다. 요청을 처리할 수 없습니다.' : 'Sorry, I couldn\'t process your request.'),
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        events: data.events,
+        action: data.action
       };
+      
+      // Store extracted event for context
+      if (data.action && data.action.type === 'create' && data.action.data) {
+        setLastExtractedEvent(data.action.data);
+      }
       
       setMessages(prev => [...prev, aiResponse]);
       
-      // If there's an action, notify the parent component
-      if (data.type === 'action' || data.type === 'data') {
+      // Update suggestions if provided
+      if (data.suggestions && data.suggestions.length > 0) {
+        setSuggestions(data.suggestions);
+      }
+      
+      // If there's a successful action, refresh the calendar
+      if (data.action && data.success) {
         onSubmit(userInput, 'text');
+        // Refresh the page after a successful calendar action
+        if (['create', 'update', 'delete'].includes(data.action.type)) {
+          setTimeout(() => {
+            router.refresh();
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: 'Sorry, there was an error processing your request. Please try again.',
+        text: locale === 'ko' 
+          ? '죄송합니다. 요청을 처리하는 중에 오류가 발생했습니다. 다시 시도해주세요.'
+          : 'Sorry, there was an error processing your request. Please try again.',
         sender: 'ai',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -95,18 +139,129 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
     // Voice input logic here
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // Image upload logic here
-      const newMessage: Message = {
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    if (isProcessing) return;
+    
+    // Check image size (5MB limit)
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_IMAGE_SIZE) {
+      console.error('[AIChatInterface] Image too large:', file.size);
+      const errorMessage: Message = {
         id: Date.now().toString(),
-        text: 'Uploaded screenshot',
-        sender: 'user',
+        text: locale === 'ko'
+          ? '이미지 크기가 너무 큽니다. 5MB 이하의 이미지를 사용해주세요.'
+          : 'Image size is too large. Please use an image under 5MB.',
+        sender: 'ai',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, newMessage]);
-      onSubmit('image', 'image');
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+    
+    // Add user message indicating image upload
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: locale === 'ko' ? '📸 이미지를 분석하고 있습니다...' : '📸 Analyzing image...',
+      sender: 'user',
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, newMessage]);
+    setIsProcessing(true);
+    
+    // Convert to base64 and send through unified API
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const dataUrl = reader.result as string;
+      const [header, base64] = dataUrl.split(',');
+      const mimeType = header.match(/:(.*?);/)?.[1] || file.type || 'image/png';
+      
+      console.log('[AIChatInterface] Image uploaded and converted to base64:', {
+        base64Length: base64?.length,
+        mimeType
+      });
+      
+      try {
+        const response = await fetch('/api/chat/calendar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'image',
+            imageData: base64,
+            mimeType: mimeType,
+            sessionId: sessionIdRef.current,
+            locale: locale,
+          }),
+        });
+
+        const data = await response.json();
+        
+        // Handle the AI response
+        const aiResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          text: data.message || (locale === 'ko' ? '이미지에서 일정 정보를 추출했습니다.' : 'Extracted event information from the image.'),
+          sender: 'ai',
+          timestamp: new Date(),
+          events: data.events,
+          action: data.action
+        };
+        
+        // Store extracted event for context
+        if (data.action && data.action.type === 'create' && data.action.data) {
+          setLastExtractedEvent(data.action.data);
+        }
+        
+        setMessages(prev => [...prev, aiResponse]);
+        
+        // Update suggestions if provided
+        if (data.suggestions && data.suggestions.length > 0) {
+          setSuggestions(data.suggestions);
+        }
+        
+        // If event was created/extracted, refresh calendar
+        if (data.action && data.success) {
+          // Don't call onSubmit for images - we handle it here
+          if (['create', 'update', 'delete'].includes(data.action.type)) {
+            // Trigger calendar sync to show new events in UI
+            try {
+              const syncResponse = await fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`);
+              const syncData = await syncResponse.json();
+              if (syncData.success && onSubmit) {
+                // Call onSubmit to update parent component's events
+                onSubmit('');
+              }
+            } catch (syncError) {
+              console.error('[AIChatInterface] Error syncing calendar:', syncError);
+            }
+            setTimeout(() => {
+              router.refresh();
+            }, 500);
+          }
+        }
+      } catch (error) {
+        console.error('[AIChatInterface] Error processing uploaded image:', error);
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: locale === 'ko' 
+            ? '이미지를 처리하는 중에 오류가 발생했습니다. 다시 시도해주세요.'
+            : 'Error processing image. Please try again.',
+          sender: 'ai',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    
+    // Reset file input
+    if (e.target) {
+      e.target.value = '';
     }
   };
 
@@ -120,6 +275,8 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
       return;
     }
     
+    if (isProcessing) return;
+    
     console.log('[AIChatInterface] Image found:', imageItem.type);
     const blob = imageItem.getAsFile();
     if (!blob) return;
@@ -128,35 +285,116 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
     const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
     if (blob.size > MAX_IMAGE_SIZE) {
       console.error('[AIChatInterface] Image too large:', blob.size);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        text: locale === 'ko'
+          ? '이미지 크기가 너무 큽니다. 5MB 이하의 이미지를 사용해주세요.'
+          : 'Image size is too large. Please use an image under 5MB.',
+        sender: 'ai',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
       return;
     }
     
     // Add user message indicating image paste
     const newMessage: Message = {
       id: Date.now().toString(),
-      text: '📸 Screenshot pasted - Processing...',
+      text: locale === 'ko' ? '📸 스크린샷을 분석하고 있습니다...' : '📸 Analyzing screenshot...',
       sender: 'user',
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
+    setIsProcessing(true);
     
-    // Convert to base64 and send
+    // Convert to base64 and send through unified API
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      console.log('[AIChatInterface] Image converted to base64, sending...');
-      onSubmit(base64String, 'image');
+    reader.onloadend = async () => {
+      const dataUrl = reader.result as string;
+      const [header, base64] = dataUrl.split(',');
+      const mimeType = header.match(/:(.*?);/)?.[1] || blob.type || 'image/png';
       
-      // Add AI response message
-      setTimeout(() => {
-        const aiMessage: Message = {
+      console.log('[AIChatInterface] Image converted to base64:', {
+        dataUrlLength: dataUrl.length,
+        headerLength: header?.length,
+        base64Length: base64?.length,
+        base64Preview: base64?.substring(0, 100),
+        mimeType
+      });
+      
+      try {
+        const response = await fetch('/api/chat/calendar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'image',
+            imageData: base64,
+            mimeType: mimeType,
+            sessionId: sessionIdRef.current,
+            locale: locale,
+          }),
+        });
+
+        const data = await response.json();
+        
+        // Handle the AI response
+        const aiResponse: Message = {
           id: (Date.now() + 1).toString(),
-          text: 'I\'ve received your screenshot. Let me analyze it for calendar events...',
+          text: data.message || (locale === 'ko' ? '이미지에서 일정 정보를 추출했습니다.' : 'Extracted event information from the image.'),
+          sender: 'ai',
+          timestamp: new Date(),
+          events: data.events,
+          action: data.action
+        };
+        
+        // Store extracted event for context
+        if (data.action && data.action.type === 'create' && data.action.data) {
+          setLastExtractedEvent(data.action.data);
+        }
+        
+        setMessages(prev => [...prev, aiResponse]);
+        
+        // Update suggestions if provided
+        if (data.suggestions && data.suggestions.length > 0) {
+          setSuggestions(data.suggestions);
+        }
+        
+        // If event was created/extracted, refresh calendar
+        if (data.action && data.success) {
+          // Don't call onSubmit for images - we handle it here
+          if (['create', 'update', 'delete'].includes(data.action.type)) {
+            // Trigger calendar sync to show new events in UI
+            try {
+              const syncResponse = await fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`);
+              const syncData = await syncResponse.json();
+              if (syncData.success && onSubmit) {
+                // Call onSubmit to update parent component's events
+                onSubmit('');
+              }
+            } catch (syncError) {
+              console.error('[AIChatInterface] Error syncing calendar:', syncError);
+            }
+            setTimeout(() => {
+              router.refresh();
+            }, 500);
+          }
+        }
+      } catch (error) {
+        console.error('[AIChatInterface] Error processing image:', error);
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: locale === 'ko' 
+            ? '이미지를 처리하는 중에 오류가 발생했습니다. 다시 시도해주세요.'
+            : 'Error processing image. Please try again.',
           sender: 'ai',
           timestamp: new Date()
         };
-        setMessages(prev => [...prev, aiMessage]);
-      }, 500);
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsProcessing(false);
+      }
     };
     reader.readAsDataURL(blob);
   };
@@ -187,13 +425,13 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
             <div className="p-4 border-b" style={{ borderColor: 'var(--border-default)' }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-white" />
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border-default)' }}>
+                    <img src="/images/logo.svg" alt="AI Assistant" className="w-5 h-5 opacity-80" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">AI Assistant</h3>
+                    <h3 className="font-semibold">{locale === 'ko' ? 'AI 어시스턴트' : 'AI Assistant'}</h3>
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      Tell me about your schedule
+                      {locale === 'ko' ? '일정을 말씀해주세요' : 'Tell me about your schedule'}
                     </p>
                   </div>
                 </div>
@@ -217,36 +455,94 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
                   className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] px-4 py-2 rounded-2xl ${
+                    className={`max-w-[80%] ${
                       message.sender === 'user'
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
                         : ''
-                    }`}
+                    } rounded-2xl overflow-hidden`}
                     style={{
                       background: message.sender === 'ai' ? 'var(--surface-secondary)' : undefined
                     }}
                   >
-                    <p className="text-sm">{message.text}</p>
-                    <p className="text-xs mt-1 opacity-70">
-                      {message.timestamp.toLocaleTimeString('en-US', { 
-                        hour: 'numeric', 
-                        minute: '2-digit' 
-                      })}
-                    </p>
+                    <div className="px-4 py-2">
+                      <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                      <p className="text-xs mt-1 opacity-70">
+                        {message.timestamp.toLocaleTimeString('ko-KR', { 
+                          hour: 'numeric', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    </div>
+                    
+                    {/* Display events if present */}
+                    {message.events && message.events.length > 0 && (
+                      <div className="px-4 pb-2 space-y-2">
+                        <p className="text-xs font-semibold opacity-70">검색된 일정:</p>
+                        {message.events.map((event: any, idx: number) => (
+                          <div key={idx} className="p-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                            <div className="flex items-start gap-2">
+                              <Calendar className="w-4 h-4 mt-0.5 opacity-60" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{event.summary || '제목 없음'}</p>
+                                <div className="flex items-center gap-3 mt-1">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 opacity-60" />
+                                    <p className="text-xs opacity-70">
+                                      {new Date(event.start?.dateTime || event.start?.date).toLocaleString('ko-KR', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: event.start?.dateTime ? 'numeric' : undefined,
+                                        minute: event.start?.dateTime ? '2-digit' : undefined
+                                      })}
+                                    </p>
+                                  </div>
+                                  {event.location && (
+                                    <div className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 opacity-60" />
+                                      <p className="text-xs opacity-70">{event.location}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
+              {isProcessing && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="px-4 py-2 rounded-2xl" style={{ background: 'var(--surface-secondary)' }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-75" />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150" />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Suggestions */}
             <div className="px-4 pb-2">
               <div className="flex gap-2 overflow-x-auto">
-                {['Meeting tomorrow at 3pm', 'Lunch with team Friday', 'Doctor appointment'].map((suggestion) => (
+                {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
-                    onClick={() => setInput(suggestion)}
-                    className="px-3 py-1 rounded-full text-xs whitespace-nowrap transition-colors"
+                    onClick={() => {
+                      if (!isProcessing) {
+                        setInput(suggestion);
+                      }
+                    }}
+                    disabled={isProcessing}
+                    className="px-3 py-1 rounded-full text-xs whitespace-nowrap transition-colors disabled:opacity-50"
                     style={{
                       background: 'var(--surface-secondary)',
                       border: '1px solid var(--border-default)'
@@ -263,7 +559,8 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 rounded-lg transition-colors"
+                  disabled={isProcessing}
+                  className="p-2 rounded-lg transition-colors disabled:opacity-50"
                   style={{ background: 'var(--surface-secondary)' }}
                 >
                   <Camera className="w-5 h-5" />
@@ -278,7 +575,8 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
                 
                 <button
                   onClick={handleVoiceInput}
-                  className={`p-2 rounded-lg transition-colors ${isListening ? 'text-red-500' : ''}`}
+                  disabled={isProcessing}
+                  className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${isListening ? 'text-red-500' : ''}`}
                   style={{ background: 'var(--surface-secondary)' }}
                 >
                   <Mic className="w-5 h-5" />
@@ -289,14 +587,17 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !isProcessing) {
                       e.preventDefault();
                       handleSend();
                     }
                   }}
                   onPaste={handlePaste}
-                  placeholder="Type, speak, or paste a screenshot..."
-                  className="flex-1 px-4 py-2 rounded-lg"
+                  placeholder={isProcessing 
+                    ? (locale === 'ko' ? "처리 중..." : "Processing...")
+                    : (locale === 'ko' ? "메시지를 입력하거나 스크린샷을 붙여넣으세요..." : "Type a message or paste a screenshot...")}
+                  disabled={isProcessing}
+                  className="flex-1 px-4 py-2 rounded-lg disabled:opacity-50"
                   style={{
                     background: 'var(--surface-secondary)',
                     border: '1px solid var(--border-default)'
@@ -305,10 +606,10 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
                 
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || isProcessing}
                   className="p-2 rounded-lg transition-colors disabled:opacity-50"
                   style={{
-                    background: input.trim() 
+                    background: input.trim() && !isProcessing
                       ? 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)' 
                       : 'var(--surface-secondary)'
                   }}

@@ -238,11 +238,11 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                     const confirmMessage = `
 스크린샷에서 다음 일정을 추출했습니다:
 
-📅 제목: ${data.eventData.title}
-📆 날짜: ${data.eventData.date}
-⏰ 시간: ${data.eventData.time}
-📍 장소: ${data.eventData.location || '미정'}
-⏱️ 소요시간: ${data.eventData.duration}분
+제목: ${data.eventData.title}
+날짜: ${data.eventData.date}
+시간: ${data.eventData.time}
+장소: ${data.eventData.location || '미정'}
+소요시간: ${data.eventData.duration}분
 
 이 일정을 등록하시겠습니까? (예/아니오)
                     `.trim();
@@ -262,21 +262,18 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                     setSuggestions([
                         {
                             id: 'confirm-event',
-                            title: '✅ 일정 등록',
-                            action: `예, "${data.eventData.title}" 일정을 등록해주세요`,
-                            icon: '✅'
+                            title: '일정 등록',
+                            action: `예, "${data.eventData.title}" 일정을 등록해주세요`
                         },
                         {
                             id: 'cancel-event',
-                            title: '❌ 취소',
-                            action: '아니오, 취소합니다',
-                            icon: '❌'
+                            title: '취소',
+                            action: '아니오, 취소합니다'
                         },
                         {
                             id: 'edit-event',
-                            title: '✏️ 수정',
-                            action: `"${data.eventData.title}" 일정을 수정하고 싶습니다`,
-                            icon: '✏️'
+                            title: '수정',
+                            action: `"${data.eventData.title}" 일정을 수정하고 싶습니다`
                         }
                     ]);
                     
@@ -343,27 +340,23 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
             const eventActions: SmartSuggestion[] = [
                 {
                     id: 'edit-title',
-                    title: '🎯 제목 수정',
-                    action: `"${selectedEvent.summary}" 일정의 제목을 변경해주세요`,
-                    icon: '✏️'
+                    title: '제목 수정',
+                    action: `"${selectedEvent.summary}" 일정의 제목을 변경해주세요`
                 },
                 {
                     id: 'change-time',
-                    title: '⏰ 시간 변경',
-                    action: `"${selectedEvent.summary}" 일정의 시간을 변경해주세요`,
-                    icon: '🕐'
+                    title: '시간 변경',
+                    action: `"${selectedEvent.summary}" 일정의 시간을 변경해주세요`
                 },
                 {
                     id: 'add-location',
-                    title: '📍 장소 추가/수정',
-                    action: `"${selectedEvent.summary}" 일정에 장소를 추가해주세요`,
-                    icon: '🗺️'
+                    title: '장소 추가/수정',
+                    action: `"${selectedEvent.summary}" 일정에 장소를 추가해주세요`
                 },
                 {
                     id: 'delete-event',
-                    title: '🗑️ 일정 삭제',
-                    action: `"${selectedEvent.summary}" 일정을 삭제해주세요`,
-                    icon: '❌'
+                    title: '일정 삭제',
+                    action: `"${selectedEvent.summary}" 일정을 삭제해주세요`
                 }
             ];
             setSuggestions(eventActions);
@@ -552,7 +545,13 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                 <div style={{
                     fontSize: '26px',
                     filter: 'grayscale(1) brightness(1.2)'
-                }}>💬</div>
+                }}>
+                    <img 
+                        src="/images/logo.svg" 
+                        alt="Chat" 
+                        style={{ width: '26px', height: '26px' }} 
+                    />
+                </div>
             </button>
         );
     }
@@ -603,7 +602,13 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                         justifyContent: 'center',
                         fontSize: '20px',
                         filter: 'grayscale(1) brightness(1.2)'
-                    }}>🤖</div>
+                    }}>
+                        <img 
+                            src="/images/logo.svg" 
+                            alt="AI Assistant" 
+                            style={{ width: '20px', height: '20px' }} 
+                        />
+                    </div>
                     <div>
                         <h3 className="text-on-glass-strong" style={{ 
                             margin: 0, 
@@ -619,7 +624,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                             display: isMobile ? 'none' : 'block',
                             fontWeight: selectedEvent ? '500' : '400'
                         }}>
-                            {selectedEvent ? `🎯 ${selectedEvent.summary}` : 'Natural language calendar'}
+                            {selectedEvent ? selectedEvent.summary : 'Natural language calendar'}
                         </p>
                     </div>
                 </div>
@@ -780,7 +785,11 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                                     fontSize: '16px',
                                     filter: 'grayscale(0.3)'
                                 }}>
-                                    {suggestion.icon || '💡'}
+                                    <img 
+                                        src="/images/logo.svg" 
+                                        alt="Suggestion" 
+                                        style={{ width: '14px', height: '14px' }} 
+                                    />
                                 </span>
                                 <span style={{
                                     flex: 1,
@@ -824,7 +833,7 @@ const AIChat = forwardRef<any, AIChatProps>(({ onEventSync, sessionId, initialMe
                             color: 'var(--text-primary)',
                             fontWeight: '500'
                         }}>
-                            {isProcessingImage ? '🔄 이미지 분석 중...' : '📸 스크린샷 준비됨'}
+                            {isProcessingImage ? '이미지 분석 중...' : '스크린샷 준비됨'}
                         </p>
                         <p style={{
                             margin: '4px 0 0 0',

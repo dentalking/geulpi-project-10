@@ -319,7 +319,7 @@ export default function SettingsPanel({
                   <p className={`text-xs ${
                     theme === 'light' ? 'text-purple-700' : 'text-purple-200'
                   }`}>
-                    💡 {t('common.autoSave')}
+                    {t('common.autoSave')}
                   </p>
                 </div>
               </div>

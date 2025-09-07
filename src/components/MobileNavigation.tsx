@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar,
@@ -40,8 +40,16 @@ export function MobileBottomNav({ onAddEvent }: MobileNavigationProps) {
   );
 }
 
-export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
+export function MobileHeader({ 
+  onMenuClick,
+  onSearchClick 
+}: { 
+  onMenuClick: () => void;
+  onSearchClick?: () => void;
+}) {
   const t = useTranslations();
+  const locale = useLocale();
+  const router = useRouter();
   
   return (
     <header className="sticky top-0 z-50 md:hidden">
@@ -67,6 +75,7 @@ export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
           </h1>
           
           <button
+            onClick={onSearchClick || (() => router.push(`/${locale}/search`))}
             className="p-2 rounded-lg transition-all touch-manipulation"
             style={{ minWidth: '44px', minHeight: '44px' }}
             aria-label="Search"
@@ -81,19 +90,25 @@ export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
 
 export function MobileSideMenu({ 
   isOpen, 
-  onClose 
+  onClose,
+  onSettingsClick,
+  onSearchClick,
+  onProfileClick
 }: { 
   isOpen: boolean; 
   onClose: () => void;
+  onSettingsClick?: () => void;
+  onSearchClick?: () => void;
+  onProfileClick?: () => void;
 }) {
   const locale = useLocale();
   const t = useTranslations();
   
   const menuItems = [
     { icon: Calendar, label: 'Today', href: `/${locale}/dashboard` },
-    { icon: Search, label: 'Search', href: `/${locale}/search` },
-    { icon: User, label: 'Profile', href: `/${locale}/profile` },
-    { icon: Settings, label: 'Settings', href: `/${locale}/settings` },
+    { icon: Search, label: 'Search', onClick: onSearchClick, href: onSearchClick ? undefined : `/${locale}/search` },
+    { icon: User, label: 'Profile', onClick: onProfileClick, href: onProfileClick ? undefined : `/${locale}/profile` },
+    { icon: Settings, label: 'Settings', onClick: onSettingsClick, href: onSettingsClick ? undefined : `/${locale}/settings` },
     { divider: true },
     { icon: LogOut, label: 'Logout', href: '/api/auth/logout', isLogout: true }
   ];
@@ -150,12 +165,25 @@ export function MobileSideMenu({
                   const Icon = item.icon;
                   if (!Icon) return null;
                   
+                  const Component = item.onClick ? 'button' : Link;
+                  const props = item.onClick 
+                    ? { 
+                        onClick: () => {
+                          item.onClick();
+                          onClose();
+                        },
+                        type: 'button' as const
+                      }
+                    : { 
+                        href: item.href || '#',
+                        onClick: item.isLogout ? undefined : onClose
+                      };
+                  
                   return (
-                    <Link
+                    <Component
                       key={item.label}
-                      href={item.href || '#'}
-                      onClick={item.isLogout ? undefined : onClose}
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all touch-manipulation"
+                      {...props}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all touch-manipulation w-full text-left"
                       style={{
                         minHeight: '48px',
                         color: item.isLogout ? 'var(--accent-danger)' : 'var(--text-primary)'
@@ -164,7 +192,7 @@ export function MobileSideMenu({
                       <Icon className="w-5 h-5" />
                       <span className="flex-1">{item.label}</span>
                       {!item.isLogout && <ChevronRight className="w-4 h-4 opacity-50" />}
-                    </Link>
+                    </Component>
                   );
                 })}
               </nav>

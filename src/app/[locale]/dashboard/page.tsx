@@ -35,7 +35,6 @@ import { AIChatInterface } from '@/components/AIChatInterface';
 import { EmptyState } from '@/components/EmptyState';
 
 // Optimized lazy loading with proper fallbacks
-const UniversalCommandBar = lazy(() => import('@/components/UniversalCommandBar'));
 const SimpleCalendar = lazy(() => import('@/components/SimpleCalendar'));
 const GoogleCalendarLink = lazy(() => import('@/components/GoogleCalendarLink'));
 const SettingsPanel = lazy(() => import('@/components/SettingsPanel'));
@@ -303,9 +302,9 @@ export default function DashboardPage() {
     <div className="min-h-screen pb-safe-bottom" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Background Effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 rounded-full blur-3xl animate-pulse" 
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 rounded-full blur-3xl" 
              style={{ background: 'var(--effect-purple)' }} />
-        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 rounded-full blur-3xl animate-pulse delay-1000" 
+        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 rounded-full blur-3xl" 
              style={{ background: 'var(--effect-pink)' }} />
       </div>
       
@@ -348,15 +347,25 @@ export default function DashboardPage() {
                 </div>
               </div>
               
-              {/* Command Bar */}
+              {/* AI Chat Button */}
               <div className="flex-1 max-w-2xl mx-4 hidden sm:block">
-                <Suspense fallback={<div className="h-10 bg-white/5 animate-pulse rounded-xl" />}>
-                  <UniversalCommandBar
-                    events={events}
-                    onEventSync={syncEvents}
-                    sessionId={sessionId}
-                  />
-                </Suspense>
+                <button
+                  onClick={() => setShowAIChat(true)}
+                  className="w-full px-4 py-2 rounded-xl flex items-center gap-3 transition-all hover:scale-[1.02]"
+                  style={{ 
+                    background: 'var(--surface-secondary)', 
+                    border: '1px solid var(--border-default)' 
+                  }}
+                >
+                  <Search className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {t('dashboard.searchOrAskAI')}
+                  </span>
+                  <kbd className="ml-auto px-2 py-0.5 text-xs rounded" 
+                       style={{ background: 'var(--bg-primary)', color: 'var(--text-tertiary)' }}>
+                    Cmd+K
+                  </kbd>
+                </button>
               </div>
               
               {/* Actions */}
@@ -424,7 +433,15 @@ export default function DashboardPage() {
       {/* Mobile Side Menu */}
       <MobileSideMenu 
         isOpen={showMobileSidebar} 
-        onClose={() => setShowMobileSidebar(false)} 
+        onClose={() => setShowMobileSidebar(false)}
+        onSettingsClick={() => {
+          setShowMobileSidebar(false);
+          setShowSettings(true);
+        }}
+        onSearchClick={() => {
+          setShowMobileSidebar(false);
+          // TODO: Implement search functionality
+        }}
       />
       
       {/* Main Content */}
@@ -814,12 +831,14 @@ export default function DashboardPage() {
       <AIChatInterface
         isOpen={showAIChat}
         onClose={() => setShowAIChat(false)}
+        locale={locale}
         onSubmit={async (input, type) => {
           console.log('AI Chat:', { inputLength: input.length, type });
           
           if (type === 'image') {
-            console.log('[Dashboard] Processing image input');
-            toast.info('스크린샷 처리 중...', '일정 정보를 추출하고 있습니다');
+            // Image processing is now handled directly in AIChatInterface
+            console.log('[Dashboard] Image processing handled by AIChatInterface');
+            return;
             
             try {
               // Extract base64 data from data URL

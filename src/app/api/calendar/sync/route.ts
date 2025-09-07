@@ -60,9 +60,9 @@ export async function GET(request: Request) {
 
         const events = await calendar.events.list({
             calendarId: 'primary',
-            timeMin: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 지난 주부터
-            timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 한달 후까지
-            maxResults,
+            timeMin: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30일 전부터
+            timeMax: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1년 후까지
+            maxResults: Math.max(maxResults, 250), // Increase max results to get more events
             singleEvents: true,
             orderBy: 'startTime',
         });

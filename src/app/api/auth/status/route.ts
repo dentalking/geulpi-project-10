@@ -35,6 +35,27 @@ export async function GET() {
         maxResults: 1
       });
 
+      // Fetch user info from Google
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (userInfoResponse.ok) {
+        const userInfo = await userInfoResponse.json();
+        return NextResponse.json({ 
+          authenticated: true,
+          authType: 'google',
+          user: {
+            id: userInfo.id,
+            email: userInfo.email,
+            name: userInfo.name,
+            picture: userInfo.picture
+          }
+        });
+      }
+
       return NextResponse.json({ 
         authenticated: true,
         authType: 'google'

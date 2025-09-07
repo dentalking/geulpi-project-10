@@ -314,6 +314,7 @@
     "title": "대시보드",
     "previousMonth": "이전 달",
     "nextMonth": "다음 달",
+    "searchOrAskAI": "검색하거나 AI에게 물어보기",
     "sync": {
       "success": "동기화 완료",
       "failed": "동기화 실패",

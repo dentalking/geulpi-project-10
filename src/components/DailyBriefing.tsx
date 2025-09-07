@@ -64,11 +64,11 @@ export default function DailyBriefing() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 6) return '🌙 새벽입니다';
-    if (hour < 12) return '☀️ 좋은 아침입니다';
-    if (hour < 18) return '🌤️ 좋은 오후입니다';
-    if (hour < 22) return '🌆 좋은 저녁입니다';
-    return '🌙 늦은 밤입니다';
+    if (hour < 6) return '새벽입니다';
+    if (hour < 12) return '좋은 아침입니다';
+    if (hour < 18) return '좋은 오후입니다';
+    if (hour < 22) return '좋은 저녁입니다';
+    return '늦은 밤입니다';
   };
 
   const getMotivationalQuote = () => {
@@ -92,7 +92,7 @@ export default function DailyBriefing() {
       }} onClick={() => setExpanded(true)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '20px' }}>🤖</span>
+            <img src="/images/logo.svg" alt="AI" style={{ width: '20px', height: '20px' }} />
             <span style={{ fontWeight: 'bold' }}>AI 브리핑</span>
             {briefing && (
               <span style={{ fontSize: '14px', opacity: 0.9 }}>
@@ -116,7 +116,7 @@ export default function DailyBriefing() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ margin: '0 0 5px 0', color: 'white' }}>
-            {getGreeting()} 🤖
+            {getGreeting()}
           </h2>
           <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
             {getMotivationalQuote()}
@@ -235,7 +235,15 @@ export default function DailyBriefing() {
                 textAlign: 'center'
               }}>
                 <div style={{ fontSize: '24px' }}>
-                  {briefing.stats.hasConflicts ? '⚠️' : '✅'}
+                  <img 
+                    src="/images/logo.svg" 
+                    alt="Status" 
+                    style={{ 
+                      width: '24px', 
+                      height: '24px',
+                      filter: briefing.stats.hasConflicts ? 'sepia(1) hue-rotate(-50deg) saturate(5)' : 'sepia(1) hue-rotate(90deg) saturate(2)'
+                    }} 
+                  />
                 </div>
                 <div style={{ fontSize: '12px', opacity: 0.9 }}>
                   {briefing.stats.hasConflicts ? '주의 필요' : '문제 없음'}
@@ -252,7 +260,7 @@ export default function DailyBriefing() {
               marginBottom: '20px'
             }}>
               <h4 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '16px' }}>
-                💡 스마트 제안
+                스마트 제안
               </h4>
               {briefing.suggestions.map((suggestion, index) => (
                 <div key={index} style={{

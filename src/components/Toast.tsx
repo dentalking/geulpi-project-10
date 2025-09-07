@@ -28,17 +28,7 @@ const Toast = ({ toast, onClose }: ToastProps) => {
   }, [toast, onClose]);
 
   const getIcon = () => {
-    switch (toast.type) {
-      case 'success':
-        return '✅';
-      case 'error':
-        return '❌';
-      case 'warning':
-        return '⚠️';
-      case 'info':
-      default:
-        return 'ℹ️';
-    }
+    return <img src="/images/logo.svg" alt="Toast" style={{ width: '18px', height: '18px' }} />;
   };
 
   const getColor = () => {
