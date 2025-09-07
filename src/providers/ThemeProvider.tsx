@@ -102,20 +102,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     // Apply font size
     const fontSizeMap: Record<FontSize, string> = {
-      'small': '14px',
-      'normal': '15px',
-      'large': '17px',
-      'extra-large': '19px'
+      'small': '17px',
+      'normal': '19px',
+      'large': '21px',
+      'extra-large': '23px'
     };
     
     document.documentElement.style.setProperty('--font-base', fontSizeMap[fontSize]);
     
     // Adjust other font sizes proportionally
     const scaleFactor = {
-      'small': 0.93,
-      'normal': 1,
-      'large': 1.13,
-      'extra-large': 1.27
+      'small': 0.89,  // 17px base (17/19)
+      'normal': 1,    // 19px base
+      'large': 1.11,  // 21px base (21/19)
+      'extra-large': 1.21  // 23px base (23/19)
     }[fontSize];
     
     document.documentElement.style.setProperty('--font-xs', `${11 * scaleFactor}px`);

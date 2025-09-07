@@ -52,10 +52,10 @@ export default function SettingsPanel({
   ] as const;
 
   const fontSizeOptions = [
-    { value: 'small', label: t('landing.settings.fontSizes.small'), preview: '14px' },
-    { value: 'normal', label: t('landing.settings.fontSizes.normal'), preview: '15px' },
-    { value: 'large', label: t('landing.settings.fontSizes.large'), preview: '17px' },
-    { value: 'extra-large', label: t('landing.settings.fontSizes.extraLarge'), preview: '19px' }
+    { value: 'small', label: t('landing.settings.fontSizes.small'), preview: '17px' },
+    { value: 'normal', label: t('landing.settings.fontSizes.normal'), preview: '19px' },
+    { value: 'large', label: t('landing.settings.fontSizes.large'), preview: '21px' },
+    { value: 'extra-large', label: t('landing.settings.fontSizes.extraLarge'), preview: '23px' }
   ] as const;
 
   const handleLocaleChange = (newLocale: Locale) => {
