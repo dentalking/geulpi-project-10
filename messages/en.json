@@ -312,6 +312,8 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "previousMonth": "Previous Month",
+    "nextMonth": "Next Month",
     "sync": {
       "success": "Sync Complete",
       "failed": "Sync Failed",

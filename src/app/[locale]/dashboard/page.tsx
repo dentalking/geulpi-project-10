@@ -814,9 +814,50 @@ export default function DashboardPage() {
       <AIChatInterface
         isOpen={showAIChat}
         onClose={() => setShowAIChat(false)}
-        onSubmit={(input, type) => {
-          console.log('AI Chat:', { input, type });
-          toast.info('Processing your request...');
+        onSubmit={async (input, type) => {
+          console.log('AI Chat:', { inputLength: input.length, type });
+          
+          if (type === 'image') {
+            console.log('[Dashboard] Processing image input');
+            toast.info('Processing screenshot...');
+            
+            try {
+              // Extract base64 data from data URL
+              const base64Data = input.split(',')[1] || input;
+              const mimeType = input.startsWith('data:') 
+                ? input.split(':')[1].split(';')[0] 
+                : 'image/png';
+              
+              console.log('[Dashboard] Sending to API, mimeType:', mimeType);
+              
+              // Send to API for processing
+              const response = await fetch('/api/ai/process-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  image: base64Data,
+                  mimeType: mimeType,
+                  sessionId: sessionId
+                })
+              });
+              
+              const data = await response.json();
+              console.log('[Dashboard] API response:', data);
+              
+              if (data.success && data.eventData) {
+                toast.success('Event extracted!', `Found: ${data.eventData.title}`);
+                // You can add logic here to create the event
+              } else {
+                toast.error('Failed to extract event', 'Could not find event information in the image');
+              }
+            } catch (error) {
+              console.error('[Dashboard] Image processing error:', error);
+              toast.error('Processing failed', 'Could not process the screenshot');
+            }
+          } else {
+            toast.info('Processing your request...');
+            // Handle text/voice input
+          }
         }}
       />
       

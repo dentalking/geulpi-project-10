@@ -312,6 +312,8 @@
   },
   "dashboard": {
     "title": "대시보드",
+    "previousMonth": "이전 달",
+    "nextMonth": "다음 달",
     "sync": {
       "success": "동기화 완료",
       "failed": "동기화 실패",

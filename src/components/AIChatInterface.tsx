@@ -110,6 +110,57 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
     }
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    console.log('[AIChatInterface] Paste event triggered');
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find(item => item.type.startsWith('image/'));
+    
+    if (!imageItem) {
+      console.log('[AIChatInterface] No image found in clipboard');
+      return;
+    }
+    
+    console.log('[AIChatInterface] Image found:', imageItem.type);
+    const blob = imageItem.getAsFile();
+    if (!blob) return;
+    
+    // Check image size (5MB limit)
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    if (blob.size > MAX_IMAGE_SIZE) {
+      console.error('[AIChatInterface] Image too large:', blob.size);
+      return;
+    }
+    
+    // Add user message indicating image paste
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: '📸 Screenshot pasted - Processing...',
+      sender: 'user',
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, newMessage]);
+    
+    // Convert to base64 and send
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      console.log('[AIChatInterface] Image converted to base64, sending...');
+      onSubmit(base64String, 'image');
+      
+      // Add AI response message
+      setTimeout(() => {
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: 'I\'ve received your screenshot. Let me analyze it for calendar events...',
+          sender: 'ai',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      }, 500);
+    };
+    reader.readAsDataURL(blob);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -243,7 +294,8 @@ export function AIChatInterface({ isOpen, onClose, onSubmit }: AIChatInterfacePr
                       handleSend();
                     }
                   }}
-                  placeholder="Type or speak..."
+                  onPaste={handlePaste}
+                  placeholder="Type, speak, or paste a screenshot..."
                   className="flex-1 px-4 py-2 rounded-lg"
                   style={{
                     background: 'var(--surface-secondary)',
