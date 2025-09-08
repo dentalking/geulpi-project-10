@@ -9,6 +9,11 @@ export interface ChatResponse {
   };
   events?: any[];  // 조회된 일정들
   suggestions?: string[];  // 추천 질문들
+  requiresConfirmation?: boolean;  // 사용자 확인 필요 여부
+  pendingAction?: {  // 확인 대기 중인 액션
+    type: string;
+    data?: any;
+  };
 }
 
 export class ChatCalendarService {

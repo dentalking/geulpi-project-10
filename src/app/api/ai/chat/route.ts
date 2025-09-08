@@ -1,134 +1,294 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { contextManager } from '@/services/ai';
-import { aiRouter } from '@/lib/ai-router';  // 수정된 ai-router 사용
-import { suggestionEngine } from '@/lib/suggestion-engine';
-import { handleApiError, AuthError } from '@/lib/api-errors';
+import { ChatCalendarService, type ChatResponse } from '@/services/ai/ChatCalendarService';
 import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
+import { getUserFriendlyErrorMessage, getErrorSuggestions } from '@/lib/error-messages';
+import { checkDuplicateEvent, recentEventCache, getDuplicateWarningMessage } from '@/lib/duplicate-detector';
+import { generateSmartSuggestions } from '@/lib/smart-suggestions';
+import type { CalendarEvent } from '@/types';
 
-export async function POST(request: Request) {
-    const accessToken = cookies().get('access_token')?.value;
+const chatService = new ChatCalendarService();
 
-    console.log('[AI Chat] Request received, accessToken exists:', !!accessToken);
+export async function POST(request: NextRequest) {
+  let body: any;
+  let locale = 'ko';
+  
+  try {
+    body = await request.json();
+    const { message, type = 'text', imageData, mimeType, sessionId, timezone = 'Asia/Seoul', lastExtractedEvent } = body;
+    locale = body.locale || 'ko';
 
+    console.log('[AI Chat API] Request:', { 
+      messageLength: message?.length, 
+      type, 
+      hasImage: !!imageData,
+      imageDataLength: imageData?.length,
+      imageDataPreview: imageData?.substring(0, 50),
+      mimeType,
+      sessionId,
+      locale,
+      timezone
+    });
+
+    // Get auth token
+    const cookieStore = cookies();
+    const accessToken = cookieStore.get('access_token')?.value;
+    
     if (!accessToken) {
-        console.log('[AI Chat] No access token found - user needs to login');
-        return NextResponse.json({
-            type: 'error',
-            message: 'Please login to use the calendar assistant. 로그인이 필요합니다.'
-        });
+      const error = { code: 'UNAUTHENTICATED' };
+      return NextResponse.json({
+        success: false,
+        message: getUserFriendlyErrorMessage(error, locale),
+        suggestions: getErrorSuggestions(error, locale)
+      });
     }
 
-    try {
-        const { message, sessionId, selectedEventId, pendingEventData } = await request.json();
+    const calendar = getCalendarClient(accessToken);
 
-        console.log('[AI Chat] Processing message:', message);
-        console.log('[AI Chat] SessionId:', sessionId, 'SelectedEventId:', selectedEventId);
+    // Start fetching events in parallel with processing
+    const eventsPromise = (async () => {
+      try {
+        const now = new Date();
+        const response = await calendar.events.list({
+          calendarId: 'primary',
+          timeMin: now.toISOString(),
+          timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+          maxResults: 50,
+          singleEvents: true,
+          orderBy: 'startTime'
+        });
+        return convertGoogleEventsToCalendarEvents(response.data.items);
+      } catch (error) {
+        console.error('Failed to fetch events:', error);
+        return [];
+      }
+    })();
 
-        // 임시 테스트 응답
-        if (message.includes('테스트')) {
-            return NextResponse.json({
-                type: 'text',
-                message: '연결이 정상적으로 작동합니다!',
-                suggestions: []
-            });
-        }
+    let chatResponse: ChatResponse;
+    let currentEvents: CalendarEvent[] = [];
+    
+    // Process based on type - start processing immediately
+    if (type === 'image' && imageData) {
+      // Process image in parallel with events fetching
+      const [imageResponse, events] = await Promise.all([
+        chatService.extractEventFromImage(imageData, mimeType || 'image/png', locale, sessionId),
+        eventsPromise
+      ]);
+      chatResponse = imageResponse;
+      currentEvents = events;
+    } else {
+      // For text processing, we need events context first (but still fetch in parallel)
+      currentEvents = await eventsPromise;
+      // Check if message is referring to last extracted event
+      const isReferenceCommand = message && (
+        message.toLowerCase().includes('register this') ||
+        message.toLowerCase().includes('add this') ||
+        message.toLowerCase().includes('create this') ||
+        message.includes('이것을 등록') ||
+        message.includes('이거 등록') ||
+        message.includes('등록해줘') ||
+        message.includes('추가해줘')
+      );
+      
+      if (isReferenceCommand && lastExtractedEvent) {
+        // Create event from last extracted data
+        chatResponse = {
+          message: locale === 'ko' 
+            ? `네, "${lastExtractedEvent.title}" 일정을 등록하겠습니다.`
+            : `Sure, I'll register "${lastExtractedEvent.title}" to your calendar.`,
+          action: {
+            type: 'create',
+            data: lastExtractedEvent
+          },
+          suggestions: locale === 'ko'
+            ? ['일정 확인하기', '다른 일정 추가', '오늘 일정 보기']
+            : ['Check schedule', 'Add another event', 'View today events']
+        };
+      } else {
+        // Process text message normally
+        chatResponse = await chatService.processMessage(message, currentEvents, {
+          sessionId: sessionId,
+          timezone: timezone,
+          locale: locale,
+          lastExtractedEvent: lastExtractedEvent
+        });
+      }
+    }
 
-        const userId = sessionId || 'anonymous';
-        const context = contextManager.getContext(userId);
-
-        // Get refresh token as well
-        const refreshToken = cookies().get('refresh_token')?.value;
+    // Execute action if present
+    if (chatResponse.action) {
+      try {
+        const { type: actionType, data } = chatResponse.action;
         
-        // Calendar 연결 테스트
-        try {
-            const calendar = getCalendarClient(accessToken, refreshToken);
-            const testResponse = await calendar.events.list({
+        switch (actionType) {
+          case 'create':
+            // Create event with duplicate check
+            if (data.title && data.date && data.time) {
+              // Check for duplicates
+              const duplicateCheck = checkDuplicateEvent(data, currentEvents);
+              
+              if (duplicateCheck.isDuplicate && !data.forceCreate) {
+                // Return warning instead of creating
+                chatResponse.message = getDuplicateWarningMessage(duplicateCheck, locale);
+                chatResponse.requiresConfirmation = true;
+                chatResponse.pendingAction = {
+                  type: 'create',
+                  data: { ...data, forceCreate: true }
+                };
+                chatResponse.suggestions = locale === 'ko' 
+                  ? ['네, 추가해주세요', '아니요, 취소합니다', '기존 일정 보기']
+                  : ['Yes, add it', 'No, cancel', 'View existing event'];
+                break;
+              }
+              
+              const startDateTime = new Date(`${data.date}T${data.time}:00`);
+              const endDateTime = new Date(startDateTime.getTime() + (data.duration || 60) * 60000);
+              
+              const event = {
+                summary: data.title,
+                description: data.description || '',
+                location: data.location,
+                start: {
+                  dateTime: startDateTime.toISOString(),
+                  timeZone: timezone,
+                },
+                end: {
+                  dateTime: endDateTime.toISOString(),
+                  timeZone: timezone,
+                },
+                attendees: data.attendees?.map((email: string) => ({ email }))
+              };
+              
+              const result = await calendar.events.insert({
                 calendarId: 'primary',
-                maxResults: 1
-            });
-            console.log('[AI Chat] Calendar connection OK');
-        } catch (calError: any) {
-            console.error('[AI Chat] Calendar connection failed:', calError);
+                requestBody: event,
+              });
+              
+              console.log('[AI Chat API] Event created:', result.data.id);
+              
+              // Add to recent events cache
+              recentEventCache.addEvent(sessionId, data);
+              
+              chatResponse.message += locale === 'ko' 
+                ? '\n✅ 캘린더에 일정이 등록되었습니다.'
+                : '\n✅ Event has been added to your calendar.';
+            }
+            break;
+
+          case 'update':
+            // Update event logic
+            if (data.eventId) {
+              const updates: any = {};
+              if (data.title) updates.summary = data.title;
+              if (data.location) updates.location = data.location;
+              if (data.description) updates.description = data.description;
+              
+              if (data.date && data.time) {
+                const startDateTime = new Date(`${data.date}T${data.time}:00`);
+                const endDateTime = new Date(startDateTime.getTime() + (data.duration || 60) * 60000);
+                updates.start = {
+                  dateTime: startDateTime.toISOString(),
+                  timeZone: timezone,
+                };
+                updates.end = {
+                  dateTime: endDateTime.toISOString(),
+                  timeZone: timezone,
+                };
+              }
+              
+              await calendar.events.patch({
+                calendarId: 'primary',
+                eventId: data.eventId,
+                requestBody: updates
+              });
+              
+              console.log('[AI Chat API] Event updated:', data.eventId);
+              chatResponse.message += '\n✅ 일정이 수정되었습니다.';
+            }
+            break;
+
+          case 'delete':
+            // Delete event
+            if (data.eventId) {
+              await calendar.events.delete({
+                calendarId: 'primary',
+                eventId: data.eventId
+              });
+              
+              console.log('[AI Chat API] Event deleted:', data.eventId);
+              chatResponse.message += '\n✅ 일정이 삭제되었습니다.';
+            }
+            break;
+
+          case 'list':
+          case 'search':
+            // Search events
+            const searchParams: any = {
+              calendarId: 'primary',
+              maxResults: 10,
+              singleEvents: true,
+              orderBy: 'startTime'
+            };
             
-            // If token expired, try to refresh
-            if (calError?.code === 401 && refreshToken) {
-                console.log('[AI Chat] Attempting to refresh token...');
-                try {
-                    const { refreshAccessToken } = await import('@/lib/google-auth');
-                    const newTokens = await refreshAccessToken(refreshToken);
-                    
-                    // Update cookies with new token
-                    cookies().set('access_token', newTokens.access_token || '', {
-                        httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
-                        sameSite: 'lax',
-                        maxAge: 60 * 60 * 24 * 7
-                    });
-                    
-                    // Continue with new token
-                    // Note: we should update the accessToken variable here
-                    // but for now, return error to user
-                    return NextResponse.json({
-                        type: 'error',
-                        message: 'Session expired. Please refresh the page and try again.'
-                    });
-                } catch (refreshError) {
-                    console.error('[AI Chat] Token refresh failed:', refreshError);
-                }
+            if (data.query) {
+              searchParams.q = data.query;
             }
             
-            return NextResponse.json({
-                type: 'error',
-                message: 'Calendar connection failed. Please login again. 캘린더 연결에 실패했습니다. 다시 로그인해주세요.'
-            });
+            if (data.startDate) {
+              searchParams.timeMin = new Date(data.startDate).toISOString();
+            } else {
+              searchParams.timeMin = new Date().toISOString();
+            }
+            
+            if (data.endDate) {
+              searchParams.timeMax = new Date(data.endDate).toISOString();
+            }
+            
+            const searchResult = await calendar.events.list(searchParams);
+            chatResponse.events = convertGoogleEventsToCalendarEvents(searchResult.data.items);
+            break;
         }
-
-        // 최근 이벤트 업데이트
-        const calendar = getCalendarClient(accessToken);
-        const now = new Date();
-
-        try {
-            const recentEvents = await calendar.events.list({
-                calendarId: 'primary',
-                timeMin: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-                timeMax: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                maxResults: 50,
-                singleEvents: true,
-                orderBy: 'startTime',
-            });
-
-            const calendarEvents = convertGoogleEventsToCalendarEvents(recentEvents.data.items);
-            contextManager.updateRecentEvents(userId, calendarEvents);
-            contextManager.updatePatterns(userId, calendarEvents);
-        } catch (eventError) {
-            console.error('Failed to fetch events:', eventError);
-        }
-
-        // AI 라우터로 메시지 처리 (선택된 일정 ID와 대기 중인 이벤트 데이터 포함)
-        const response = await aiRouter.processMessage(message, context, accessToken, selectedEventId, pendingEventData);
-
-        // 스마트 제안 생성
-        let suggestions: any[] = [];
-        try {
-            suggestions = await suggestionEngine.generateSuggestions(context);
-        } catch (suggestionError) {
-            console.error('Failed to generate suggestions:', suggestionError);
-        }
-
-        return NextResponse.json({
-            ...response,
-            suggestions: suggestions.slice(0, 3),
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('AI Chat error:', error);
-        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-        return NextResponse.json({
-            type: 'error',
-            message: `서버 오류가 발생했습니다: ${errorMessage}`
-        });
+      } catch (actionError) {
+        console.error('[AI Chat API] Action execution failed:', actionError);
+        const errorMessage = getUserFriendlyErrorMessage(actionError, locale);
+        chatResponse.message += `\n⚠️ ${errorMessage}`;
+        chatResponse.suggestions = getErrorSuggestions(actionError, locale);
+      }
     }
+
+    // Generate smart suggestions if not already provided
+    if (!chatResponse.suggestions || chatResponse.suggestions.length === 0) {
+      chatResponse.suggestions = generateSmartSuggestions({
+        currentTime: new Date(),
+        recentEvents: currentEvents,
+        lastAction: chatResponse.action?.type,
+        locale: locale,
+        timezone: timezone,
+        upcomingEvents: currentEvents.filter(e => {
+          const eventTime = new Date(e.start?.dateTime || e.start?.date || '');
+          return eventTime > new Date();
+        }).slice(0, 5)
+      });
+    }
+    
+    return NextResponse.json({
+      success: true,
+      ...chatResponse,
+      sessionId
+    });
+
+  } catch (error) {
+    console.error('[AI Chat API] Error:', error);
+    const locale = body?.locale || 'ko';
+    return NextResponse.json(
+      { 
+        success: false,
+        message: getUserFriendlyErrorMessage(error, locale),
+        suggestions: getErrorSuggestions(error, locale),
+        error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
+      },
+      { status: 500 }
+    );
+  }
 }

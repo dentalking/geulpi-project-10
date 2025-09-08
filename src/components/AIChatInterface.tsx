@@ -47,6 +47,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string>(Date.now().toString());
+  const timezoneRef = useRef<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const router = useRouter();
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
     
     try {
       // Call the unified chat/calendar API
-      const response = await fetch('/api/chat/calendar', {
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,6 +81,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
           type: 'text',
           sessionId: sessionIdRef.current,
           locale: locale,
+          timezone: timezoneRef.current,
           lastExtractedEvent: lastExtractedEvent,
         }),
       });
@@ -184,7 +186,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
       });
       
       try {
-        const response = await fetch('/api/chat/calendar', {
+        const response = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -195,6 +197,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
             mimeType: mimeType,
             sessionId: sessionIdRef.current,
             locale: locale,
+            timezone: timezoneRef.current,
           }),
         });
 
@@ -323,7 +326,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
       });
       
       try {
-        const response = await fetch('/api/chat/calendar', {
+        const response = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -334,6 +337,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
             mimeType: mimeType,
             sessionId: sessionIdRef.current,
             locale: locale,
+            timezone: timezoneRef.current,
           }),
         });
 
