@@ -14,6 +14,7 @@ export interface ChatResponse {
     type: string;
     data?: any;
   };
+  createdEventId?: string;  // 생성된 일정의 ID (하이라이트용)
 }
 
 export class ChatCalendarService {
