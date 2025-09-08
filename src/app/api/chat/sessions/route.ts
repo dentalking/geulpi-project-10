@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
           type: msg.message_type,
           data: msg.data,
           metadata: msg.metadata
-        })).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()) || []
+        })).sort((a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime()) || []
       };
 
       return NextResponse.json({
