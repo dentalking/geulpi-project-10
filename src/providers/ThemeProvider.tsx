@@ -95,6 +95,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Apply theme
     html.setAttribute('data-theme', actualTheme);
     
+    // Also apply Tailwind dark class for compatibility
+    if (actualTheme === 'dark') {
+      html.classList.add('dark');
+    } else {
+      html.classList.remove('dark');
+    }
+    
     // Remove transitioning class after a brief delay to re-enable animations
     const timeout = setTimeout(() => {
       html.classList.remove('theme-transitioning');

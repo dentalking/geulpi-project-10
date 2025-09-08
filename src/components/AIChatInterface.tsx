@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Mic, Camera, Sparkles, Calendar, Clock, MapPin } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { chatStorage } from '@/utils/chatStorage';
+import { ChatSession, AIMessage } from '@/types';
+import { TypingAnimation } from './TypingAnimation';
 
 interface Message {
   id: string;
@@ -21,20 +24,14 @@ interface AIChatInterfaceProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (input: string, type: 'text' | 'voice' | 'image') => void;
+  onEventCreated?: (eventId?: string, eventData?: any) => void; // 일정 생성 성공 시 콜백 (이벤트 ID 및 데이터 포함)
   locale?: string;
+  initialChatId?: string; // 특정 채팅을 불러오기 위한 ID
 }
 
-export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AIChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: locale === 'ko' 
-        ? '안녕하세요! 캘린더 관리를 도와드릴게요. 일정을 말씀해주시거나 스크린샷을 공유해주세요.'
-        : 'Hi! I can help manage your calendar. Tell me about your schedule or share a screenshot.',
-      sender: 'ai',
-      timestamp: new Date()
-    }
-  ]);
+export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, locale = 'ko', initialChatId }: AIChatInterfaceProps) {
+  const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,11 +41,114 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
       : ['Add meeting tomorrow at 3pm', 'Show this week schedule', 'Check today events']
   );
   const [lastExtractedEvent, setLastExtractedEvent] = useState<any>(null);
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string>(Date.now().toString());
   const timezoneRef = useRef<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const router = useRouter();
+
+  // 채팅 세션 초기화
+  useEffect(() => {
+    const initializeChatSession = async () => {
+      console.log('AIChatInterface useEffect - isOpen:', isOpen, 'initialChatId:', initialChatId);
+      
+      if (isOpen) {
+        // 이전 메시지 클리어 (새 세션을 로드하기 전에)
+        setMessages([]);
+        setIsProcessing(false);
+        
+        let chatSession: ChatSession;
+        
+        if (initialChatId) {
+          console.log('Loading existing chat session with ID:', initialChatId);
+          // 특정 채팅 불러오기
+          const existingSession = await chatStorage.getSession(initialChatId);
+          console.log('Found existing session:', existingSession);
+          if (existingSession) {
+            console.log('Session has', existingSession.messages?.length || 0, 'messages');
+            chatSession = existingSession;
+            await chatStorage.setActiveSession(initialChatId);
+          } else {
+            console.log('Session not found, creating new one');
+            // 해당 채팅을 찾을 수 없으면 새로운 채팅 생성
+            const newSession = await chatStorage.createSession('새 채팅');
+            if (newSession) {
+              chatSession = newSession;
+              await chatStorage.setActiveSession(chatSession.id);
+            } else {
+              console.error('Failed to create new session');
+              return;
+            }
+          }
+        } else {
+          // 새로운 채팅 생성
+          const newSession = await chatStorage.createSession('새 채팅');
+          if (newSession) {
+            chatSession = newSession;
+            await chatStorage.setActiveSession(chatSession.id);
+          } else {
+            console.error('Failed to create new session');
+            return;
+          }
+        }
+        
+        setCurrentChatSession(chatSession);
+        sessionIdRef.current = chatSession.id;
+        
+        // AIMessage를 Message로 변환 - 메시지가 있는 경우에만
+        const convertedMessages: Message[] = chatSession.messages && chatSession.messages.length > 0 
+          ? chatSession.messages.map(aiMsg => ({
+              id: aiMsg.id,
+              text: aiMsg.content,
+              sender: aiMsg.role === 'assistant' ? 'ai' : 'user',
+              timestamp: aiMsg.timestamp,
+              events: aiMsg.data?.events || [],
+              action: aiMsg.data?.action
+            }))
+          : [];
+        
+        console.log('Converted messages count:', convertedMessages.length);
+        
+        // 빈 채팅인 경우 초기 메시지 추가
+        if (convertedMessages.length === 0) {
+          console.log('No messages found, adding initial message');
+          const initialMessage: Message = {
+            id: 'initial',
+            text: locale === 'ko' 
+              ? '안녕하세요! 캘린더 관리를 도와드릴게요. 일정을 말씀해주시거나 스크린샷을 공유해주세요.'
+              : 'Hi! I can help manage your calendar. Tell me about your schedule or share a screenshot.',
+            sender: 'ai',
+            timestamp: new Date()
+          };
+          convertedMessages.push(initialMessage);
+          
+          // 초기 메시지를 채팅 세션에도 저장 (새 세션인 경우에만)
+          if (!initialChatId) {
+            const aiMessage: AIMessage = {
+              id: 'initial',
+              role: 'assistant',
+              content: initialMessage.text,
+              timestamp: new Date(),
+              type: 'text'
+            };
+            await chatStorage.addMessage(chatSession.id, aiMessage);
+          }
+        }
+        
+        setMessages(convertedMessages);
+      } else {
+        // 채팅창이 닫힐 때 상태 초기화
+        setMessages([]);
+        setCurrentChatSession(null);
+        setInput('');
+      }
+    };
+
+    initializeChatSession().catch(error => {
+      console.error('Failed to initialize chat session:', error);
+    });
+  }, [isOpen, initialChatId, locale]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,6 +165,23 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
     };
     
     setMessages(prev => [...prev, newMessage]);
+    
+    // 사용자 메시지를 채팅 세션에 저장
+    if (currentChatSession) {
+      const userAIMessage: AIMessage = {
+        id: newMessage.id,
+        role: 'user',
+        content: newMessage.text,
+        timestamp: newMessage.timestamp,
+        type: 'text'
+      };
+      try {
+        await chatStorage.addMessage(currentChatSession.id, userAIMessage);
+      } catch (error) {
+        console.error('Failed to save user message:', error);
+      }
+    }
+    
     const userInput = input;
     setInput('');
     setIsProcessing(true);
@@ -104,6 +221,27 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
       }
       
       setMessages(prev => [...prev, aiResponse]);
+      setTypingMessageId(aiResponse.id);
+      
+      // AI 응답을 채팅 세션에 저장
+      if (currentChatSession) {
+        const assistantAIMessage: AIMessage = {
+          id: aiResponse.id,
+          role: 'assistant',
+          content: aiResponse.text,
+          timestamp: aiResponse.timestamp,
+          type: 'text',
+          data: {
+            events: aiResponse.events,
+            action: aiResponse.action
+          }
+        };
+        try {
+          await chatStorage.addMessage(currentChatSession.id, assistantAIMessage);
+        } catch (error) {
+          console.error('Failed to save AI response:', error);
+        }
+      }
       
       // Update suggestions if provided
       if (data.suggestions && data.suggestions.length > 0) {
@@ -112,12 +250,19 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
       
       // If there's a successful action, refresh the calendar
       if (data.action && data.success) {
-        onSubmit(userInput, 'text');
-        // Refresh the page after a successful calendar action
+        // Call onEventCreated for smooth UI update
         if (['create', 'update', 'delete'].includes(data.action.type)) {
-          setTimeout(() => {
-            router.refresh();
-          }, 1000);
+          if (onEventCreated) {
+            onEventCreated();
+          } else {
+            // Fallback to normal submit and refresh
+            onSubmit(userInput, 'text');
+            setTimeout(() => {
+              router.refresh();
+            }, 1000);
+          }
+        } else {
+          onSubmit(userInput, 'text');
         }
       }
     } catch (error) {
@@ -171,6 +316,18 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
+    
+    // Save user message to database
+    if (currentChatSession) {
+      const userAIMessage: AIMessage = {
+        id: newMessage.id,
+        role: 'user',
+        content: newMessage.text,
+        timestamp: newMessage.timestamp,
+        type: 'image'
+      };
+      await chatStorage.addMessage(currentChatSession.id, userAIMessage);
+    }
     setIsProcessing(true);
     
     // Convert to base64 and send through unified API
@@ -219,6 +376,27 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
         }
         
         setMessages(prev => [...prev, aiResponse]);
+      setTypingMessageId(aiResponse.id);
+        
+        // Save AI response to database
+        if (currentChatSession) {
+          const aiAIMessage: AIMessage = {
+            id: aiResponse.id,
+            role: 'assistant',
+            content: aiResponse.text,
+            timestamp: aiResponse.timestamp,
+            type: 'text',
+            data: {
+              events: aiResponse.events,
+              action: aiResponse.action
+            }
+          };
+          try {
+            await chatStorage.addMessage(currentChatSession.id, aiAIMessage);
+          } catch (error) {
+            console.error('Failed to save AI message:', error);
+          }
+        }
         
         // Update suggestions if provided
         if (data.suggestions && data.suggestions.length > 0) {
@@ -229,20 +407,25 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
         if (data.action && data.success) {
           // Don't call onSubmit for images - we handle it here
           if (['create', 'update', 'delete'].includes(data.action.type)) {
-            // Trigger calendar sync to show new events in UI
-            try {
-              const syncResponse = await fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`);
-              const syncData = await syncResponse.json();
-              if (syncData.success && onSubmit) {
-                // Call onSubmit to update parent component's events
-                onSubmit('', 'text');
+            // Call onEventCreated for smooth UI update
+            if (onEventCreated) {
+              onEventCreated(data.createdEventId, data.action?.data);
+            } else {
+              // Fallback to manual sync
+              try {
+                const syncResponse = await fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`);
+                const syncData = await syncResponse.json();
+                if (syncData.success && onSubmit) {
+                  // Call onSubmit to update parent component's events
+                  onSubmit('', 'text');
+                }
+              } catch (syncError) {
+                console.error('[AIChatInterface] Error syncing calendar:', syncError);
               }
-            } catch (syncError) {
-              console.error('[AIChatInterface] Error syncing calendar:', syncError);
+              setTimeout(() => {
+                router.refresh();
+              }, 500);
             }
-            setTimeout(() => {
-              router.refresh();
-            }, 500);
           }
         }
       } catch (error) {
@@ -359,6 +542,27 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
         }
         
         setMessages(prev => [...prev, aiResponse]);
+      setTypingMessageId(aiResponse.id);
+        
+        // Save AI response to database
+        if (currentChatSession) {
+          const aiAIMessage: AIMessage = {
+            id: aiResponse.id,
+            role: 'assistant',
+            content: aiResponse.text,
+            timestamp: aiResponse.timestamp,
+            type: 'text',
+            data: {
+              events: aiResponse.events,
+              action: aiResponse.action
+            }
+          };
+          try {
+            await chatStorage.addMessage(currentChatSession.id, aiAIMessage);
+          } catch (error) {
+            console.error('Failed to save AI message:', error);
+          }
+        }
         
         // Update suggestions if provided
         if (data.suggestions && data.suggestions.length > 0) {
@@ -369,20 +573,25 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
         if (data.action && data.success) {
           // Don't call onSubmit for images - we handle it here
           if (['create', 'update', 'delete'].includes(data.action.type)) {
-            // Trigger calendar sync to show new events in UI
-            try {
-              const syncResponse = await fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`);
-              const syncData = await syncResponse.json();
-              if (syncData.success && onSubmit) {
-                // Call onSubmit to update parent component's events
-                onSubmit('', 'text');
+            // Call onEventCreated for smooth UI update
+            if (onEventCreated) {
+              onEventCreated(data.createdEventId, data.action?.data);
+            } else {
+              // Fallback to manual sync
+              try {
+                const syncResponse = await fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`);
+                const syncData = await syncResponse.json();
+                if (syncData.success && onSubmit) {
+                  // Call onSubmit to update parent component's events
+                  onSubmit('', 'text');
+                }
+              } catch (syncError) {
+                console.error('[AIChatInterface] Error syncing calendar:', syncError);
               }
-            } catch (syncError) {
-              console.error('[AIChatInterface] Error syncing calendar:', syncError);
+              setTimeout(() => {
+                router.refresh();
+              }, 500);
             }
-            setTimeout(() => {
-              router.refresh();
-            }, 500);
           }
         }
       } catch (error) {
@@ -422,7 +631,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 h-[85vh] flex flex-col rounded-t-3xl overflow-hidden"
+            className="ai-chat-interface fixed bottom-0 left-0 right-0 z-50 h-[85vh] flex flex-col rounded-t-3xl overflow-hidden"
             style={{ background: 'var(--bg-primary)' }}
           >
             {/* Header */}
@@ -469,7 +678,17 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, locale = 'ko' }: AI
                     }}
                   >
                     <div className="px-4 py-2">
-                      <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                      <p className="text-sm whitespace-pre-wrap">
+                        {message.sender === 'ai' && typingMessageId === message.id ? (
+                          <TypingAnimation 
+                            text={message.text} 
+                            speed={20}
+                            onComplete={() => setTypingMessageId(null)}
+                          />
+                        ) : (
+                          message.text
+                        )}
+                      </p>
                       <p className="text-xs mt-1 opacity-70">
                         {message.timestamp.toLocaleTimeString('ko-KR', { 
                           hour: 'numeric', 

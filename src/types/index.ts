@@ -213,6 +213,21 @@ export interface ConversationHistory {
   context?: any;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+  messages: AIMessage[];
+  userId?: string;
+  isActive?: boolean;
+  metadata?: {
+    totalMessages?: number;
+    lastActivity?: Date;
+    tags?: string[];
+  };
+}
+
 export interface SmartSuggestion {
   id: string;
   title: string;

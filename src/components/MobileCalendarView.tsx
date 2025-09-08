@@ -7,6 +7,7 @@ import type { CalendarEvent } from '@/types';
 import { EventListModal, EventDetailModal, EventCreateModal } from './EventModals';
 import { useToastContext } from '@/providers/ToastProvider';
 import { useTranslations } from 'next-intl';
+import { TypingAnimation } from './TypingAnimation';
 
 interface UnifiedCalendarViewProps {
   events: CalendarEvent[];
@@ -18,6 +19,8 @@ interface UnifiedCalendarViewProps {
   onEventCreated?: () => void;
   children: React.ReactNode;
   isDesktop?: boolean;
+  highlightedEventId?: string | null;
+  spotlightEvent?: { id: string; date: Date; title: string } | null;
 }
 
 export function UnifiedCalendarView({
@@ -29,7 +32,9 @@ export function UnifiedCalendarView({
   onAddEvent,
   onEventCreated,
   children,
-  isDesktop = false
+  isDesktop = false,
+  highlightedEventId,
+  spotlightEvent
 }: UnifiedCalendarViewProps) {
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>(isDesktop ? 'expanded' : 'expanded');
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
@@ -264,11 +269,19 @@ export function UnifiedCalendarView({
               const isCurrentMonth = date.getMonth() === currentDate.getMonth();
               const dayEvents = getEventsForDate(date);
               const dayOfWeek = date.getDay();
+              const isSpotlight = spotlightEvent && 
+                date.toDateString() === spotlightEvent.date.toDateString();
 
               return (
-                <button
+                <motion.button
                   key={index}
                   onClick={() => handleDateSelect(date)}
+                  animate={{
+                    scale: isSpotlight ? 1.15 : 1,
+                    opacity: spotlightEvent ? (isSpotlight ? 1 : 0.6) : 1,
+                    zIndex: isSpotlight ? 50 : 1
+                  }}
+                  transition={{ duration: 0.8, ease: "easeInOut" }}
                   className={`
                     relative flex flex-col 
                     transition-all
@@ -278,13 +291,15 @@ export function UnifiedCalendarView({
                     }
                     ${!isCurrentMonth ? 'opacity-30' : ''}
                     ${isSelected && viewMode === 'compact' ? 'border-2 border-purple-500 rounded-lg' : ''}
+                    ${isSpotlight ? 'ring-2 ring-purple-500/30 rounded-lg' : ''}
                   `}
                   style={{
                     color: !isCurrentMonth ? 'var(--text-tertiary)' : (
                       dayOfWeek === 0 ? '#ef4444' : 
                       dayOfWeek === 6 ? '#3b82f6' : 
                       'var(--text-primary)'
-                    )
+                    ),
+                    background: 'transparent'
                   }}
                 >
                   {/* Date number */}
@@ -312,8 +327,34 @@ export function UnifiedCalendarView({
                     </div>
                   )}
                   
+                  {/* Spotlight mode - show typing animation for new event */}
+                  {isSpotlight && spotlightEvent && (
+                    <motion.div 
+                      className="mt-1 w-full space-y-0.5"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.3, duration: 0.5 }}
+                    >
+                      <div
+                        className="leading-tight truncate px-1 py-0.5 rounded"
+                        style={{
+                          background: 'rgba(147, 51, 234, 0.12)',
+                          color: 'var(--text-primary)',
+                          fontSize: 'var(--calendar-event-text)'
+                        }}
+                      >
+                        <span style={{ fontSize: 'var(--calendar-event-text)' }}>
+                          <TypingAnimation 
+                            text={spotlightEvent.title}
+                            speed={30}
+                          />
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+                  
                   {/* Expanded mode - show event details in calendar */}
-                  {viewMode === 'expanded' && dayEvents.length > 0 && (
+                  {viewMode === 'expanded' && dayEvents.length > 0 && !isSpotlight && (
                     <div className="mt-1 w-full space-y-0.5">
                       {dayEvents.slice(0, 3).map((event, eventIndex) => {
                         const eventTime = event.start?.dateTime ? 
@@ -350,7 +391,7 @@ export function UnifiedCalendarView({
                       )}
                     </div>
                   )}
-                </button>
+                </motion.button>
               );
             })}
           </div>

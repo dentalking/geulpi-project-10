@@ -71,7 +71,7 @@ export class ChatCalendarService {
   async processMessage(
     message: string, 
     currentEvents: any[] = [],
-    userContext?: { sessionId?: string; timezone?: string; locale?: string; lastExtractedEvent?: any }
+    userContext?: { sessionId?: string; timezone?: string; locale?: string; lastExtractedEvent?: any; userProfile?: any }
   ): Promise<ChatResponse> {
     const currentDateTime = new Date().toLocaleString('ko-KR', { 
       timeZone: userContext?.timezone || 'Asia/Seoul' 
@@ -87,11 +87,31 @@ export class ChatCalendarService {
     this.recentlyCreatedEvents.set(sessionId, activeRecentEvents);
 
     const isEnglish = userContext?.locale === 'en';
+    const profile = userContext?.userProfile;
+    
+    // Build user context from profile
+    const profileContext = profile ? `
+${isEnglish ? 'User Profile Information:' : '사용자 프로필 정보:'}
+${profile.full_name ? `- ${isEnglish ? 'Name' : '이름'}: ${profile.full_name}` : ''}
+${profile.occupation ? `- ${isEnglish ? 'Occupation' : '직업'}: ${profile.occupation}` : ''}
+${profile.home_address ? `- ${isEnglish ? 'Home' : '집'}: ${profile.home_address}` : ''}
+${profile.work_address ? `- ${isEnglish ? 'Work/School' : '직장/학교'}: ${profile.work_address}` : ''}
+${profile.work_start_time && profile.work_end_time ? `- ${isEnglish ? 'Work hours' : '근무시간'}: ${profile.work_start_time} - ${profile.work_end_time}` : ''}
+${profile.wake_up_time ? `- ${isEnglish ? 'Wake up time' : '기상시간'}: ${profile.wake_up_time}` : ''}
+${profile.sleep_time ? `- ${isEnglish ? 'Sleep time' : '취침시간'}: ${profile.sleep_time}` : ''}
+${profile.interests?.length > 0 ? `- ${isEnglish ? 'Interests' : '관심사'}: ${profile.interests.join(', ')}` : ''}
+${profile.goals?.length > 0 ? `- ${isEnglish ? 'Goals' : '목표'}: ${profile.goals.join(', ')}` : ''}
+${profile.allergies?.length > 0 ? `- ${isEnglish ? 'Allergies' : '알레르기'}: ${profile.allergies.join(', ')}` : ''}
+${profile.dietary_preferences?.length > 0 ? `- ${isEnglish ? 'Dietary preferences' : '식단 선호'}: ${profile.dietary_preferences.join(', ')}` : ''}
+${profile.exercise_routine ? `- ${isEnglish ? 'Exercise routine' : '운동 루틴'}: ${profile.exercise_routine}` : ''}
+` : '';
+    
     const prompt = `
 ${isEnglish ? 'You are a friendly and capable calendar assistant.' : '당신은 친절하고 유능한 캘린더 비서입니다.'}
 ${isEnglish ? 'Current time:' : '현재 시간:'} ${currentDateTime}
 ${isEnglish ? 'User timezone:' : '사용자 시간대:'} ${userContext?.timezone || 'Asia/Seoul'}
 ${isEnglish ? 'User language: English' : '사용자 언어: 한국어'}
+${profileContext}
 
 ${activeRecentEvents.length > 0 ? `
 ${isEnglish ? 'Recently created events (last 10 minutes):' : '최근 생성된 일정 (10분 이내):'}
@@ -123,6 +143,15 @@ ${currentEvents.slice(0, 10).map(e => {
 사용자 메시지: "${message}"
 
 위 정보를 바탕으로 다음과 같이 응답해주세요:
+
+${profile ? `
+중요: 사용자의 프로필 정보를 활용하여 더 개인화된 응답을 제공하세요:
+- 집/직장 위치를 언급할 때 실제 주소를 활용
+- 근무시간, 기상/취침 시간을 고려한 일정 제안
+- 관심사와 목표를 반영한 일정 추천
+- 알레르기나 식단 선호를 고려한 식사 일정 제안
+- 운동 루틴을 고려한 운동 일정 제안
+` : ''}
 
 1. 먼저 사용자의 의도를 파악하세요:
    - CREATE: 새 일정 추가 (예: "내일 3시 회의 추가해줘")

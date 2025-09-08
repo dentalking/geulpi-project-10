@@ -12,15 +12,20 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
-  Menu
+  Menu,
+  X
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import Link from 'next/link';
 import { FullPageLoader, CalendarSkeleton } from '@/components/LoadingStates';
-import { MobileHeader, MobileSideMenu, MobileBottomNav } from '@/components/MobileNavigation';
+import { MobileBottomNav } from '@/components/MobileNavigation';
+import { UnifiedSidebar, UnifiedHeader } from '@/components/UnifiedSidebar';
 import { UnifiedCalendarView } from '@/components/MobileCalendarView';
 import { AIChatInterface } from '@/components/AIChatInterface';
 import { EmptyState } from '@/components/EmptyState';
+import { SubscriptionManagement } from '@/components/SubscriptionManagement';
+import { FriendsList } from '@/components/FriendsList';
+import { ProfilePanel } from '@/components/ProfilePanel';
 
 // Lazy load heavy components
 const GoogleCalendarLink = lazy(() => import('@/components/GoogleCalendarLink'));
@@ -38,13 +43,20 @@ export default function SimplifiedDashboardPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
+  const [spotlightEvent, setSpotlightEvent] = useState<{ id: string; date: Date; title: string } | null>(null);
   const [sessionId] = useState(() => `session-${Date.now()}`);
+  const [userInfo, setUserInfo] = useState<{ email?: string; name?: string; picture?: string } | null>(null);
   
   // UI states
   const [showSettings, setShowSettings] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSubscription, setShowSubscription] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState<string | undefined>(undefined);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<Date | undefined>();
   const [isMobile, setIsMobile] = useState(false);
@@ -63,7 +75,13 @@ export default function SimplifiedDashboardPage() {
     try {
       const response = await fetch('/api/auth/status');
       const data = await response.json();
+      console.log('Auth status response:', data); // Debug log
       setIsAuthenticated(data.authenticated);
+      
+      if (data.authenticated && data.user) {
+        console.log('Setting user info:', data.user); // Debug log
+        setUserInfo(data.user);
+      }
       
       if (!data.authenticated) {
         router.push('/landing');
@@ -170,6 +188,13 @@ export default function SimplifiedDashboardPage() {
             setCurrentDate(new Date());
           }
           break;
+        case 'm':
+          if (e.ctrlKey || e.metaKey) {
+            // Toggle menu/sidebar
+            e.preventDefault();
+            setShowSidebar(!showSidebar);
+          }
+          break;
         case '/':
           // Open AI chat
           e.preventDefault();
@@ -177,9 +202,11 @@ export default function SimplifiedDashboardPage() {
           break;
         case 'Escape':
           // Close modals
+          setShowSidebar(false);
           setShowSettings(false);
           setShowAIChat(false);
           setShowNotifications(false);
+          setShowSubscription(false);
           break;
       }
     };
@@ -195,119 +222,77 @@ export default function SimplifiedDashboardPage() {
   return (
     <div className="min-h-screen pb-safe-bottom" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       
-      {/* Mobile Header */}
+      {/* Unified Header for both mobile and desktop */}
+      <UnifiedHeader 
+        onMenuClick={() => setShowSidebar(true)}
+        onSearchClick={() => router.push(`/${locale}/search`)}
+        onAddEvent={() => setShowAIChat(true)}
+        showMenuButton={true}
+        isMobile={isMobile}
+      />
+      
+      {/* Mobile Bottom Navigation */}
       {isMobile && (
-        <>
-          <MobileHeader onMenuClick={() => setShowMobileSidebar(true)} />
-          <MobileBottomNav onAddEvent={() => setShowAIChat(true)} />
-        </>
+        <MobileBottomNav onAddEvent={() => setShowAIChat(true)} />
       )}
       
-      {/* Desktop Navigation - Simplified */}
-      {!isMobile && (
-        <nav className="sticky top-0 z-50 backdrop-blur-xl border-b" 
-             style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
-          <div className="max-w-[1400px] mx-auto px-6 py-3">
-            <div className="flex items-center justify-between">
-              {/* Logo */}
-              <Link href="/" className="flex items-center gap-3">
-                <Logo size={28} color="currentColor" />
-                <span className="text-lg font-medium">Geulpi</span>
-              </Link>
-              
-              {/* Actions - Simplified */}
-              <div className="flex items-center gap-2">
-                {/* AI Chat - Simple Icon Button */}
-                <button
-                  onClick={() => setShowAIChat(true)}
-                  className="p-2 rounded-lg transition-all"
-                  style={{ color: 'var(--text-tertiary)' }}
-                  aria-label="AI Chat"
-                >
-                  <MessageSquare className="w-5 h-5" />
-                </button>
-                
-                {/* Notifications - Show count only if > 0 */}
-                {notificationCount > 0 && (
-                  <button 
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    className="p-2 rounded-lg transition-all relative"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    <Bell className="w-5 h-5" />
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {notificationCount}
-                    </span>
-                  </button>
-                )}
-                
-                {/* Settings */}
-                <button 
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="p-2 rounded-lg transition-all"
-                  style={{ color: 'var(--text-tertiary)' }}
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
-                
-                {/* Google Calendar Sync */}
-                <Suspense fallback={null}>
-                  <GoogleCalendarLink
-                    currentDate={currentDate}
-                    currentView="month"
-                    lastSyncTime={lastSyncTime}
-                    syncStatus={syncStatus}
-                    onSync={syncEvents}
-                  />
-                </Suspense>
-                
-                {/* Logout */}
-                <a
-                  href="/api/auth/logout"
-                  className="p-2 rounded-lg transition-all"
-                  style={{ color: 'var(--text-tertiary)' }}
-                  aria-label={t('auth.logout')}
-                >
-                  <LogOut className="w-5 h-5" />
-                </a>
-              </div>
-            </div>
-          </div>
-        </nav>
-      )}
-      
-      {/* Mobile Side Menu */}
-      <MobileSideMenu 
-        isOpen={showMobileSidebar} 
-        onClose={() => setShowMobileSidebar(false)}
+      {/* Unified Sidebar for both mobile and desktop */}
+      <UnifiedSidebar 
+        isOpen={showSidebar} 
+        onClose={() => setShowSidebar(false)}
         onSettingsClick={() => {
-          setShowMobileSidebar(false);
+          setShowSidebar(false);
           setShowSettings(true);
         }}
+        onSubscriptionClick={() => {
+          setShowSidebar(false);
+          setShowSubscription(true);
+        }}
+        onFriendsClick={() => {
+          setShowSidebar(false);
+          setShowFriends(true);
+        }}
+        onProfileClick={() => {
+          console.log('Dashboard: onProfileClick called - opening profile');
+          setShowSidebar(false);
+          setShowProfile(true);
+        }}
+        onAIChatClick={() => {
+          setShowSidebar(false);
+          setCurrentChatId(undefined); // 새 채팅
+          setShowAIChat(true);
+        }}
+        onChatClick={(chatId: string) => {
+          setShowSidebar(false);
+          setCurrentChatId(chatId); // 특정 채팅 불러오기
+          setShowAIChat(true);
+        }}
+        isMobile={isMobile}
+        userInfo={userInfo}
       />
       
       {/* Main Content - Optimized for Mobile */}
       <main className={`${isMobile ? '' : 'max-w-[1400px] mx-auto px-4 sm:px-6 py-4'}`}>
         
-        {/* Mobile-optimized Month Navigation */}
-        {isMobile ? (
-          <div className="sticky top-[56px] z-30 backdrop-blur-xl border-b" 
-               style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
-            <div className="flex items-center justify-center py-3 px-4">
+        {/* Month Navigation and Actions Bar */}
+        <div className={`${isMobile ? 'sticky top-[56px]' : ''} backdrop-blur-xl border-b`}
+             style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)', zIndex: 20 }}>
+          <div className="flex items-center justify-between py-3 px-4">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => {
                   const newDate = new Date(currentDate);
                   newDate.setMonth(newDate.getMonth() - 1);
                   setCurrentDate(newDate);
                 }}
-                className="p-2 rounded-lg transition-all"
+                className="p-2 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
                 style={{ color: 'var(--text-tertiary)' }}
                 aria-label={t('dashboard.previousMonth')}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               
-              <h2 className="flex-1 text-center text-lg font-semibold">
+              <h2 className="px-3 text-lg font-semibold">
                 {currentDate.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { 
                   year: 'numeric', 
                   month: 'long' 
@@ -320,45 +305,7 @@ export default function SimplifiedDashboardPage() {
                   newDate.setMonth(newDate.getMonth() + 1);
                   setCurrentDate(newDate);
                 }}
-                className="p-2 rounded-lg transition-all"
-                style={{ color: 'var(--text-tertiary)' }}
-                aria-label={t('dashboard.nextMonth')}
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Desktop Header with Month Navigation */
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  const newDate = new Date(currentDate);
-                  newDate.setMonth(newDate.getMonth() - 1);
-                  setCurrentDate(newDate);
-                }}
-                className="p-2 rounded-lg transition-all"
-                style={{ color: 'var(--text-tertiary)' }}
-                aria-label={t('dashboard.previousMonth')}
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              
-              <h1 className="text-xl font-semibold">
-                {currentDate.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { 
-                  year: 'numeric', 
-                  month: 'long' 
-                })}
-              </h1>
-              
-              <button
-                onClick={() => {
-                  const newDate = new Date(currentDate);
-                  newDate.setMonth(newDate.getMonth() + 1);
-                  setCurrentDate(newDate);
-                }}
-                className="p-2 rounded-lg transition-all"
+                className="p-2 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
                 style={{ color: 'var(--text-tertiary)' }}
                 aria-label={t('dashboard.nextMonth')}
               >
@@ -366,22 +313,51 @@ export default function SimplifiedDashboardPage() {
               </button>
             </div>
             
-            {/* Today button */}
-            <button
-              onClick={() => setCurrentDate(new Date())}
-              className="px-3 py-1 text-sm rounded-lg transition-all"
-              style={{ 
-                background: 'var(--surface-secondary)', 
-                color: 'var(--text-secondary)' 
-              }}
-            >
-              {t('dashboard.today')}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Today button */}
+              <button
+                onClick={() => setCurrentDate(new Date())}
+                className="px-3 py-1.5 text-sm rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
+                style={{ 
+                  background: 'var(--surface-secondary)', 
+                  color: 'var(--text-secondary)' 
+                }}
+              >
+                {t('dashboard.today')}
+              </button>
+              
+              {/* Notifications - If any */}
+              {notificationCount > 0 && (
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2 rounded-lg transition-all relative hover:bg-gray-100 dark:hover:bg-gray-800"
+                  style={{ color: 'var(--text-tertiary)' }}
+                >
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {notificationCount}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
-        )}
+          
+          {/* Google Calendar Sync - Moved to a separate row to avoid overlap */}
+          <div className="px-4 pb-3 flex justify-end">
+            <Suspense fallback={null}>
+              <GoogleCalendarLink
+                currentDate={currentDate}
+                currentView="month"
+                lastSyncTime={lastSyncTime}
+                syncStatus={syncStatus}
+                onSync={syncEvents}
+              />
+            </Suspense>
+          </div>
+        </div>
         
         {/* Calendar */}
-        <div style={{ height: isMobile ? 'calc(100vh - 90px)' : '75vh' }}>
+        <div className={isMobile ? '' : 'mt-4'} style={{ height: isMobile ? 'calc(100vh - 160px)' : '75vh' }}>
           {events.length > 0 ? (
             <div className={isMobile ? '' : 'backdrop-blur-xl rounded-xl border overflow-hidden'}
                  style={isMobile ? {} : { 
@@ -394,6 +370,8 @@ export default function SimplifiedDashboardPage() {
                 currentDate={currentDate}
                 locale={locale}
                 isDesktop={!isMobile}
+                highlightedEventId={highlightedEventId}
+                spotlightEvent={spotlightEvent}
                 onEventClick={(event) => {
                   // Let the calendar component handle event clicks internally with its modal system
                   if (event.start) {
@@ -445,10 +423,83 @@ export default function SimplifiedDashboardPage() {
       {/* AI Chat Interface */}
       <AIChatInterface
         isOpen={showAIChat}
-        onClose={() => setShowAIChat(false)}
-        onSubmit={(input, type) => {
-          console.log('AI Chat:', { input, type });
+        onClose={() => {
+          setShowAIChat(false);
+          setCurrentChatId(undefined); // 채팅창 닫을 때 ID 리셋
         }}
+        onSubmit={async (input, type) => {
+          console.log('AI Chat event created:', { input, type });
+          // 캘린더 새로고침
+          await syncEvents();
+        }}
+        onEventCreated={async (eventId, eventData) => {
+          // 이벤트 정보로 스포트라이트 모드 설정
+          if (eventId && eventData) {
+            const eventDate = new Date(eventData.date);
+            
+            // 해당 월로 이동 (필요한 경우)
+            if (eventDate.getMonth() !== currentDate.getMonth() || 
+                eventDate.getFullYear() !== currentDate.getFullYear()) {
+              setCurrentDate(eventDate);
+            }
+            
+            // 채팅창 페이드아웃 후 스포트라이트 시작
+            setTimeout(() => {
+              setShowAIChat(false);
+              setSpotlightEvent({
+                id: eventId,
+                date: eventDate,
+                title: eventData.title
+              });
+            }, 300);
+          }
+          
+          // 캘린더 새로고침
+          await syncEvents();
+          
+          // 4초 후 스포트라이트 모드 종료
+          setTimeout(() => {
+            setSpotlightEvent(null);
+            // 채팅창 부드럽게 다시 열기
+            setTimeout(() => {
+              setShowAIChat(true);
+            }, 500);
+          }, 4000);
+        }}
+        initialChatId={currentChatId}
+        locale={locale}
+      />
+      
+      {/* Subscription Management Modal */}
+      <SubscriptionManagement
+        isOpen={showSubscription}
+        onClose={() => setShowSubscription(false)}
+      />
+      
+      {/* Friends Modal */}
+      {showFriends && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-4xl max-h-[80vh] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-y-auto">
+            <div className="sticky top-0 z-10 p-4 border-b bg-white dark:bg-gray-800">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">친구 관리</h2>
+                <button
+                  onClick={() => setShowFriends(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <FriendsList />
+          </div>
+        </div>
+      )}
+      
+      {/* Profile Panel */}
+      <ProfilePanel
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
       />
     </div>
   );

@@ -3,12 +3,18 @@ import { cookies } from 'next/headers';
 import { ChatCalendarService, type ChatResponse } from '@/services/ai/ChatCalendarService';
 import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
+import { createClient } from '@supabase/supabase-js';
 import { getUserFriendlyErrorMessage, getErrorSuggestions } from '@/lib/error-messages';
 import { checkDuplicateEvent, recentEventCache, getDuplicateWarningMessage } from '@/lib/duplicate-detector';
 import { generateSmartSuggestions } from '@/lib/smart-suggestions';
 import type { CalendarEvent } from '@/types';
 
 const chatService = new ChatCalendarService();
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   let body: any;
@@ -46,6 +52,24 @@ export async function POST(request: NextRequest) {
 
     const calendar = getCalendarClient(accessToken);
 
+    // Get user profile for context
+    const profilePromise = (async () => {
+      try {
+        const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+        if (user) {
+          const { data: profile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+          return profile;
+        }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+      }
+      return null;
+    })();
+
     // Start fetching events in parallel with processing
     const eventsPromise = (async () => {
       try {
@@ -67,19 +91,24 @@ export async function POST(request: NextRequest) {
 
     let chatResponse: ChatResponse;
     let currentEvents: CalendarEvent[] = [];
+    let userProfile: any = null;
     
     // Process based on type - start processing immediately
     if (type === 'image' && imageData) {
       // Process image in parallel with events fetching
-      const [imageResponse, events] = await Promise.all([
+      const [imageResponse, events, profile] = await Promise.all([
         chatService.extractEventFromImage(imageData, mimeType || 'image/png', locale, sessionId),
-        eventsPromise
+        eventsPromise,
+        profilePromise
       ]);
       chatResponse = imageResponse;
       currentEvents = events;
+      userProfile = profile;
     } else {
       // For text processing, we need events context first (but still fetch in parallel)
-      currentEvents = await eventsPromise;
+      const [events, profile] = await Promise.all([eventsPromise, profilePromise]);
+      currentEvents = events;
+      userProfile = profile;
       // Check if message is referring to last extracted event
       const isReferenceCommand = message && (
         message.toLowerCase().includes('register this') ||
@@ -106,12 +135,13 @@ export async function POST(request: NextRequest) {
             : ['Check schedule', 'Add another event', 'View today events']
         };
       } else {
-        // Process text message normally
+        // Process text message normally with user profile
         chatResponse = await chatService.processMessage(message, currentEvents, {
           sessionId: sessionId,
           timezone: timezone,
           locale: locale,
-          lastExtractedEvent: lastExtractedEvent
+          lastExtractedEvent: lastExtractedEvent,
+          userProfile: userProfile
         });
       }
     }
@@ -169,6 +199,9 @@ export async function POST(request: NextRequest) {
               
               // Add to recent events cache
               recentEventCache.addEvent(sessionId, data);
+              
+              // Store the created event ID for highlighting
+              chatResponse.createdEventId = result.data.id;
               
               chatResponse.message += locale === 'ko' 
                 ? '\n✅ 캘린더에 일정이 등록되었습니다.'
