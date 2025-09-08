@@ -67,13 +67,14 @@ export async function POST(request: NextRequest) {
     const profilePromise = (async () => {
       try {
         const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+        console.log('[AI Chat API] User detected:', user?.id, user?.email);
         if (user) {
           const { data: profile } = await supabaseAdmin
             .from('user_profiles')
             .select('*')
             .eq('user_id', user.id)
             .single();
-          return profile;
+          return { ...profile, userId: user.id, userEmail: user.email };
         }
       } catch (error) {
         console.error('Failed to fetch user profile:', error);
@@ -230,12 +231,17 @@ export async function POST(request: NextRequest) {
                 attendees: data.attendees?.map((email: string) => ({ email }))
               };
               
+              console.log('[AI Chat API] Attempting to create event:', event);
               const result = await calendar.events.insert({
                 calendarId: 'primary',
                 requestBody: event,
               });
               
-              console.log('[AI Chat API] Event created:', result.data.id);
+              console.log('[AI Chat API] Event created successfully:', {
+                eventId: result.data.id,
+                title: result.data.summary,
+                start: result.data.start
+              });
               
               // Add to recent events cache
               recentEventCache.addEvent(sessionId, data);
@@ -347,8 +353,14 @@ export async function POST(request: NextRequest) {
             chatResponse.events = convertGoogleEventsToCalendarEvents(searchResult.data.items);
             break;
         }
-      } catch (actionError) {
-        console.error('[AI Chat API] Action execution failed:', actionError);
+      } catch (actionError: any) {
+        console.error('[AI Chat API] Action execution failed:', {
+          error: actionError,
+          message: actionError?.message,
+          code: actionError?.code,
+          status: actionError?.status,
+          action: chatResponse.action
+        });
         const errorMessage = getUserFriendlyErrorMessage(actionError, locale);
         chatResponse.message += `\n⚠️ ${errorMessage}`;
         chatResponse.suggestions = getErrorSuggestions(actionError, locale);

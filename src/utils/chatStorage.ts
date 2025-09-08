@@ -14,7 +14,9 @@ export class ChatStorage {
       params.set('limit', '100'); // 최대 100개 세션
 
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/chat/sessions?${params}`);
+      const response = await fetch(`${baseUrl}/api/chat/sessions?${params}`, {
+        credentials: 'include' // 쿠키 전송을 위해 추가
+      });
       const result = await response.json();
 
       if (!result.success) {
@@ -48,7 +50,9 @@ export class ChatStorage {
       console.log('ChatStorage getSession called with ID:', sessionId);
       
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      const response = await fetch(`${baseUrl}/api/chat/sessions?sessionId=${sessionId}`);
+      const response = await fetch(`${baseUrl}/api/chat/sessions?sessionId=${sessionId}`, {
+        credentials: 'include' // 쿠키 전송을 위해 추가
+      });
       const result = await response.json();
       
       if (!result.success) {
@@ -91,6 +95,7 @@ export class ChatStorage {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 쿠키 전송을 위해 추가
         body: JSON.stringify({
           title,
           userId,
@@ -141,6 +146,7 @@ export class ChatStorage {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 쿠키 전송을 위해 추가
         body: JSON.stringify({
           sessionId,
           role: message.role,
@@ -184,6 +190,7 @@ export class ChatStorage {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 쿠키 전송을 위해 추가
         body: JSON.stringify({
           sessionId,
           ...updates
@@ -228,6 +235,7 @@ export class ChatStorage {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 쿠키 전송을 위해 추가
         body: JSON.stringify({ sessionId }),
       });
 
