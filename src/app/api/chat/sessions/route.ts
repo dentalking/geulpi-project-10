@@ -253,7 +253,7 @@ export async function PUT(request: NextRequest) {
       userId: session.user_id,
       isActive: session.is_active || false,
       metadata: session.metadata || {},
-      messages: session.chat_messages?.map(msg => ({
+      messages: session.chat_messages?.map((msg: any) => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
