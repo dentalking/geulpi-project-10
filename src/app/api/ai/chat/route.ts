@@ -201,7 +201,9 @@ export async function POST(request: NextRequest) {
               recentEventCache.addEvent(sessionId, data);
               
               // Store the created event ID for highlighting
-              chatResponse.createdEventId = result.data.id;
+              if (result.data.id) {
+                chatResponse.createdEventId = result.data.id;
+              }
               
               chatResponse.message += locale === 'ko' 
                 ? '\n✅ 캘린더에 일정이 등록되었습니다.'
