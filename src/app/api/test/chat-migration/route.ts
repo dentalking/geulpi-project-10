@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const testResults = {
       timestamp: new Date().toISOString(),
-      tests: [],
+      tests: [] as Array<{ name: string; status: string; details: string }>,
       summary: {
         passed: 0,
         failed: 0,

@@ -70,16 +70,18 @@ export async function GET(request: NextRequest) {
     }
 
     // 친구 정보 정리 (자신이 user_id든 friend_id든 상대방 정보를 반환)
-    const friends = friendships?.map(friendship => {
+    const friends = friendships?.map((friendship: any) => {
       const isUserInitiator = friendship.user_id === user.id;
       const friendData = isUserInitiator ? friendship.friend : friendship.user;
+      // Supabase 관계 쿼리에서 배열로 반환될 수 있으므로 첫 번째 요소 사용
+      const friend = Array.isArray(friendData) ? friendData[0] : friendData;
       
       return {
         id: friendship.id,
-        friendId: friendData.id,
-        email: friendData.email,
-        name: friendData.name || friendship.nickname || friendData.email,
-        picture: friendData.picture,
+        friendId: friend?.id,
+        email: friend?.email,
+        name: friend?.name || friendship.nickname || friend?.email,
+        picture: friend?.picture,
         nickname: friendship.nickname,
         relationshipType: friendship.relationship_type,
         notes: friendship.notes,

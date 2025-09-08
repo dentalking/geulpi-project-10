@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // TypeScript 타입 호환을 위한 변환
-    const transformedMessages = messages?.map(msg => ({
+    const transformedMessages = messages?.map((msg: any) => ({
       id: msg.id,
       role: msg.role,
       content: msg.content,
