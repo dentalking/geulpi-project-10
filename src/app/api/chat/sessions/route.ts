@@ -6,15 +6,34 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
-    const userId = searchParams.get('userId');
+    let userId = searchParams.get('userId');
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
+    
+    // 현재 로그인한 사용자의 ID 자동 추출 (쿠키에서)
+    if (!userId) {
+      try {
+        const { cookies } = await import('next/headers');
+        const cookieStore = cookies();
+        const accessToken = cookieStore.get('access_token')?.value;
+        
+        if (accessToken) {
+          const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+          if (user) {
+            userId = user.id;
+            console.log('Auto-detected user ID from token:', userId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to get user ID from token:', error);
+      }
+    }
 
     // 특정 세션 가져오기
     if (sessionId) {
-      console.log('Fetching specific session:', sessionId);
+      console.log('Fetching specific session:', sessionId, 'for user:', userId);
       
-      const { data: session, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('chat_sessions')
         .select(`
           *,
@@ -28,8 +47,14 @@ export async function GET(request: NextRequest) {
             metadata
           )
         `)
-        .eq('id', sessionId)
-        .single();
+        .eq('id', sessionId);
+      
+      // user_id가 있으면 해당 사용자의 세션인지 확인
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+      
+      const { data: session, error } = await query.single();
 
       if (error) {
         console.error('Error fetching session:', error);
@@ -76,6 +101,17 @@ export async function GET(request: NextRequest) {
     // 모든 세션 가져오기
     console.log('Fetching all chat sessions:', { userId, limit, offset });
 
+    // 사용자별 필터링 필수 - 보안 및 프라이버시를 위해
+    // userId가 없으면 빈 배열 반환
+    if (!userId) {
+      console.log('No user ID provided, returning empty sessions for privacy');
+      return NextResponse.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
     let query = supabaseAdmin
       .from('chat_sessions')
       .select(`
@@ -90,13 +126,9 @@ export async function GET(request: NextRequest) {
           metadata
         )
       `)
+      .eq('user_id', userId) // 항상 user_id로 필터링
       .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
-
-    // 사용자별 필터링 (선택사항 - 개발 단계에서는 전체 접근)
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
 
     const { data: sessions, error } = await query;
 
@@ -147,7 +179,26 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title = '새 채팅', userId, metadata = {} } = body;
+    let { title = '새 채팅', userId, metadata = {} } = body;
+
+    // 현재 로그인한 사용자의 ID 자동 추출 (쿠키에서)
+    if (!userId) {
+      try {
+        const { cookies } = await import('next/headers');
+        const cookieStore = cookies();
+        const accessToken = cookieStore.get('access_token')?.value;
+        
+        if (accessToken) {
+          const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+          if (user) {
+            userId = user.id;
+            console.log('Auto-detected user ID for new session:', userId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to get user ID from token:', error);
+      }
+    }
 
     console.log('Creating new chat session:', { title, userId, metadata });
 
