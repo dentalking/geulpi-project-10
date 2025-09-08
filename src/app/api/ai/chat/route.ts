@@ -41,7 +41,18 @@ export async function POST(request: NextRequest) {
     const cookieStore = cookies();
     const accessToken = cookieStore.get('access_token')?.value;
     
+    // Debug logging for production
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
+      console.log('[AI Chat API] Cookie check:', {
+        hasAccessToken: !!accessToken,
+        cookiesPresent: cookieStore.getAll().map(c => c.name),
+        type: type,
+        locale: locale
+      });
+    }
+    
     if (!accessToken) {
+      console.error('[AI Chat API] No access token found in cookies');
       const error = { code: 'UNAUTHENTICATED' };
       return NextResponse.json({
         success: false,

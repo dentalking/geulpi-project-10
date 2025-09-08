@@ -193,6 +193,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // 쿠키 전송을 위해 추가
         body: JSON.stringify({
           message: userInput,
           type: 'text',
@@ -348,6 +349,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // 쿠키 전송을 위해 추가
           body: JSON.stringify({
             type: 'image',
             imageData: base64,
@@ -514,6 +516,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // 쿠키 전송을 위해 추가
           body: JSON.stringify({
             type: 'image',
             imageData: base64,
