@@ -172,19 +172,48 @@ export async function POST(request: NextRequest) {
                 break;
               }
               
-              const startDateTime = new Date(`${data.date}T${data.time}:00`);
-              const endDateTime = new Date(startDateTime.getTime() + (data.duration || 60) * 60000);
+              // 사용자가 입력한 날짜와 시간을 그대로 사용 (타임존 변환 없이)
+              // Google Calendar API는 timeZone 파라미터와 함께 사용하면 해당 타임존의 시간으로 처리
+              const [year, month, day] = data.date.split('-');
+              const [hour, minute] = data.time.split(':');
+              
+              // 시작 시간과 종료 시간 계산
+              const startHour = parseInt(hour);
+              const startMinute = parseInt(minute);
+              const durationMinutes = data.duration || 60;
+              
+              let endHour = startHour + Math.floor(durationMinutes / 60);
+              let endMinute = startMinute + (durationMinutes % 60);
+              
+              // 분이 60을 넘으면 시간으로 변환
+              if (endMinute >= 60) {
+                endHour += 1;
+                endMinute -= 60;
+              }
+              
+              // 날짜가 바뀌는 경우 처리 (24시 이후)
+              let endDate = data.date;
+              if (endHour >= 24) {
+                const nextDay = new Date(data.date);
+                nextDay.setDate(nextDay.getDate() + 1);
+                endDate = nextDay.toISOString().split('T')[0];
+                endHour = endHour % 24;
+              }
+              
+              // RFC3339 형식으로 날짜시간 문자열 생성
+              const startDateTimeString = `${data.date}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
+              const endDateTimeString = `${endDate}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
               
               const event = {
                 summary: data.title,
                 description: data.description || '',
                 location: data.location,
                 start: {
-                  dateTime: startDateTime.toISOString(),
+                  dateTime: startDateTimeString,
                   timeZone: timezone,
                 },
                 end: {
-                  dateTime: endDateTime.toISOString(),
+                  dateTime: endDateTimeString,
                   timeZone: timezone,
                 },
                 attendees: data.attendees?.map((email: string) => ({ email }))
@@ -220,14 +249,37 @@ export async function POST(request: NextRequest) {
               if (data.description) updates.description = data.description;
               
               if (data.date && data.time) {
-                const startDateTime = new Date(`${data.date}T${data.time}:00`);
-                const endDateTime = new Date(startDateTime.getTime() + (data.duration || 60) * 60000);
+                // 타임존 변환 없이 사용자 입력 시간 그대로 사용
+                const [hour, minute] = data.time.split(':');
+                const startHour = parseInt(hour);
+                const startMinute = parseInt(minute);
+                const durationMinutes = data.duration || 60;
+                
+                let endHour = startHour + Math.floor(durationMinutes / 60);
+                let endMinute = startMinute + (durationMinutes % 60);
+                
+                if (endMinute >= 60) {
+                  endHour += 1;
+                  endMinute -= 60;
+                }
+                
+                let endDate = data.date;
+                if (endHour >= 24) {
+                  const nextDay = new Date(data.date);
+                  nextDay.setDate(nextDay.getDate() + 1);
+                  endDate = nextDay.toISOString().split('T')[0];
+                  endHour = endHour % 24;
+                }
+                
+                const startDateTimeString = `${data.date}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
+                const endDateTimeString = `${endDate}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
+                
                 updates.start = {
-                  dateTime: startDateTime.toISOString(),
+                  dateTime: startDateTimeString,
                   timeZone: timezone,
                 };
                 updates.end = {
-                  dateTime: endDateTime.toISOString(),
+                  dateTime: endDateTimeString,
                   timeZone: timezone,
                 };
               }
