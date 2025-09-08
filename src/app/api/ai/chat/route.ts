@@ -165,6 +165,12 @@ export async function POST(request: NextRequest) {
         
         switch (actionType) {
           case 'create':
+            console.log('[AI Chat API] Create action data:', {
+              hasTitle: !!data.title,
+              hasDate: !!data.date,
+              hasTime: !!data.time,
+              data: data
+            });
             // Create event with duplicate check
             if (data.title && data.date && data.time) {
               // Check for duplicates
@@ -231,7 +237,14 @@ export async function POST(request: NextRequest) {
                 attendees: data.attendees?.map((email: string) => ({ email }))
               };
               
-              console.log('[AI Chat API] Attempting to create event:', event);
+              console.log('[AI Chat API] Attempting to create event:', {
+                event,
+                timezone,
+                locale,
+                isPastDate: new Date(data.date) < new Date(new Date().toDateString()),
+                parsedDate: data.date,
+                parsedTime: data.time
+              });
               const result = await calendar.events.insert({
                 calendarId: 'primary',
                 requestBody: event,
@@ -254,6 +267,15 @@ export async function POST(request: NextRequest) {
               chatResponse.message += locale === 'ko' 
                 ? '\n✅ 캘린더에 일정이 등록되었습니다.'
                 : '\n✅ Event has been added to your calendar.';
+            } else {
+              console.error('[AI Chat API] Missing required fields for event creation:', {
+                title: data.title,
+                date: data.date,
+                time: data.time
+              });
+              chatResponse.message += locale === 'ko'
+                ? '\n⚠️ 일정 생성에 필요한 정보가 부족합니다. 제목, 날짜, 시간을 모두 입력해주세요.'
+                : '\n⚠️ Missing required information for event creation. Please provide title, date, and time.';
             }
             break;
 
@@ -359,7 +381,10 @@ export async function POST(request: NextRequest) {
           message: actionError?.message,
           code: actionError?.code,
           status: actionError?.status,
-          action: chatResponse.action
+          errors: actionError?.errors,
+          response: actionError?.response?.data,
+          action: chatResponse.action,
+          requestData: chatResponse.action?.data
         });
         const errorMessage = getUserFriendlyErrorMessage(actionError, locale);
         chatResponse.message += `\n⚠️ ${errorMessage}`;

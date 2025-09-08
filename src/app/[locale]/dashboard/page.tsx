@@ -423,6 +423,7 @@ export default function SimplifiedDashboardPage() {
       {/* AI Chat Interface */}
       <AIChatInterface
         isOpen={showAIChat}
+        locale={locale as 'ko' | 'en'}
         onClose={() => {
           setShowAIChat(false);
           setCurrentChatId(undefined); // 채팅창 닫을 때 ID 리셋

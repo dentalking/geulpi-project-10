@@ -59,7 +59,13 @@ export default function SettingsPanel({
   ] as const;
 
   const handleLocaleChange = (newLocale: Locale) => {
-    const segments = pathname?.split('/') || [];
+    console.log('[SettingsPanel] Changing locale:', { 
+      currentLocale: locale, 
+      newLocale, 
+      pathname 
+    });
+    
+    const segments = pathname?.split('/').filter(Boolean) || [];
     const localeIndex = segments.findIndex(segment => routing.locales.includes(segment as Locale));
     
     if (localeIndex !== -1) {
@@ -68,8 +74,11 @@ export default function SettingsPanel({
       segments.unshift(newLocale);
     }
     
-    const newPath = segments.filter(Boolean).join('/');
-    router.push(`/${newPath}`);
+    const newPath = segments.join('/');
+    const finalPath = `/${newPath}`;
+    
+    console.log('[SettingsPanel] Navigating to:', finalPath);
+    router.push(finalPath);
   };
 
   return (
