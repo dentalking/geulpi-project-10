@@ -6,8 +6,8 @@ export async function GET() {
     console.log('Checking chat database tables...');
 
     const results = {
-      chat_sessions: { exists: false, count: 0, error: null },
-      chat_messages: { exists: false, count: 0, error: null }
+      chat_sessions: { exists: false, count: 0, error: null as string | null },
+      chat_messages: { exists: false, count: 0, error: null as string | null }
     };
 
     // chat_sessions 테이블 확인
