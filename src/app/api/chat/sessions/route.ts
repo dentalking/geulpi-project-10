@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         userId: session.user_id,
         isActive: session.is_active || false,
         metadata: session.metadata || {},
-        messages: session.chat_messages?.map(msg => ({
+        messages: session.chat_messages?.map((msg: any) => ({
           id: msg.id,
           role: msg.role,
           content: msg.content,
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
     }
 
     // TypeScript 타입 호환을 위한 변환
-    const transformedSessions = sessions?.map(session => ({
+    const transformedSessions = sessions?.map((session: any) => ({
       id: session.id,
       title: session.title,
       createdAt: new Date(session.created_at),
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       userId: session.user_id,
       isActive: session.is_active || false,
       metadata: session.metadata || {},
-      messages: session.chat_messages?.map(msg => ({
+      messages: session.chat_messages?.map((msg: any) => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
