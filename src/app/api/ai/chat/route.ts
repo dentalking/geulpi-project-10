@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { ChatCalendarService, type ChatResponse } from '@/services/ai/ChatCalendarService';
 import { getCalendarClient } from '@/lib/google-auth';
@@ -7,6 +7,9 @@ import { createClient } from '@supabase/supabase-js';
 import { getUserFriendlyErrorMessage, getErrorSuggestions } from '@/lib/error-messages';
 import { checkDuplicateEvent, recentEventCache, getDuplicateWarningMessage } from '@/lib/duplicate-detector';
 import { generateSmartSuggestions } from '@/lib/smart-suggestions';
+import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/middleware/rateLimiter';
 import type { CalendarEvent } from '@/types';
 
 const chatService = new ChatCalendarService();
@@ -21,16 +24,18 @@ export async function POST(request: NextRequest) {
   let locale = 'ko';
   
   try {
+    // Rate limiting (AI endpoints are expensive)
+    const rateLimitResponse = await checkRateLimit(request, 'ai');
+    if (rateLimitResponse) return rateLimitResponse;
     body = await request.json();
     const { message, type = 'text', imageData, mimeType, sessionId, timezone = 'Asia/Seoul', lastExtractedEvent } = body;
     locale = body.locale || 'ko';
 
-    console.log('[AI Chat API] Request:', { 
+    logger.info('AI Chat API request received', { 
       messageLength: message?.length, 
       type, 
       hasImage: !!imageData,
       imageDataLength: imageData?.length,
-      imageDataPreview: imageData?.substring(0, 50),
       mimeType,
       sessionId,
       locale,
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest) {
     
     // Debug logging for production
     if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
-      console.log('[AI Chat API] Cookie check:', {
+      logger.debug('Cookie check', {
         hasAccessToken: !!accessToken,
         cookiesPresent: cookieStore.getAll().map(c => c.name),
         type: type,
@@ -52,13 +57,12 @@ export async function POST(request: NextRequest) {
     }
     
     if (!accessToken) {
-      console.error('[AI Chat API] No access token found in cookies');
-      const error = { code: 'UNAUTHENTICATED' };
-      return NextResponse.json({
-        success: false,
-        message: getUserFriendlyErrorMessage(error, locale),
-        suggestions: getErrorSuggestions(error, locale)
-      });
+      logger.warn('No access token found in cookies');
+      throw new ApiError(
+        401,
+        ErrorCodes.UNAUTHENTICATED,
+        getUserFriendlyErrorMessage({ code: 'UNAUTHENTICATED' }, locale)
+      );
     }
 
     const calendar = getCalendarClient(accessToken);
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
     const profilePromise = (async () => {
       try {
         const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
-        console.log('[AI Chat API] User detected:', user?.id, user?.email);
+        logger.debug('User detected', { userId: user?.id, email: user?.email });
         if (user) {
           const { data: profile } = await supabaseAdmin
             .from('user_profiles')
@@ -77,7 +81,7 @@ export async function POST(request: NextRequest) {
           return { ...profile, userId: user.id, userEmail: user.email };
         }
       } catch (error) {
-        console.error('Failed to fetch user profile:', error);
+        logger.error('Failed to fetch user profile', error);
       }
       return null;
     })();
@@ -96,7 +100,7 @@ export async function POST(request: NextRequest) {
         });
         return convertGoogleEventsToCalendarEvents(response.data.items);
       } catch (error) {
-        console.error('Failed to fetch events:', error);
+        logger.error('Failed to fetch events', error);
         return [];
       }
     })();
@@ -165,7 +169,7 @@ export async function POST(request: NextRequest) {
         
         switch (actionType) {
           case 'create':
-            console.log('[AI Chat API] Create action data:', {
+            logger.debug('Create action data', {
               hasTitle: !!data.title,
               hasDate: !!data.date,
               hasTime: !!data.time,
@@ -237,8 +241,8 @@ export async function POST(request: NextRequest) {
                 attendees: data.attendees?.map((email: string) => ({ email }))
               };
               
-              console.log('[AI Chat API] Attempting to create event:', {
-                event,
+              logger.info('Attempting to create calendar event', {
+                eventSummary: event.summary,
                 timezone,
                 locale,
                 isPastDate: new Date(data.date) < new Date(new Date().toDateString()),
@@ -250,7 +254,7 @@ export async function POST(request: NextRequest) {
                 requestBody: event,
               });
               
-              console.log('[AI Chat API] Event created successfully:', {
+              logger.info('Event created successfully', {
                 eventId: result.data.id,
                 title: result.data.summary,
                 start: result.data.start
@@ -268,7 +272,7 @@ export async function POST(request: NextRequest) {
                 ? '\n✅ 캘린더에 일정이 등록되었습니다.'
                 : '\n✅ Event has been added to your calendar.';
             } else {
-              console.error('[AI Chat API] Missing required fields for event creation:', {
+              logger.warn('Missing required fields for event creation', {
                 title: data.title,
                 date: data.date,
                 time: data.time
@@ -329,7 +333,7 @@ export async function POST(request: NextRequest) {
                 requestBody: updates
               });
               
-              console.log('[AI Chat API] Event updated:', data.eventId);
+              logger.info('Event updated', { eventId: data.eventId });
               chatResponse.message += '\n✅ 일정이 수정되었습니다.';
             }
             break;
@@ -342,7 +346,7 @@ export async function POST(request: NextRequest) {
                 eventId: data.eventId
               });
               
-              console.log('[AI Chat API] Event deleted:', data.eventId);
+              logger.info('Event deleted', { eventId: data.eventId });
               chatResponse.message += '\n✅ 일정이 삭제되었습니다.';
             }
             break;
@@ -376,8 +380,7 @@ export async function POST(request: NextRequest) {
             break;
         }
       } catch (actionError: any) {
-        console.error('[AI Chat API] Action execution failed:', {
-          error: actionError,
+        logger.error('Action execution failed', actionError, {
           message: actionError?.message,
           code: actionError?.code,
           status: actionError?.status,
@@ -407,23 +410,26 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       ...chatResponse,
       sessionId
     });
 
   } catch (error) {
-    console.error('[AI Chat API] Error:', error);
+    if (error instanceof ApiError) {
+      return errorResponse(error);
+    }
+    
+    logger.error('AI Chat API error', error);
     const locale = body?.locale || 'ko';
-    return NextResponse.json(
-      { 
-        success: false,
-        message: getUserFriendlyErrorMessage(error, locale),
-        suggestions: getErrorSuggestions(error, locale),
-        error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
-      },
-      { status: 500 }
+    
+    const apiError = new ApiError(
+      500,
+      ErrorCodes.INTERNAL_ERROR,
+      getUserFriendlyErrorMessage(error, locale)
     );
+    apiError.suggestions = getErrorSuggestions(error, locale);
+    
+    return errorResponse(apiError);
   }
 }

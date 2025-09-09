@@ -18,6 +18,8 @@ export interface ApiResponse<T = any> {
 }
 
 export class ApiError extends Error {
+  public suggestions?: string[];
+  
   constructor(
     public statusCode: number,
     public code: string,
@@ -115,6 +117,7 @@ export function withErrorHandler(
 export const ErrorCodes = {
   // Authentication
   UNAUTHORIZED: 'AUTH_UNAUTHORIZED',
+  UNAUTHENTICATED: 'AUTH_UNAUTHENTICATED',
   TOKEN_EXPIRED: 'AUTH_TOKEN_EXPIRED',
   INVALID_CREDENTIALS: 'AUTH_INVALID_CREDENTIALS',
   
