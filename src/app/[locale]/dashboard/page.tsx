@@ -279,6 +279,18 @@ export default function SimplifiedDashboardPage() {
              style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)', zIndex: 20 }}>
           <div className="flex items-center justify-between py-3 px-4">
             <div className="flex items-center gap-2">
+              {/* Today button - Moved to the left */}
+              <button
+                onClick={() => setCurrentDate(new Date())}
+                className="px-3 py-1.5 text-sm rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
+                style={{ 
+                  background: 'var(--surface-secondary)', 
+                  color: 'var(--text-secondary)' 
+                }}
+              >
+                {t('dashboard.today')}
+              </button>
+              
               <button
                 onClick={() => {
                   const newDate = new Date(currentDate);
@@ -314,17 +326,16 @@ export default function SimplifiedDashboardPage() {
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Today button */}
-              <button
-                onClick={() => setCurrentDate(new Date())}
-                className="px-3 py-1.5 text-sm rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
-                style={{ 
-                  background: 'var(--surface-secondary)', 
-                  color: 'var(--text-secondary)' 
-                }}
-              >
-                {t('dashboard.today')}
-              </button>
+              {/* Google Calendar Sync - Moved to the top row */}
+              <Suspense fallback={null}>
+                <GoogleCalendarLink
+                  currentDate={currentDate}
+                  currentView="month"
+                  lastSyncTime={lastSyncTime}
+                  syncStatus={syncStatus}
+                  onSync={syncEvents}
+                />
+              </Suspense>
               
               {/* Notifications - If any */}
               {notificationCount > 0 && (
@@ -340,19 +351,6 @@ export default function SimplifiedDashboardPage() {
                 </button>
               )}
             </div>
-          </div>
-          
-          {/* Google Calendar Sync - Moved to a separate row to avoid overlap */}
-          <div className="px-4 pb-3 flex justify-end">
-            <Suspense fallback={null}>
-              <GoogleCalendarLink
-                currentDate={currentDate}
-                currentView="month"
-                lastSyncTime={lastSyncTime}
-                syncStatus={syncStatus}
-                onSync={syncEvents}
-              />
-            </Suspense>
           </div>
         </div>
         
@@ -468,7 +466,6 @@ export default function SimplifiedDashboardPage() {
           }, 4000);
         }}
         initialChatId={currentChatId}
-        locale={locale}
       />
       
       {/* Subscription Management Modal */}
