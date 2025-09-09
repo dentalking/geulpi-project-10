@@ -92,7 +92,14 @@ export function UnifiedSidebar({
     };
 
     loadChatHistory();
-  }, []); // Empty dependency array - load once on mount
+    
+    // Reload chat history every 3 seconds when sidebar is open
+    const interval = isOpen ? setInterval(loadChatHistory, 3000) : null;
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isOpen]); // Reload when sidebar opens/closes
   
   const menuItems = [
     { 

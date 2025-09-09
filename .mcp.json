@@ -1,0 +1,41 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/heerackbang/Desktop/geulpi-project-10"
+      ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp"
+      ]
+    },
+    "supabase": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase",
+        "--project-ref=moszlrvkzrpmhvzmpiqk"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_3dc2a2aa6b397ddf8e1c0ae512ac193e4915a2fe"
+      }
+    }
+  }
+}

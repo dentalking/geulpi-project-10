@@ -27,9 +27,10 @@ interface AIChatInterfaceProps {
   onEventCreated?: (eventId?: string, eventData?: any) => void; // 일정 생성 성공 시 콜백 (이벤트 ID 및 데이터 포함)
   locale?: string;
   initialChatId?: string; // 특정 채팅을 불러오기 위한 ID
+  userId?: string; // Google OAuth user ID
 }
 
-export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, locale = 'ko', initialChatId }: AIChatInterfaceProps) {
+export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, locale = 'ko', initialChatId, userId }: AIChatInterfaceProps) {
   const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -72,7 +73,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
           } else {
             console.log('Session not found, creating new one');
             // 해당 채팅을 찾을 수 없으면 새로운 채팅 생성
-            const newSession = await chatStorage.createSession('새 채팅');
+            const newSession = await chatStorage.createSession('새 채팅', userId);
             if (newSession) {
               chatSession = newSession;
               await chatStorage.setActiveSession(chatSession.id);
@@ -83,7 +84,7 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
           }
         } else {
           // 새로운 채팅 생성
-          const newSession = await chatStorage.createSession('새 채팅');
+          const newSession = await chatStorage.createSession('새 채팅', userId);
           if (newSession) {
             chatSession = newSession;
             await chatStorage.setActiveSession(chatSession.id);
@@ -166,8 +167,24 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
     
     setMessages(prev => [...prev, newMessage]);
     
+    // 채팅 세션이 없으면 생성
+    let sessionToUse = currentChatSession;
+    if (!sessionToUse) {
+      console.log('[AIChatInterface] No current session, creating new one with userId:', userId);
+      const newSession = await chatStorage.createSession('새 채팅', userId);
+      if (newSession) {
+        setCurrentChatSession(newSession);
+        sessionIdRef.current = newSession.id;
+        await chatStorage.setActiveSession(newSession.id);
+        sessionToUse = newSession;
+        console.log('[AIChatInterface] Created new session:', newSession.id);
+      } else {
+        console.error('[AIChatInterface] Failed to create new session');
+      }
+    }
+    
     // 사용자 메시지를 채팅 세션에 저장
-    if (currentChatSession) {
+    if (sessionToUse) {
       const userAIMessage: AIMessage = {
         id: newMessage.id,
         role: 'user',
@@ -176,10 +193,16 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
         type: 'text'
       };
       try {
-        await chatStorage.addMessage(currentChatSession.id, userAIMessage);
+        const updatedSession = await chatStorage.addMessage(sessionToUse.id, userAIMessage);
+        console.log('[AIChatInterface] Saved user message to session:', sessionToUse.id);
+        if (updatedSession) {
+          setCurrentChatSession(updatedSession);
+        }
       } catch (error) {
-        console.error('Failed to save user message:', error);
+        console.error('[AIChatInterface] Failed to save user message:', error);
       }
+    } else {
+      console.error('[AIChatInterface] No session available to save message');
     }
     
     const userInput = input;
@@ -238,10 +261,16 @@ export function AIChatInterface({ isOpen, onClose, onSubmit, onEventCreated, loc
           }
         };
         try {
-          await chatStorage.addMessage(currentChatSession.id, assistantAIMessage);
+          const updatedSession = await chatStorage.addMessage(currentChatSession.id, assistantAIMessage);
+          console.log('[AIChatInterface] Saved AI response to session:', currentChatSession.id);
+          if (updatedSession) {
+            setCurrentChatSession(updatedSession);
+          }
         } catch (error) {
-          console.error('Failed to save AI response:', error);
+          console.error('[AIChatInterface] Failed to save AI response:', error);
         }
+      } else {
+        console.error('[AIChatInterface] No session available to save AI response');
       }
       
       // Update suggestions if provided
