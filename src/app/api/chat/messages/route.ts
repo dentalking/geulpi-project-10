@@ -97,13 +97,10 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // 고유한 메시지 ID 생성
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
+    // UUID는 데이터베이스에서 자동 생성
     const { data: message, error } = await supabaseAdmin
       .from('chat_messages')
       .insert({
-        id: messageId,
         session_id: sessionId,
         role,
         content,

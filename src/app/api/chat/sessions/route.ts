@@ -202,13 +202,10 @@ export async function POST(request: NextRequest) {
 
     console.log('Creating new chat session:', { title, userId, metadata });
 
-    // 고유한 ID 생성
-    const sessionId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
+    // UUID는 데이터베이스에서 자동 생성되므로 id를 지정하지 않음
     const { data: session, error } = await supabaseAdmin
       .from('chat_sessions')
       .insert({
-        id: sessionId,
         user_id: userId || null,
         title,
         metadata
