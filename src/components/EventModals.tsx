@@ -50,12 +50,12 @@ export function EventListModal({
   isOpen,
   onClose,
   selectedDate,
-  events,
+  events = [],
   onEventClick,
   onAddEvent,
   locale
 }: EventListModalProps) {
-  const dayEvents = events.filter(event => {
+  const dayEvents = (events || []).filter(event => {
     const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
     return eventDate.toDateString() === selectedDate.toDateString();
   });

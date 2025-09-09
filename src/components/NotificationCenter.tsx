@@ -21,7 +21,7 @@ const NotificationCenter: React.FC = () => {
 
   useEffect(() => {
     // 긴급 알림이 있으면 자동으로 열기
-    if (highPriorityNotifications.length > 0 && !isOpen) {
+    if (highPriorityNotifications && highPriorityNotifications.length > 0 && !isOpen) {
       const hasUnreadUrgent = highPriorityNotifications.some(
         n => n.priority === 'urgent' && !n.metadata?.read
       );
@@ -119,7 +119,7 @@ const NotificationCenter: React.FC = () => {
 
           {/* 알림 목록 */}
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {!notifications || notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 새로운 알림이 없습니다
               </div>
@@ -193,7 +193,7 @@ const NotificationCenter: React.FC = () => {
           </div>
 
           {/* 푸터 */}
-          {notifications.length > 0 && (
+          {notifications && notifications.length > 0 && (
             <div className="p-3 border-t bg-gray-50">
               <button
                 className="w-full text-center text-sm text-blue-600 hover:text-blue-700"

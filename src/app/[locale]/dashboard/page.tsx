@@ -360,7 +360,7 @@ export default function SimplifiedDashboardPage() {
         
         {/* Calendar */}
         <div className={isMobile ? '' : 'mt-4'} style={{ height: isMobile ? 'calc(100vh - 160px)' : '75vh' }}>
-          {events.length > 0 ? (
+          {events && events.length > 0 ? (
             <div className={isMobile ? '' : 'backdrop-blur-xl rounded-xl border overflow-hidden'}
                  style={isMobile ? {} : { 
                    background: 'var(--surface-primary)', 

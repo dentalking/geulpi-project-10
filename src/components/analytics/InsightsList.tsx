@@ -34,7 +34,7 @@ const InsightsList: React.FC<InsightsListProps> = ({ insights }) => {
     return 'bg-gray-100 text-gray-800';
   };
 
-  if (insights.length === 0) {
+  if (!insights || insights.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold mb-4">AI 인사이트</h3>
@@ -55,7 +55,7 @@ const InsightsList: React.FC<InsightsListProps> = ({ insights }) => {
       </h3>
       
       <div className="space-y-4">
-        {insights.map((insight, index) => {
+        {(insights || []).map((insight, index) => {
           const Icon = getInsightIcon(insight.type);
           return (
             <div

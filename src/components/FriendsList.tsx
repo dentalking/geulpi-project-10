@@ -218,7 +218,7 @@ export function FriendsList() {
       )}
 
       {/* Friends List */}
-      {friends.length === 0 ? (
+      {(friends || []).length === 0 ? (
         <div className="text-center py-12">
           <Users className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
           <p className="text-gray-500 dark:text-gray-400">아직 친구가 없습니다</p>
@@ -226,7 +226,7 @@ export function FriendsList() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {friends.map(friend => (
+          {(friends || []).map(friend => (
             <motion.div
               key={friend.id}
               initial={{ opacity: 0, y: 20 }}

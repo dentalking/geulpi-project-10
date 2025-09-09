@@ -24,7 +24,7 @@ interface UnifiedCalendarViewProps {
 }
 
 export function UnifiedCalendarView({
-  events,
+  events = [],
   currentDate,
   locale,
   onEventClick,

@@ -37,7 +37,7 @@ export default function DemoPage() {
   // 데모 이벤트 추가
   useEffect(() => {
     // 초기 데모 이벤트 추가
-    if (events.length === 0) {
+    if (!events || events.length === 0) {
       const demoEvents: CalendarEvent[] = [
         {
           id: 'demo-1',
@@ -231,7 +231,7 @@ export default function DemoPage() {
                 </button>
               </div>
               
-              {events.length === 0 ? (
+              {!events || events.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">
                   일정이 없습니다
                 </p>
@@ -281,7 +281,7 @@ export default function DemoPage() {
             <h2 className="text-xl font-semibold mb-6">AI 어시스턴트</h2>
             
             {/* 제안 */}
-            {suggestions.length > 0 && (
+            {suggestions && suggestions.length > 0 && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm font-medium text-blue-900 mb-2">
                   AI 제안
@@ -296,7 +296,7 @@ export default function DemoPage() {
 
             {/* 메시지 목록 */}
             <div className="h-96 overflow-y-auto mb-4 space-y-3 border rounded-lg p-4">
-              {messages.length === 0 ? (
+              {!messages || messages.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">
                   <p>AI 어시스턴트와 대화를 시작하세요</p>
                   <p className="text-sm mt-2">
