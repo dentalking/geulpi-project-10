@@ -46,7 +46,7 @@ export default function SimplifiedDashboardPage() {
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
   const [spotlightEvent, setSpotlightEvent] = useState<{ id: string; date: Date; title: string } | null>(null);
   const [sessionId] = useState(() => `session-${Date.now()}`);
-  const [userInfo, setUserInfo] = useState<{ email?: string; name?: string; picture?: string } | null>(null);
+  const [userInfo, setUserInfo] = useState<{ id?: string; email?: string; name?: string; picture?: string } | null>(null);
   
   // UI states
   const [showSettings, setShowSettings] = useState(false);
