@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
     
-    // 현재 로그인한 사용자의 ID 자동 추출 (쿠키에서)
+    // 현재 로그인한 사용자의 ID 자동 추출 (Google OAuth 토큰에서)
     if (!userId) {
       try {
         const { cookies } = await import('next/headers');
@@ -18,14 +18,21 @@ export async function GET(request: NextRequest) {
         const accessToken = cookieStore.get('access_token')?.value;
         
         if (accessToken) {
-          const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
-          if (user) {
-            userId = user.id;
-            console.log('Auto-detected user ID from token:', userId);
+          // Google OAuth userinfo API 호출
+          const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          
+          if (userInfoResponse.ok) {
+            const userInfo = await userInfoResponse.json();
+            userId = userInfo.id; // Google user ID 사용
+            console.log('Auto-detected Google user ID from token:', userId);
           }
         }
       } catch (error) {
-        console.error('Failed to get user ID from token:', error);
+        console.error('Failed to get user ID from Google token:', error);
       }
     }
 
@@ -181,7 +188,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     let { title = '새 채팅', userId, metadata = {} } = body;
 
-    // 현재 로그인한 사용자의 ID 자동 추출 (쿠키에서)
+    // 현재 로그인한 사용자의 ID 자동 추출 (Google OAuth 토큰에서)
     if (!userId) {
       try {
         const { cookies } = await import('next/headers');
@@ -189,14 +196,21 @@ export async function POST(request: NextRequest) {
         const accessToken = cookieStore.get('access_token')?.value;
         
         if (accessToken) {
-          const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
-          if (user) {
-            userId = user.id;
-            console.log('Auto-detected user ID for new session:', userId);
+          // Google OAuth userinfo API 호출
+          const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          
+          if (userInfoResponse.ok) {
+            const userInfo = await userInfoResponse.json();
+            userId = userInfo.id; // Google user ID 사용
+            console.log('Auto-detected Google user ID for new session:', userId);
           }
         }
       } catch (error) {
-        console.error('Failed to get user ID from token:', error);
+        console.error('Failed to get user ID from Google token:', error);
       }
     }
 
