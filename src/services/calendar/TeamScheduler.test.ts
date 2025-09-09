@@ -1,11 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { TeamScheduler } from './TeamScheduler';
-import type { 
-    TeamSchedulingRequest, 
-    TeamMember, 
-    CalendarEvent,
-    TeamProductivityPattern 
-} from '@/types';
+import { TeamScheduler, type TeamSchedulingRequest, type TeamMember, type TeamProductivityPattern } from './TeamScheduler';
+import type { CalendarEvent } from '@/types';
 
 describe('TeamScheduler', () => {
     let scheduler: TeamScheduler;
@@ -25,21 +20,21 @@ describe('TeamScheduler', () => {
                 {
                     email: 'john@example.com',
                     displayName: 'John Doe',
-                    priority: 'required',
+                    priority: 'required' as const,
                     timezone: 'Asia/Seoul',
                     workingHours: { start: 9, end: 18 }
                 },
                 {
                     email: 'jane@example.com',
                     displayName: 'Jane Smith',
-                    priority: 'required',
+                    priority: 'required' as const,
                     timezone: 'Asia/Seoul',
                     workingHours: { start: 10, end: 19 }
                 },
                 {
                     email: 'bob@example.com',
                     displayName: 'Bob Johnson',
-                    priority: 'optional',
+                    priority: 'optional' as const,
                     timezone: 'America/New_York',
                     workingHours: { start: 9, end: 17 }
                 }
@@ -340,21 +335,21 @@ describe('TeamScheduler', () => {
                     {
                         email: 'seoul@example.com',
                         displayName: 'Seoul User',
-                        priority: 'required',
+                        priority: 'required' as const,
                         timezone: 'Asia/Seoul',
                         workingHours: { start: 9, end: 18 }
                     },
                     {
                         email: 'ny@example.com',
                         displayName: 'NY User',
-                        priority: 'required',
+                        priority: 'required' as const,
                         timezone: 'America/New_York',
                         workingHours: { start: 9, end: 17 }
                     },
                     {
                         email: 'london@example.com',
                         displayName: 'London User',
-                        priority: 'required',
+                        priority: 'required' as const,
                         timezone: 'Europe/London',
                         workingHours: { start: 9, end: 18 }
                     }
