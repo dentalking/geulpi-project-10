@@ -1,9 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/middleware/rateLimiter';
 
 // GET /api/chat/sessions - 모든 채팅 세션 가져오기 또는 특정 세션 가져오기
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting (일반 API)
+    const rateLimitResponse = await checkRateLimit(request, 'general');
+    if (rateLimitResponse) return rateLimitResponse;
+    
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
     let userId = searchParams.get('userId');
@@ -28,17 +35,17 @@ export async function GET(request: NextRequest) {
           if (userInfoResponse.ok) {
             const userInfo = await userInfoResponse.json();
             userId = userInfo.id; // Google user ID 사용
-            console.log('Auto-detected Google user ID from token:', userId);
+            logger.debug('Auto-detected Google user ID from token', { userId });
           }
         }
       } catch (error) {
-        console.error('Failed to get user ID from Google token:', error);
+        logger.error('Failed to get user ID from Google token', error);
       }
     }
 
     // 특정 세션 가져오기
     if (sessionId) {
-      console.log('Fetching specific session:', sessionId, 'for user:', userId);
+      logger.debug('Fetching specific session', { sessionId, userId });
       
       let query = supabaseAdmin
         .from('chat_sessions')
@@ -64,19 +71,17 @@ export async function GET(request: NextRequest) {
       const { data: session, error } = await query.single();
 
       if (error) {
-        console.error('Error fetching session:', error);
-        return NextResponse.json({
-          success: false,
-          error: error.message,
-          code: error.code
-        }, { status: error.code === 'PGRST116' ? 404 : 500 });
+        logger.error('Error fetching session', error, { sessionId });
+        
+        if (error.code === 'PGRST116') {
+          throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Session not found');
+        }
+        
+        throw new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to fetch session');
       }
 
       if (!session) {
-        return NextResponse.json({
-          success: false,
-          error: 'Session not found'
-        }, { status: 404 });
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Session not found');
       }
 
       // Transform the session
@@ -99,22 +104,18 @@ export async function GET(request: NextRequest) {
         })).sort((a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime()) || []
       };
 
-      return NextResponse.json({
-        success: true,
-        data: transformedSession
-      });
+      return successResponse(transformedSession);
     }
 
     // 모든 세션 가져오기
-    console.log('Fetching all chat sessions:', { userId, limit, offset });
+    logger.debug('Fetching all chat sessions', { userId, limit, offset });
 
     // 사용자별 필터링 필수 - 보안 및 프라이버시를 위해
     // userId가 없으면 빈 배열 반환
     if (!userId) {
-      console.log('No user ID provided, returning empty sessions for privacy');
-      return NextResponse.json({
-        success: true,
-        data: [],
+      logger.info('No user ID provided, returning empty sessions for privacy');
+      return successResponse({
+        sessions: [],
         count: 0
       });
     }
@@ -140,11 +141,8 @@ export async function GET(request: NextRequest) {
     const { data: sessions, error } = await query;
 
     if (error) {
-      console.error('Error fetching sessions:', error);
-      return NextResponse.json({
-        success: false,
-        error: error.message
-      }, { status: 500 });
+      logger.error('Error fetching sessions', error);
+      throw new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to fetch sessions');
     }
 
     // TypeScript 타입 호환을 위한 변환
@@ -167,24 +165,30 @@ export async function GET(request: NextRequest) {
       })) || []
     })) || [];
 
-    return NextResponse.json({
-      success: true,
-      data: transformedSessions,
+    return successResponse({
+      sessions: transformedSessions,
       count: transformedSessions.length
     });
 
-  } catch (error: any) {
-    console.error('Sessions API error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return errorResponse(error);
+    }
+    
+    logger.error('Sessions API error', error);
+    return errorResponse(
+      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'An unexpected error occurred')
+    );
   }
 }
 
 // POST /api/chat/sessions - 새로운 채팅 세션 생성
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResponse = await checkRateLimit(request, 'general');
+    if (rateLimitResponse) return rateLimitResponse;
+    
     const body = await request.json();
     let { title = '새 채팅', userId, metadata = {} } = body;
 
@@ -206,15 +210,15 @@ export async function POST(request: NextRequest) {
           if (userInfoResponse.ok) {
             const userInfo = await userInfoResponse.json();
             userId = userInfo.id; // Google user ID 사용
-            console.log('Auto-detected Google user ID for new session:', userId);
+            logger.debug('Auto-detected Google user ID for new session', { userId });
           }
         }
       } catch (error) {
-        console.error('Failed to get user ID from Google token:', error);
+        logger.error('Failed to get user ID from Google token', error);
       }
     }
 
-    console.log('Creating new chat session:', { title, userId, metadata });
+    logger.info('Creating new chat session', { title, userId });
 
     // UUID는 데이터베이스에서 자동 생성되므로 id를 지정하지 않음
     const { data: session, error } = await supabaseAdmin
@@ -228,11 +232,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error creating session:', error);
-      return NextResponse.json({
-        success: false,
-        error: error.message
-      }, { status: 500 });
+      logger.error('Error creating session', error);
+      throw new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to create session');
     }
 
     const transformedSession = {
@@ -246,34 +247,35 @@ export async function POST(request: NextRequest) {
       messages: []
     };
 
-    return NextResponse.json({
-      success: true,
-      data: transformedSession
-    });
+    return successResponse(transformedSession, 201);
 
-  } catch (error: any) {
-    console.error('Create session error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return errorResponse(error);
+    }
+    
+    logger.error('Create session error', error);
+    return errorResponse(
+      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'An unexpected error occurred')
+    );
   }
 }
 
 // PUT /api/chat/sessions - 채팅 세션 업데이트
 export async function PUT(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResponse = await checkRateLimit(request, 'general');
+    if (rateLimitResponse) return rateLimitResponse;
+    
     const body = await request.json();
     const { sessionId, title, metadata, isActive } = body;
 
     if (!sessionId) {
-      return NextResponse.json({
-        success: false,
-        error: 'sessionId is required'
-      }, { status: 400 });
+      throw new ApiError(400, ErrorCodes.MISSING_FIELD, 'sessionId is required');
     }
 
-    console.log('Updating chat session:', { sessionId, title, isActive });
+    logger.info('Updating chat session', { sessionId, title, isActive });
 
     // 업데이트할 필드들만 포함
     const updateData: any = {};
@@ -300,11 +302,13 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error updating session:', error);
-      return NextResponse.json({
-        success: false,
-        error: error.message
-      }, { status: error.code === 'PGRST116' ? 404 : 500 });
+      logger.error('Error updating session', error);
+      
+      if (error.code === 'PGRST116') {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Session not found');
+      }
+      
+      throw new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to update session');
     }
 
     const transformedSession = {
@@ -326,34 +330,35 @@ export async function PUT(request: NextRequest) {
       })) || []
     };
 
-    return NextResponse.json({
-      success: true,
-      data: transformedSession
-    });
+    return successResponse(transformedSession);
 
-  } catch (error: any) {
-    console.error('Update session error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return errorResponse(error);
+    }
+    
+    logger.error('Update session error', error);
+    return errorResponse(
+      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'An unexpected error occurred')
+    );
   }
 }
 
 // DELETE /api/chat/sessions - 채팅 세션 삭제
 export async function DELETE(request: NextRequest) {
   try {
+    // Rate limiting
+    const rateLimitResponse = await checkRateLimit(request, 'general');
+    if (rateLimitResponse) return rateLimitResponse;
+    
     const body = await request.json();
     const { sessionId } = body;
 
     if (!sessionId) {
-      return NextResponse.json({
-        success: false,
-        error: 'sessionId is required'
-      }, { status: 400 });
+      throw new ApiError(400, ErrorCodes.MISSING_FIELD, 'sessionId is required');
     }
 
-    console.log('Deleting chat session:', sessionId);
+    logger.info('Deleting chat session', { sessionId });
 
     // 세션이 존재하는지 확인
     const { data: existingSession, error: checkError } = await supabaseAdmin
@@ -363,10 +368,7 @@ export async function DELETE(request: NextRequest) {
       .single();
 
     if (checkError || !existingSession) {
-      return NextResponse.json({
-        success: false,
-        error: 'Session not found'
-      }, { status: 404 });
+      throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Session not found');
     }
 
     // 세션 삭제 (CASCADE로 인해 메시지들도 자동 삭제)
@@ -376,23 +378,20 @@ export async function DELETE(request: NextRequest) {
       .eq('id', sessionId);
 
     if (error) {
-      console.error('Error deleting session:', error);
-      return NextResponse.json({
-        success: false,
-        error: error.message
-      }, { status: 500 });
+      logger.error('Error deleting session', error);
+      throw new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to delete session');
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Session deleted successfully'
-    });
+    return successResponse({ message: 'Session deleted successfully' });
 
-  } catch (error: any) {
-    console.error('Delete session error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return errorResponse(error);
+    }
+    
+    logger.error('Delete session error', error);
+    return errorResponse(
+      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'An unexpected error occurred')
+    );
   }
 }
