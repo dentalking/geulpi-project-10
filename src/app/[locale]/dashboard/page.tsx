@@ -104,8 +104,8 @@ export default function SimplifiedDashboardPage() {
     try {
       const response = await fetch(`/api/calendar/sync?sessionId=${sessionId}`);
       const data = await response.json();
-      if (data.success) {
-        setEvents(data.events);
+      if (data.success && data.data) {
+        setEvents(data.data.events || []);
         setLastSyncTime(new Date());
         setSyncStatus('success');
         toast.success(t('dashboard.sync.success'));
@@ -134,8 +134,8 @@ export default function SimplifiedDashboardPage() {
     fetch(`/api/calendar/sync?sessionId=${sessionId}`)
       .then(response => response.json())
       .then(data => {
-        if (data.success) {
-          setEvents(data.events);
+        if (data.success && data.data) {
+          setEvents(data.data.events || []);
           setLastSyncTime(new Date());
           setSyncStatus('success');
           toast.success(t('dashboard.sync.success'));
