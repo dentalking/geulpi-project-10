@@ -63,6 +63,10 @@ export default function SimplifiedDashboardPage() {
   
   // Memoized notification count
   const notificationCount = useMemo(() => {
+    // events가 undefined나 null일 경우를 처리
+    if (!events || !Array.isArray(events)) {
+      return 0;
+    }
     return events.filter(e => {
       const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
       const now = new Date();

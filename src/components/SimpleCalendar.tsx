@@ -9,7 +9,7 @@ interface SimpleCalendarProps {
     onTimeSlotClick?: (date: Date, hour: number) => void;
 }
 
-export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }: SimpleCalendarProps) {
+export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotClick }: SimpleCalendarProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewType, setViewType] = useState<'list' | 'week' | 'month' | 'day'>('month');
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -27,7 +27,7 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
     // Get months that have events
     const getMonthsWithEvents = () => {
         const monthsMap = new Map<string, number>();
-        events.forEach(event => {
+        (events || []).forEach(event => {
             const eventDate = event.start?.dateTime || event.start?.date;
             if (eventDate) {
                 const date = new Date(eventDate);
@@ -71,14 +71,14 @@ export default function SimpleCalendar({ events, onEventClick, onTimeSlotClick }
     // 날짜별 이벤트 그룹화
     const getEventsForDate = (date: Date) => {
         const dateString = date.toDateString();
-        return events.filter(event => {
+        return (events || []).filter(event => {
             const eventDate = event.start?.dateTime || event.start?.date;
             if (!eventDate) return false;
             return new Date(eventDate).toDateString() === dateString;
         });
     };
 
-    const upcomingEvents = events
+    const upcomingEvents = (events || [])
         .filter(event => {
             const startTime = event.start?.dateTime || event.start?.date;
             return startTime && new Date(startTime) >= today;

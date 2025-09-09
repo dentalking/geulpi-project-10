@@ -105,7 +105,7 @@ export function UnifiedCalendarView({
     
     // Show modal in expanded view
     if (viewMode === 'expanded') {
-      const dayEvents = events.filter(event => {
+      const dayEvents = (events || []).filter(event => {
         const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
         return eventDate.toDateString() === date.toDateString();
       });
@@ -120,7 +120,7 @@ export function UnifiedCalendarView({
 
   // Get events for a specific date
   const getEventsForDate = useCallback((date: Date) => {
-    return events.filter(event => {
+    return (events || []).filter(event => {
       const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate.toDateString() === date.toDateString();
     });
