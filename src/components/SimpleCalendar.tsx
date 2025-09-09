@@ -217,7 +217,7 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
     // 이벤트를 시간대별로 분류
     const getEventsForTimeSlot = (day: Date, hour: number) => {
         const dayString = day.toDateString();
-        return events.filter(event => {
+        return (events || []).filter(event => {
             const eventDate = event.start?.dateTime;
             if (!eventDate) return false;
             
@@ -473,7 +473,7 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                             const isCurrentHour = new Date().getHours() === hour && 
                                                  isToday(selectedDate);
                             
-                            const dayEvents = events.filter(event => {
+                            const dayEvents = (events || []).filter(event => {
                                 const eventDate = event.start?.dateTime;
                                 if (!eventDate) return false;
                                 
@@ -774,7 +774,7 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                                 })
                             }
                             
-                            {events.filter(event => {
+                            {(events || []).filter(event => {
                                 const eventDate = event.start?.dateTime || event.start?.date;
                                 return eventDate && new Date(eventDate).toDateString() === selectedDate.toDateString();
                             }).length === 0 && (
@@ -811,7 +811,7 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                 /* 월간 캘린더 그리드 */
                 <div style={{ position: 'relative' }}>
                     {/* 빈 상태 메시지 */}
-                    {events.length === 0 && (
+                    {(events || []).length === 0 && (
                         <div style={{
                             position: 'absolute',
                             top: '50%',
