@@ -25,7 +25,9 @@ export class ChatStorage {
       }
 
       // Date 문자열을 Date 객체로 변환
-      const sessions = (result.data || []).map((session: any) => ({
+      // API 응답 형식 처리: data가 배열이거나 {sessions: [...]} 형태일 수 있음
+      const sessionsData = Array.isArray(result.data) ? result.data : (result.data?.sessions || result.data?.data || []);
+      const sessions = (sessionsData || []).map((session: any) => ({
         ...session,
         createdAt: new Date(session.createdAt),
         updatedAt: new Date(session.updatedAt),
