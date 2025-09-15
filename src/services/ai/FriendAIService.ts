@@ -56,9 +56,9 @@ export class FriendAIService {
 
     // Check both Korean and English patterns regardless of locale
     // This allows users to use Korean commands even in English mode
-    const checkPattern = (pattern: RegExp) => {
-      return koreanPatterns[pattern as keyof typeof koreanPatterns]?.test(lowerText) ||
-             englishPatterns[pattern as keyof typeof englishPatterns]?.test(lowerText);
+    const checkPattern = (patternName: keyof typeof koreanPatterns) => {
+      return koreanPatterns[patternName]?.test(lowerText) ||
+             englishPatterns[patternName]?.test(lowerText);
     };
 
     // Check for add command FIRST (before list) and use the extracted email

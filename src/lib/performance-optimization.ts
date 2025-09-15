@@ -11,14 +11,8 @@ export const LazyComponents = {
   AIEventDetailModal: lazy(() => import('@/components/AIEventDetailModal').then(m => ({ default: m.AIEventDetailModal }))),
   EnhancedEventDetailModal: lazy(() => import('@/components/EnhancedEventDetailModal').then(m => ({ default: m.EnhancedEventDetailModal }))),
   
-  // Chart components (heavy due to recharts)
-  AnalyticsDashboard: lazy(() => import('@/components/AnalyticsDashboard')),
-  
   // Payment components
-  SubscriptionManagement: lazy(() => import('@/components/SubscriptionManagement')),
-  
-  // Admin components
-  AdminDashboard: lazy(() => import('@/components/AdminDashboard')),
+  SubscriptionManagement: lazy(() => import('@/components/SubscriptionManagement').then(m => ({ default: m.SubscriptionManagement }))),
 };
 
 /**
@@ -45,19 +39,19 @@ export class PerformanceMonitor {
     return duration;
   }
   
-  static measureComponent<T>(
+  static measureComponent<T extends Record<string, any>>(
     ComponentName: string,
     Component: React.ComponentType<T>
   ): React.ComponentType<T> {
     return (props: T) => {
       const renderStart = performance.now();
-      const result = Component(props);
+      const result = (Component as any)(props);
       const renderTime = performance.now() - renderStart;
-      
+
       if (process.env.NODE_ENV === 'development' && renderTime > 16) {
         console.warn(`🐌 Slow render detected in ${ComponentName}: ${renderTime.toFixed(2)}ms`);
       }
-      
+
       return result;
     };
   }

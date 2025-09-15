@@ -53,7 +53,7 @@ export function EventSharingModal({
       fetchFriends();
       if (event) {
         setSelectedFriends(event.shared_with || []);
-        setSharePermission(event.share_permission || 'view');
+        setSharePermission((event.share_permission === 'owner' ? 'edit' : event.share_permission) || 'view');
       }
     }
   }, [isOpen, event]);

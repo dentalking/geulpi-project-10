@@ -36,6 +36,12 @@ export interface CalendarEvent {
   updated?: string;
   creator?: User;
   organizer?: User;
+  // Event sharing properties
+  shared_with?: string[];
+  share_permission?: 'view' | 'edit' | 'owner';
+  // Event categorization
+  categories?: string[];
+  tags?: string[];
 }
 
 export interface Attendee {

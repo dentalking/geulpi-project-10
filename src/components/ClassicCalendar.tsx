@@ -46,8 +46,8 @@ export function ClassicCalendar({
         isDesktop={isDesktop}
         highlightedEventId={highlightedEventId}
         spotlightEvent={spotlightEvent}
-        onEventClick={onEventClick}
-        onDateClick={onDateClick}
+        onEventClick={onEventClick || (() => {})}
+        onDateClick={onDateClick || (() => {})}
         onAddEvent={onAddEvent}
         onEventCreated={onEventCreated}
       >

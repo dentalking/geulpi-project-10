@@ -68,7 +68,7 @@ class GoogleMapsService {
           key: this.apiKey,
           location: location ? `${location.lat},${location.lng}` : undefined,
           radius: location ? 50000 : undefined, // 50km
-          language: 'ko',
+          language: 'ko' as any,
           components: ['country:kr'],
         },
       });
@@ -107,7 +107,7 @@ class GoogleMapsService {
             'website',
             'formatted_phone_number',
           ],
-          language: 'ko',
+          language: 'ko' as any,
         },
       });
 
@@ -132,9 +132,9 @@ class GoogleMapsService {
           origins: [`${origin.lat},${origin.lng}`],
           destinations: [`${destination.lat},${destination.lng}`],
           key: this.apiKey,
-          mode,
-          language: 'ko',
-          departure_time: 'now',
+          mode: mode as any,
+          language: 'ko' as any,
+          departure_time: 'now' as any,
         },
       });
 
@@ -143,7 +143,7 @@ class GoogleMapsService {
         return {
           duration: element.duration,
           distance: element.distance,
-          mode,
+          mode: mode as any,
         };
       }
 
@@ -187,9 +187,9 @@ class GoogleMapsService {
       params: {
         location: midpoint,
         radius: 2000, // 2km
-        type: placeType,
+        type: placeType as any,
         key: this.apiKey,
-        language: 'ko',
+        language: 'ko' as any,
       },
     });
 
@@ -238,7 +238,7 @@ class GoogleMapsService {
         params: {
           address,
           key: this.apiKey,
-          language: 'ko',
+          language: 'ko' as any,
           components: { country: 'KR' },
         },
       });
@@ -267,7 +267,7 @@ class GoogleMapsService {
         params: {
           latlng: { lat, lng },
           key: this.apiKey,
-          language: 'ko',
+          language: 'ko' as any,
         },
       });
 

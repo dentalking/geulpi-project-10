@@ -249,7 +249,7 @@ NONE
       
       const responseParts = response.split('---');
       let userMessage = isEnglish ? 'Sorry, I didn\'t understand that.' : '죄송합니다, 이해하지 못했습니다.';
-      let action = undefined;
+      let action: any = undefined;
       let suggestions: string[] = [];
 
       for (let i = 0; i < responseParts.length; i++) {
@@ -308,9 +308,9 @@ NONE
       if (action && action.type === 'create' && action.data) {
         const recentEvents = this.recentlyCreatedEvents.get(sessionId) || [];
         recentEvents.push({
-          title: action.data.title,
-          date: action.data.date,
-          time: action.data.time,
+          title: (action.data as any).title || '',
+          date: (action.data as any).date || '',
+          time: (action.data as any).time || '',
           createdAt: new Date()
         });
         this.recentlyCreatedEvents.set(sessionId, recentEvents);
@@ -455,7 +455,7 @@ Register event, Modify time, Add details
       let userMessage = locale === 'ko' 
         ? '이미지에서 일정 정보를 찾을 수 없습니다.'
         : 'Could not find event information in the image.';
-      let action = undefined;
+      let action: any = undefined;
       let suggestions = locale === 'ko'
         ? ['다시 시도하기', '직접 입력하기']
         : ['Try again', 'Enter manually'];
@@ -499,8 +499,8 @@ Register event, Modify time, Add details
                 type: 'create' as const,
                 data: eventData.data || eventData
               };
-              
-              console.log('[ChatCalendarService] Parsed event data:', action.data);
+
+              console.log('[ChatCalendarService] Parsed event data:', (action as any).data);
             } catch (e) {
               console.error('Failed to parse image event data:', actionText, e);
             }
@@ -528,9 +528,9 @@ Register event, Modify time, Add details
       if (action && action.type === 'create' && action.data) {
         const recentEvents = this.recentlyCreatedEvents.get(sessionId) || [];
         recentEvents.push({
-          title: action.data.title,
-          date: action.data.date,
-          time: action.data.time,
+          title: (action.data as any).title || '',
+          date: (action.data as any).date || '',
+          time: (action.data as any).time || '',
           createdAt: new Date()
         });
         this.recentlyCreatedEvents.set(sessionId, recentEvents);

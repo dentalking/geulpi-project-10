@@ -271,7 +271,7 @@ export function SearchModal({ isOpen, onClose, onSelectEvent }: SearchModalProps
                           onClick={() => {
                             setSelectedFilter(filter.id as any);
                             if (searchTerm) {
-                              searchEvents(searchTerm, { filter: filter.id as any });
+                              handleSearch(searchTerm);
                             }
                           }}
                           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
