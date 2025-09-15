@@ -211,7 +211,7 @@ Return ONLY a JSON array of 5 suggestion strings, no other text:
       const text = response.text();
       
       // Parse the suggestions from the response
-      let suggestions = [];
+      let suggestions: any[] = [];
       try {
         // Try to extract JSON array from the response
         const jsonMatch = text.match(/\[[\s\S]*\]/);

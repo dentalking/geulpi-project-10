@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch events from Supabase database
-        let calendarEvents = [];
+        let calendarEvents: any[] = [];
         
         // Use different query based on user type
         const query = isGoogleUser 
