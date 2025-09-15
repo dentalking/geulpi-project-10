@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const accessToken = cookieStore.get('access_token')?.value;
     
     let events: CalendarEvent[] = [];
-    let userId = null;
+    let userId: any = null;
     
     // Fetch calendar events
     if (authToken) {

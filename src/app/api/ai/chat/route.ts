@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
     // Get user profile for context
     const profilePromise = (async () => {
       try {
-        let userId = null;
-        let userEmail = null;
+        let userId: any = null;
+        let userEmail: any = null;
         
         if (isEmailAuth && emailUser) {
           userId = emailUser.id;
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
 
         try {
           // Get the actual Supabase user ID
-          let userId = null;
+          let userId: any = null;
 
           if (isEmailAuth && emailUser) {
             userId = emailUser.id;
