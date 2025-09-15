@@ -479,9 +479,11 @@ export async function POST(request: NextRequest) {
         chatResponse = {
           message: friendService.generateResponse(friendAction, friendResult),
           action: {
-            type: 'friend_action',
-            friendAction: friendAction.type,
-            data: friendResult
+            type: 'create' as const,  // Use a valid action type
+            data: {
+              ...friendResult,
+              friendAction: friendAction.type
+            }
           },
           suggestions: friendService.generateSuggestions()
         };

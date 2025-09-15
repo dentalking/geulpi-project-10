@@ -123,7 +123,7 @@ export async function DELETE(
     if (existingEvent.user_id !== null && existingEvent.user_id !== userId) {
       throw new ApiError(
         403,
-        ErrorCodes.FORBIDDEN,
+        ErrorCodes.UNAUTHORIZED,
         'You do not have permission to delete this event'
       );
     }
@@ -286,7 +286,7 @@ export async function PUT(
     if (existingEvent.user_id !== null && existingEvent.user_id !== userId) {
       throw new ApiError(
         403,
-        ErrorCodes.FORBIDDEN,
+        ErrorCodes.UNAUTHORIZED,
         'You do not have permission to update this event'
       );
     }

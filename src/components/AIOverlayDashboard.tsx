@@ -57,7 +57,7 @@ function AIOverlayDashboardComponent({
   const router = useRouter();
   const [backgroundFocus, setBackgroundFocus] = useState<'background' | 'medium' | 'focus'>('medium'); // Always start with medium opacity
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentHighlight, setCurrentHighlight] = useState<string | null>(highlightedEventId);
+  const [currentHighlight, setCurrentHighlight] = useState<string | null>(highlightedEventId || null);
   const [highlightedEventIds, setHighlightedEventIds] = useState<string[]>([]);
   const [isManualFocus, setIsManualFocus] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

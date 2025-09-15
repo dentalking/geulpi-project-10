@@ -17,7 +17,7 @@ interface PasswordStrength {
 }
 
 function checkPasswordStrength(password: string): PasswordStrength {
-  const feedback = [];
+  const feedback: string[] = [];
   let score = 0;
   
   if (password.length >= 8) {
@@ -85,7 +85,7 @@ export default function RegisterPage() {
 
   // Check for invitation code in URL params
   useEffect(() => {
-    const invitation = searchParams.get('invitation');
+    const invitation = searchParams?.get('invitation');
     if (invitation) {
       setInvitationCode(invitation);
       // Fetch invitation details

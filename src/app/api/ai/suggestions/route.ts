@@ -8,6 +8,7 @@ import { LocalCalendarService } from '@/lib/local-calendar';
 import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/middleware/rateLimiter';
+import { CalendarEvent } from '@/types';
 import { contextManager } from '@/lib/context-manager';
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ko, enUS } from 'date-fns/locale';

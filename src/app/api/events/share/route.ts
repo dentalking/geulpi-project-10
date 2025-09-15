@@ -192,7 +192,7 @@ export async function DELETE(request: Request) {
 
         // 기존 공유 목록에서 특정 친구들 제거
         const currentSharedWith = event.shared_with || [];
-        const newSharedWith = currentSharedWith.filter(id => !friendIds.includes(id));
+        const newSharedWith = currentSharedWith.filter((id: string) => !friendIds.includes(id));
 
         // 이벤트의 shared_with 필드 업데이트
         const { error: updateError } = await supabaseAdmin

@@ -66,8 +66,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       invitation: {
-        inviterName: invitation.inviter.name || 'Unknown User',
-        inviterEmail: invitation.inviter.email,
+        inviterName: (invitation.inviter as any)?.name || 'Unknown User',
+        inviterEmail: (invitation.inviter as any)?.email,
         inviteeEmail: invitation.invitee_email,
         message: invitation.message
       }

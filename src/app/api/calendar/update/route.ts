@@ -95,8 +95,8 @@ export async function PUT(request: Request) {
 
                 // Remove undefined fields
                 Object.keys(googleUpdates).forEach(key => {
-                    if (googleUpdates[key] === undefined) {
-                        delete googleUpdates[key];
+                    if ((googleUpdates as any)[key] === undefined) {
+                        delete (googleUpdates as any)[key];
                     }
                 });
 

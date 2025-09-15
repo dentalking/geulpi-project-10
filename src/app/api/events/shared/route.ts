@@ -121,9 +121,9 @@ export async function GET(request: Request) {
             created: event.created_at,
             updated: event.updated_at,
             owner: {
-                id: event.user.id,
-                email: event.user.email,
-                name: event.user.name
+                id: (event.user as any)?.id || null,
+                email: (event.user as any)?.email || null,
+                name: (event.user as any)?.name || null
             }
         }));
 

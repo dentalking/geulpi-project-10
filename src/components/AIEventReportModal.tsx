@@ -24,7 +24,8 @@ import {
   Loader2,
   BarChart,
   Target,
-  Zap
+  Zap,
+  CheckSquare
 } from 'lucide-react';
 import type { CalendarEvent } from '@/types';
 import { useToastContext } from '@/providers/ToastProvider';
