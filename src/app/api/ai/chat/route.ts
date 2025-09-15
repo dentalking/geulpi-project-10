@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     
     // Check for email auth first
     let isEmailAuth = false;
-    let emailUser = null;
+    let emailUser: any = null;
     if (authToken) {
       try {
         emailUser = await verifyToken(authToken);
