@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     console.log('Extracted event data:', eventData);
 
     // If autoCreate is true, create the event in Google Calendar
-    let createdEvent = null;
+    let createdEvent: any = null;
     if (autoCreate) {
       const cookieStore = cookies();
       const accessToken = cookieStore.get('access_token')?.value;
