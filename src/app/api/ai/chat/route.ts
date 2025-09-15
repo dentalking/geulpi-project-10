@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     
     // For email auth users, we won't have Google Calendar access
     // So we'll provide limited functionality
-    let calendar = null;
+    let calendar: any = null;
     if (!isEmailAuth) {
       if (!accessToken) {
         logger.warn('No access token found in cookies');
