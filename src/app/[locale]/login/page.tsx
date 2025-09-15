@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Check, X } from 'lucide-react';
+import { Eye, EyeOff, Check, X, AlertTriangle, Lock, Shield } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useTranslations, useLocale } from 'next-intl';
 import LanguageSelector from '@/components/LanguageSelector';
+import { EmailField, PasswordField } from '@/components/ui';
+import { ScrollAnimation } from '@/components/ScrollAnimation';
 
 export default function LoginPage() {
   const t = useTranslations();
@@ -25,6 +27,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  
+  // Security state
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [isAccountLocked, setIsAccountLocked] = useState(false);
+  const [lockTimeRemaining, setLockTimeRemaining] = useState(0);
+  const [showSecurityWarning, setShowSecurityWarning] = useState(false);
   
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordValid = password.length >= 6;
@@ -75,18 +84,44 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, rememberMe })
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
         setSuccess(true);
+        setFailedAttempts(0);
+        setShowSecurityWarning(false);
         setTimeout(() => {
           router.push(`/${locale}/dashboard`);
         }, 1000);
+      } else if (response.ok && data.requires2FA) {
+        // 2FA required - redirect to verification page
+        router.push(`/${locale}/verify-2fa?token=${data.pendingToken}`);
+        return;
       } else {
-        setError(data.error || t('auth.invalidCredentials'));
+        // Handle different error scenarios
+        if (response.status === 423) {
+          // Account locked
+          setIsAccountLocked(true);
+          const lockMinutes = parseInt(data.error.match(/\d+/)?.[0] || '15');
+          setLockTimeRemaining(lockMinutes);
+          setError(data.error);
+        } else if (response.status === 429) {
+          // Rate limited
+          setShowSecurityWarning(true);
+          setError(data.error);
+        } else {
+          // Invalid credentials
+          setFailedAttempts(prev => prev + 1);
+          setError(data.error || t('auth.invalidCredentials'));
+          
+          // Show warning after 3 failed attempts
+          if (failedAttempts >= 2) {
+            setShowSecurityWarning(true);
+          }
+        }
       }
     } catch (error) {
       console.error('Email login error:', error);
@@ -173,17 +208,64 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Login Card */}
-          <div
-            className="p-8 rounded-3xl relative"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(var(--glass-blur)) saturate(150%)',
-              WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(150%)',
-              border: '1px solid var(--glass-border)',
-              boxShadow: 'var(--glass-shadow)',
-            }}
-          >
+          {/* Login Card with scroll animation */}
+          <ScrollAnimation animation="fadeUp" delay={0.2}>
+            <div
+              className="p-8 rounded-3xl relative"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(var(--glass-blur)) saturate(150%)',
+                WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(150%)',
+                border: '1px solid var(--glass-border)',
+                boxShadow: 'var(--glass-shadow)',
+              }}
+            >
+            {/* Account Locked Warning */}
+            {isAccountLocked && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mb-6 p-4 rounded-xl"
+                style={{ 
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <Lock className="h-6 w-6 text-red-500 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-red-500 mb-1">Account Temporarily Locked</h4>
+                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      Your account has been locked due to multiple failed login attempts.
+                      Please wait {lockTimeRemaining} minutes before trying again.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Security Warning */}
+            {showSecurityWarning && !isAccountLocked && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-3 rounded-xl"
+                style={{ 
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  border: '1px solid rgba(251, 191, 36, 0.3)'
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {failedAttempts >= 3 
+                      ? `Warning: ${5 - failedAttempts} attempts remaining before account lock`
+                      : 'Multiple login attempts detected. Your account will be locked after 5 failed attempts.'}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+
             {/* Success Message */}
             {(success || registered) && (
               <motion.div
@@ -203,7 +285,7 @@ export default function LoginPage() {
             )}
             
             {/* Error Message */}
-            {error && (
+            {error && !isAccountLocked && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -219,66 +301,60 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleEmailLogin} className="space-y-4">
-              {/* Email Field */}
-              <div>
-                <input
-                  type="email"
-                  placeholder={t('login.emailPlaceholder')}
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError(null);
-                  }}
-                  onBlur={() => setEmailTouched(true)}
-                  className="w-full px-6 py-4 rounded-full transition-all"
-                  style={{
-                    background: 'var(--input-bg)',
-                    border: emailTouched && !emailValid ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
-                    color: 'var(--text-primary)'
-                  }}
-                  required
-                />
-                {emailTouched && !emailValid && email && (
-                  <p className="text-xs text-red-500 mt-2 ml-4">Please enter a valid email address</p>
-                )}
-              </div>
+              {/* Enhanced Email Field with validation */}
+              <EmailField
+                name="email"
+                label=""
+                placeholder={t('login.emailPlaceholder')}
+                value={email}
+                onChange={(value) => {
+                  setEmail(value);
+                  setError(null);
+                }}
+                helper=""
+                showSuccessState
+                className="w-full"
+              />
 
-              {/* Password Field */}
-              <div>
-                <div className="relative">
+              {/* Enhanced Password Field with validation */}
+              <PasswordField
+                name="password"
+                label=""
+                placeholder={t('login.passwordPlaceholder')}
+                value={password}
+                onChange={(value) => {
+                  setPassword(value);
+                  setError(null);
+                }}
+                helper=""
+                className="w-full"
+              />
+
+              {/* Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder={t('login.passwordPlaceholder')}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setError(null);
-                    }}
-                    onBlur={() => setPasswordTouched(true)}
-                    className="w-full px-6 py-4 rounded-full pr-14 transition-all"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-2 text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
                     style={{
-                      background: 'var(--input-bg)',
-                      border: passwordTouched && !passwordValid ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
-                      color: 'var(--text-primary)'
+                      borderColor: 'var(--border-default)',
+                      backgroundColor: rememberMe ? 'var(--accent-primary)' : 'transparent'
                     }}
-                    required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-6 top-1/2 -translate-y-1/2 hover:opacity-100 transition-opacity"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-                {passwordTouched && !passwordValid && password && (
-                  <p className="text-xs text-red-500 mt-2 ml-4">Password must be at least 6 characters</p>
-                )}
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    Remember me for 30 days
+                  </span>
+                </label>
+                
+                <Link 
+                  href={`/${locale}/forgot-password`}
+                  className="text-sm hover:underline"
+                  style={{ color: 'var(--accent-primary)' }}
+                >
+                  Forgot password?
+                </Link>
               </div>
 
               {/* Submit Button */}
@@ -401,6 +477,7 @@ export default function LoginPage() {
               </motion.button>
             </div>
           </div>
+          </ScrollAnimation>
 
           {/* Terms */}
           <motion.div

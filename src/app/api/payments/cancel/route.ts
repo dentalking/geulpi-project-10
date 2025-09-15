@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 
 export async function POST(request: NextRequest) {
   try {

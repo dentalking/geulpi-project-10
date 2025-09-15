@@ -1,9 +1,10 @@
 import React from 'react';
 import Link from 'next/link';
+import RippleEffect from './RippleEffect';
 
 export interface ButtonProps {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   fullWidth?: boolean;
   disabled?: boolean;
@@ -16,6 +17,7 @@ export interface ButtonProps {
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
   ariaLabel?: string;
+  disableRipple?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -32,7 +34,8 @@ export const Button: React.FC<ButtonProps> = ({
   style = {},
   icon,
   iconPosition = 'left',
-  ariaLabel
+  ariaLabel,
+  disableRipple = false
 }) => {
   // 버튼 스타일 정의
   const baseStyles: React.CSSProperties = {
@@ -107,6 +110,11 @@ export const Button: React.FC<ButtonProps> = ({
       background: 'var(--color-error)',
       color: 'var(--color-white)',
       border: '1px solid var(--color-error)'
+    },
+    outline: {
+      background: 'transparent',
+      color: 'var(--color-black)',
+      border: '1px solid var(--color-black)'
     }
   };
 
@@ -129,6 +137,11 @@ export const Button: React.FC<ButtonProps> = ({
       background: '#E5332A',
       transform: 'scale(1.02)',
       boxShadow: 'var(--shadow-md)'
+    },
+    outline: {
+      background: 'var(--color-gray-100)',
+      transform: 'scale(1.02)',
+      borderColor: 'var(--color-gray-800)'
     }
   };
 
@@ -153,8 +166,28 @@ export const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLElement>) => {
+    if (!disabled && !loading) {
+      e.currentTarget.style.transform = 'scale(0.98)';
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLElement>) => {
+    if (!disabled && !loading) {
+      e.currentTarget.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        e.currentTarget.style.transform = 'scale(1)';
+      }, 100);
+    }
+  };
+
   const content = (
     <>
+      {!disableRipple && !disabled && !loading && (
+        <RippleEffect 
+          color={variant === 'primary' || variant === 'danger' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.1)'}
+        />
+      )}
       {loading && (
         <span style={{
           width: '14px',
@@ -177,6 +210,8 @@ export const Button: React.FC<ButtonProps> = ({
     style: combinedStyles,
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
+    onMouseDown: handleMouseDown,
+    onMouseUp: handleMouseUp,
     onClick: disabled || loading ? undefined : onClick,
     'aria-label': ariaLabel,
     'aria-disabled': disabled || loading

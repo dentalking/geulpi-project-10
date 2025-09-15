@@ -107,8 +107,13 @@ ${profile.dietary_preferences?.length > 0 ? `- ${isEnglish ? 'Dietary preference
 ${profile.exercise_routine ? `- ${isEnglish ? 'Exercise routine' : '운동 루틴'}: ${profile.exercise_routine}` : ''}
 ` : '';
     
+    // 세션에 대화 히스토리가 있는지 확인
+    const hasHistory = this.conversationHistories.has(sessionId) && 
+                       this.conversationHistories.get(sessionId)!.length > 0;
+    
     const prompt = `
 ${isEnglish ? 'You are a friendly and capable calendar assistant.' : '당신은 친절하고 유능한 캘린더 비서입니다.'}
+${hasHistory ? (isEnglish ? 'Continue the conversation naturally, remembering previous context.' : '이전 대화 맥락을 기억하며 자연스럽게 대화를 이어가세요.') : ''}
 ${isEnglish ? 'Current time:' : '현재 시간:'} ${currentDateTime}
 ${isEnglish ? 'User timezone:' : '사용자 시간대:'} ${userContext?.timezone || 'Asia/Seoul'}
 ${isEnglish ? 'User language: English' : '사용자 언어: 한국어'}
@@ -143,7 +148,7 @@ ${currentEvents.slice(0, 10).map(e => {
 
 사용자 메시지: "${message}"
 
-위 정보를 바탕으로 다음과 같이 응답해주세요:
+${hasHistory ? '이전 대화 맥락을 유지하면서' : '위 정보를 바탕으로'} 다음과 같이 응답해주세요:
 
 ${profile ? `
 중요: 사용자의 프로필 정보를 활용하여 더 개인화된 응답을 제공하세요:
@@ -157,7 +162,9 @@ ${profile ? `
 1. 먼저 사용자의 의도를 파악하세요:
    - CREATE: 새 일정 추가 (예: "내일 3시 회의 추가해줘")
      * "이것을 등록해줘", "register this" 같은 참조 명령은 최근 추출된 일정을 등록하는 것임
-   - UPDATE: 기존 일정 수정 (예: "회의 시간 4시로 변경")
+   - UPDATE: 기존 일정 수정 (예: "회의 시간 4시로 변경", "전주 여행에 맛집 정보 추가")
+     * 특정 일정을 수정할 때는 반드시 해당 일정의 eventId를 찾아서 포함시켜야 함
+     * "전주 여행 준비사항 추가" 같은 경우 현재 일정 목록에서 "전주 여행"을 찾아 그 eventId로 수정
    - DELETE: 일정 삭제 (예: "오늘 회의 취소해줘", "중복 제거해줘")
      * 중복 삭제 시: 같은 제목과 시간의 이벤트 중 하나를 삭제 (eventId 필수)
      * DELETE action에는 반드시 eventId를 포함시켜야 함
@@ -179,6 +186,14 @@ ${profile ? `
 {"type":"create","data":{"title":"회의","date":"2024-01-11","time":"15:00","duration":60}}
 ---SUGGESTIONS---
 회의 장소 추가하기, 참석자 이메일 추가하기, 오늘 일정 확인하기
+
+일정 수정 예시:
+---RESPONSE---
+네, 전주 여행 일정에 맛집 정보를 추가했습니다. 전주에서 꼭 가봐야 할 맛집들을 설명에 포함시켰어요.
+---ACTION---
+{"type":"update","data":{"eventId":"abc123xyz","description":"전주 여행\\n추천 맛집: 한옥마을 비빔밥, 막걸리골목, 콩나물국밥 거리"}}
+---SUGGESTIONS---
+숙소 정보 추가하기, 교통편 확인하기, 전주 관광지 추천받기
 
 중복 삭제 예시:
 ---RESPONSE---
@@ -204,21 +219,52 @@ IMPORTANT:
 `;
 
     try {
-      const result = await chat.sendMessage(prompt);
+      // 대화 히스토리가 있고 일반 대화일 때는 간소화된 프롬프트 사용
+      const isGeneralChat = hasHistory && 
+        !message.includes('일정') && !message.includes('캘린더') && 
+        !message.includes('event') && !message.includes('calendar') &&
+        !message.includes('추가') && !message.includes('수정') && 
+        !message.includes('삭제') && !message.includes('보여') &&
+        !message.includes('add') && !message.includes('update') && 
+        !message.includes('delete') && !message.includes('show');
+      
+      const messageToSend = isGeneralChat 
+        ? `사용자 메시지: "${message}"
+        
+이전 대화 맥락을 유지하면서 자연스럽게 응답하세요.
+
+---RESPONSE---
+[친근한 응답]
+---ACTION---
+NONE
+---SUGGESTIONS---
+[추천 질문 3개, 쉼표로 구분]`
+        : prompt;
+      
+      const result = await chat.sendMessage(messageToSend);
       const response = result.response.text();
       
       // 응답 파싱
+      console.log('[ChatCalendarService] Raw Gemini response:', response);
+      
       const responseParts = response.split('---');
-      let userMessage = '죄송합니다, 이해하지 못했습니다.';
+      let userMessage = isEnglish ? 'Sorry, I didn\'t understand that.' : '죄송합니다, 이해하지 못했습니다.';
       let action = undefined;
       let suggestions: string[] = [];
 
       for (let i = 0; i < responseParts.length; i++) {
         const part = responseParts[i].trim();
         
-        if (part.startsWith('RESPONSE')) {
-          userMessage = responseParts[i + 1]?.trim() || userMessage;
-        } else if (part.startsWith('ACTION')) {
+        if (part === 'RESPONSE' || part.startsWith('RESPONSE')) {
+          // Get the next part which contains the actual message
+          if (i + 1 < responseParts.length) {
+            const messageContent = responseParts[i + 1].trim();
+            if (messageContent && !messageContent.startsWith('ACTION')) {
+              userMessage = messageContent;
+              console.log('[ChatCalendarService] Extracted message:', userMessage);
+            }
+          }
+        } else if (part === 'ACTION' || part.startsWith('ACTION')) {
           let actionText = responseParts[i + 1]?.trim();
           if (actionText && actionText !== 'NONE') {
             try {
@@ -227,16 +273,28 @@ IMPORTANT:
                 actionText = actionText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
               }
               action = JSON.parse(actionText);
+              console.log('[ChatCalendarService] Parsed action:', action);
             } catch (e) {
-              console.error('Failed to parse action:', actionText);
+              console.error('Failed to parse action:', actionText, e);
             }
           }
-        } else if (part.startsWith('SUGGESTIONS')) {
-          const sugText = responseParts[i + 1]?.trim();
-          if (sugText) {
-            suggestions = sugText.split(',').map(s => s.trim());
+        } else if (part === 'SUGGESTIONS' || part.startsWith('SUGGESTIONS')) {
+          // Get the next part which contains the actual suggestions
+          if (i + 1 < responseParts.length) {
+            const sugText = responseParts[i + 1].trim();
+            if (sugText && !sugText.startsWith('RESPONSE') && !sugText.startsWith('ACTION')) {
+              suggestions = sugText.split(',').map(s => s.trim());
+              console.log('[ChatCalendarService] Extracted suggestions:', suggestions);
+            }
           }
         }
+      }
+      
+      // If parsing failed, try to extract meaningful response
+      if (userMessage === (isEnglish ? 'Sorry, I didn\'t understand that.' : '죄송합니다, 이해하지 못했습니다.') && response.length > 0) {
+        // Try to use the raw response if parsing failed
+        console.warn('[ChatCalendarService] Failed to parse response format, using raw response');
+        userMessage = response.substring(0, 500); // Limit length
       }
 
       // 대화 히스토리 저장 (세션 재생성시 사용)
@@ -258,11 +316,20 @@ IMPORTANT:
         this.recentlyCreatedEvents.set(sessionId, recentEvents);
       }
 
-      return {
+      const finalResponse = {
         message: userMessage,
         action,
         suggestions
       };
+      
+      console.log('[ChatCalendarService] Final response:', {
+        messageLength: userMessage.length,
+        hasAction: !!action,
+        suggestionsCount: suggestions.length,
+        message: userMessage.substring(0, 100) + (userMessage.length > 100 ? '...' : '')
+      });
+      
+      return finalResponse;
 
     } catch (error) {
       console.error('Chat processing error:', error);
@@ -277,6 +344,15 @@ IMPORTANT:
    * 이미지에서 일정 추출 (개선된 버전)
    */
   async extractEventFromImage(imageData: string, mimeType: string, locale: string = 'ko', sessionId: string = 'default'): Promise<ChatResponse> {
+    // Extract actual MIME type from data URL if present
+    let actualMimeType = mimeType;
+    if (imageData.startsWith('data:')) {
+      const mimeMatch = imageData.match(/data:([^;]+);/);
+      if (mimeMatch) {
+        actualMimeType = mimeMatch[1];
+      }
+    }
+
     // Ensure imageData is properly formatted
     if (!imageData || imageData === 'image' || imageData.length < 100) {
       console.error('Invalid image data received:', imageData?.substring(0, 50));
@@ -342,11 +418,22 @@ Response format:
 Register event, Modify time, Add details
 `;
 
+    // Clean the image data - remove data URL prefix if present
+    let cleanImageData = imageData;
+    if (imageData.startsWith('data:')) {
+      const base64Index = imageData.indexOf('base64,');
+      if (base64Index !== -1) {
+        cleanImageData = imageData.substring(base64Index + 7);
+      }
+    }
+
     console.log('[ChatCalendarService] Extracting from image:', {
-      imageDataLength: imageData.length,
+      originalDataLength: imageData.length,
+      cleanDataLength: cleanImageData.length,
       mimeType,
-      imageDataPreview: imageData.substring(0, 100),
-      isBase64: /^[A-Za-z0-9+/]+=*$/.test(imageData.substring(0, 100))
+      hasDataPrefix: imageData.startsWith('data:'),
+      imageDataPreview: cleanImageData.substring(0, 100),
+      isBase64: /^[A-Za-z0-9+/]+=*$/.test(cleanImageData.substring(0, 100))
     });
 
     try {
@@ -355,8 +442,8 @@ Register event, Modify time, Add details
         prompt,
         {
           inlineData: {
-            data: imageData,
-            mimeType
+            data: cleanImageData,
+            mimeType: actualMimeType
           }
         }
       ]);
@@ -418,10 +505,14 @@ Register event, Modify time, Add details
               console.error('Failed to parse image event data:', actionText, e);
             }
           }
-        } else if (part.startsWith('SUGGESTIONS')) {
-          const sugText = responseParts[i + 1]?.trim();
-          if (sugText) {
-            suggestions = sugText.split(',').map(s => s.trim());
+        } else if (part === 'SUGGESTIONS' || part.startsWith('SUGGESTIONS')) {
+          // Get the next part which contains the actual suggestions
+          if (i + 1 < responseParts.length) {
+            const sugText = responseParts[i + 1].trim();
+            if (sugText && !sugText.startsWith('RESPONSE') && !sugText.startsWith('ACTION')) {
+              suggestions = sugText.split(',').map(s => s.trim());
+              console.log('[ChatCalendarService] Extracted suggestions:', suggestions);
+            }
           }
         }
       }
@@ -445,11 +536,20 @@ Register event, Modify time, Add details
         this.recentlyCreatedEvents.set(sessionId, recentEvents);
       }
 
-      return {
+      const finalResponse = {
         message: userMessage,
         action,
         suggestions
       };
+      
+      console.log('[ChatCalendarService] Final response:', {
+        messageLength: userMessage.length,
+        hasAction: !!action,
+        suggestionsCount: suggestions.length,
+        message: userMessage.substring(0, 100) + (userMessage.length > 100 ? '...' : '')
+      });
+      
+      return finalResponse;
 
     } catch (error) {
       console.error('Image extraction error:', error);

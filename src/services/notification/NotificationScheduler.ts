@@ -17,16 +17,6 @@ export class NotificationScheduler {
       await Notification.requestPermission();
     }
 
-    // 서비스 워커 등록 (PWA를 위한 준비)
-    if ('serviceWorker' in navigator) {
-      try {
-        await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker registered for notifications');
-      } catch (error) {
-        console.error('Service Worker registration failed:', error);
-      }
-    }
-
     // 정기적인 알림 체크 시작
     this.startPolling(userId);
   }

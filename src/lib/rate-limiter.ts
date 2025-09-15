@@ -56,6 +56,28 @@ class MemoryRateLimiter {
 
 // API 액션별 Rate Limit 설정
 const RATE_LIMITS: Record<string, RateLimitOptions> = {
+    // 인증 관련 작업 (보안 강화)
+    'auth.login': {
+        maxRequests: 5,
+        windowMs: 15 * 60 * 1000 // 15분당 5회 시도
+    },
+    'auth.signup': {
+        maxRequests: 3,
+        windowMs: 60 * 60 * 1000 // 1시간당 3개 계정 생성
+    },
+    'auth.password-reset': {
+        maxRequests: 3,
+        windowMs: 60 * 60 * 1000 // 1시간당 3회 재설정 요청
+    },
+    'auth.verify-email': {
+        maxRequests: 5,
+        windowMs: 60 * 60 * 1000 // 1시간당 5회 검증 시도
+    },
+    'auth.refresh-token': {
+        maxRequests: 10,
+        windowMs: 60 * 1000 // 1분당 10회 토큰 갱신
+    },
+
     // 일반 읽기 작업
     'calendar.list': {
         maxRequests: 100,
@@ -98,6 +120,16 @@ const RATE_LIMITS: Record<string, RateLimitOptions> = {
     'briefing.generate': {
         maxRequests: 10,
         windowMs: 60 * 1000 // 1분당 10회
+    },
+
+    // Friend operations
+    'friends.request': {
+        maxRequests: 10,
+        windowMs: 60 * 1000 // 1분당 10회
+    },
+    'friends.list': {
+        maxRequests: 30,
+        windowMs: 60 * 1000 // 1분당 30회
     }
 };
 

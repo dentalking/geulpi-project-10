@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getCalendarClient } from '@/lib/google-auth';
+import { verifyToken } from '@/lib/auth/email-auth';
 import { handleApiError, AuthError } from '@/lib/api-errors';
+import { supabaseAdmin } from '@/lib/supabase';
+import { getCalendarClient } from '@/lib/google-auth';
 import { 
   withRetry, 
   createErrorResponse, 
@@ -15,33 +17,112 @@ import {
 
 // GET: 이벤트 목록 조회
 export async function GET(request: Request) {
-  const accessToken = cookies().get('access_token')?.value;
-  
-  if (!accessToken) {
-    return handleApiError(new AuthError());
-  }
-
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('access_token')?.value;
+    const refreshToken = cookieStore.get('refresh_token')?.value;
+    const authToken = cookieStore.get('auth-token')?.value;
+    
+    if (!accessToken && !authToken) {
+      return handleApiError(new AuthError());
+    }
+
+    const supabase = supabaseAdmin;
+    let userId: string | null = null;
+
+    // Check for email auth first
+    if (authToken) {
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        console.error('Email auth verification failed:', error);
+      }
+    }
+
+    // Get user ID from Supabase session if not from email auth
+    if (!userId && accessToken) {
+      // For Google OAuth users, extract user ID from the access token
+      try {
+        const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        if (response.ok) {
+          const googleUser = await response.json();
+          userId = googleUser.id; // This will be the Google user ID
+        }
+      } catch (error) {
+        console.error('Failed to get user from access token', error);
+      }
+    }
+
+    if (!userId) {
+      return handleApiError(new AuthError());
+    }
+
     const { searchParams } = new URL(request.url);
-    const maxResults = parseInt(searchParams.get('maxResults') || '10');
-    const timeMin = searchParams.get('timeMin') || new Date().toISOString();
-    const timeMax = searchParams.get('timeMax') || undefined;
+    const maxResults = parseInt(searchParams.get('maxResults') || '50');
+    const timeMin = searchParams.get('timeMin');
+    const timeMax = searchParams.get('timeMax');
     
-    const calendar = getCalendarClient(accessToken);
-    
-    const events = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin,
-      timeMax,
-      maxResults,
-      singleEvents: true,
-      orderBy: 'startTime',
-    });
+    // Build query for Supabase
+    let query = supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('start_time', { ascending: true })
+      .limit(maxResults);
+
+    // Add time filters if provided
+    if (timeMin) {
+      query = query.gte('start_time', timeMin);
+    }
+    if (timeMax) {
+      query = query.lte('end_time', timeMax);
+    }
+
+    const { data: events, error } = await query;
+
+    if (error) {
+      console.error('Error fetching events from database:', error);
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to fetch events'
+      }, { status: 500 });
+    }
+
+    // Transform Supabase events to match Google Calendar format
+    const transformedEvents = (events || []).map(event => ({
+      id: event.id,
+      summary: event.summary,
+      description: event.description,
+      location: event.location,
+      start: {
+        dateTime: event.start_time,
+        timeZone: 'Asia/Seoul'
+      },
+      end: {
+        dateTime: event.end_time,
+        timeZone: 'Asia/Seoul'
+      },
+      attendees: event.attendees ? JSON.parse(event.attendees) : [],
+      colorId: event.color_id,
+      status: event.status || 'confirmed',
+      created: event.created_at,
+      updated: event.updated_at,
+      source: event.source,
+      googleEventId: event.google_event_id
+    }));
 
     return NextResponse.json({
       success: true,
-      events: events.data.items || [],
-      total: events.data.items?.length || 0
+      events: transformedEvents,
+      total: transformedEvents.length
     });
   } catch (error) {
     return handleApiError(error);

@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, Check, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Check, X, UserPlus } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useTranslations, useLocale } from 'next-intl';
 import LanguageSelector from '@/components/LanguageSelector';
+import { EmailField, PasswordField, FormField } from '@/components/ui';
+import { ScrollAnimation } from '@/components/ScrollAnimation';
 
 interface PasswordStrength {
   score: number;
@@ -55,10 +57,11 @@ export default function RegisterPage() {
   const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  
+
   // Form fields
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -66,11 +69,45 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
+  // Invitation handling
+  const [invitationCode, setInvitationCode] = useState<string | null>(null);
+  const [invitationInfo, setInvitationInfo] = useState<{
+    inviterName: string;
+    inviterEmail: string;
+    message?: string;
+  } | null>(null);
+
   // Validation states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+
+  // Check for invitation code in URL params
+  useEffect(() => {
+    const invitation = searchParams.get('invitation');
+    if (invitation) {
+      setInvitationCode(invitation);
+      // Fetch invitation details
+      fetchInvitationInfo(invitation);
+    }
+  }, [searchParams]);
+
+  const fetchInvitationInfo = async (code: string) => {
+    try {
+      const response = await fetch(`/api/invitations/info?code=${encodeURIComponent(code)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setInvitationInfo(data.invitation);
+        // Pre-fill email if provided in invitation
+        if (data.invitation.inviteeEmail) {
+          setEmail(data.invitation.inviteeEmail);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch invitation info:', err);
+    }
+  };
   
   const passwordStrength = checkPasswordStrength(password);
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -90,25 +127,44 @@ export default function RegisterPage() {
       const signupResponse = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          invitationCode // Include invitation code if present
+        })
       });
-      
+
       const signupData = await signupResponse.json();
-      
+
       if (!signupResponse.ok) {
         throw new Error(signupData.error || 'Registration failed');
       }
-      
+
       // Auto-login after successful registration
       const loginResponse = await fetch('/api/auth/email-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      
+
       const loginData = await loginResponse.json();
-      
+
       if (loginResponse.ok && loginData.success) {
+        // If there was an invitation, accept the friend request
+        if (invitationCode) {
+          try {
+            await fetch('/api/invitations/accept', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ invitationCode })
+            });
+          } catch (inviteErr) {
+            console.error('Failed to accept friend invitation:', inviteErr);
+            // Don't fail registration if friend request acceptance fails
+          }
+        }
+
         setSuccess(true);
         setTimeout(() => {
           router.push(`/${locale}/dashboard`);
@@ -158,11 +214,44 @@ export default function RegisterPage() {
           {/* Header */}
           <div className="mb-8 text-center">
             <Logo size={56} className="mx-auto mb-4" />
-            <h1 className="text-4xl font-light mb-2">Create Account</h1>
+            <h1 className="text-4xl font-light mb-2">
+              {invitationInfo ? 'Join via Invitation' : 'Create Account'}
+            </h1>
             <p className="text-lg" style={{ color: 'var(--text-tertiary)' }}>
-              Start managing your time intelligently
+              {invitationInfo
+                ? `${invitationInfo.inviterName} invited you to join Geulpi`
+                : 'Start managing your time intelligently'
+              }
             </p>
           </div>
+
+          {/* Invitation Banner */}
+          {invitationInfo && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-2xl flex items-start gap-3"
+              style={{
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.3)'
+              }}
+            >
+              <UserPlus className="text-indigo-500 mt-0.5" size={20} />
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  Friend Invitation from {invitationInfo.inviterName}
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                  {invitationInfo.inviterEmail}
+                </p>
+                {invitationInfo.message && (
+                  <p className="text-sm mt-2 italic" style={{ color: 'var(--text-secondary)' }}>
+                    "{invitationInfo.message}"
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           {/* Success Message */}
           {success && (
@@ -180,9 +269,10 @@ export default function RegisterPage() {
             </motion.div>
           )}
 
-          {/* Registration Card */}
-          <div className="p-8 rounded-3xl relative" 
-               style={{
+          {/* Registration Card with scroll animation */}
+          <ScrollAnimation animation="fadeUp" delay={0.2}>
+            <div className="p-8 rounded-3xl relative" 
+                 style={{
                  background: 'var(--glass-bg)',
                  backdropFilter: 'blur(var(--glass-blur)) saturate(150%)',
                  WebkitBackdropFilter: 'blur(var(--glass-blur)) saturate(150%)',
@@ -207,130 +297,75 @@ export default function RegisterPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Name Field */}
-              <div>
-                <input
-                  type="text"
-                  placeholder="Full Name *"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-6 py-4 rounded-full transition-all"
-                  style={{
-                    background: 'var(--input-bg)',
-                    border: '1px solid var(--input-border)',
-                    color: 'var(--text-primary)'
-                  }}
-                  required
-                />
-              </div>
+              {/* Enhanced Name Field */}
+              <FormField
+                name="name"
+                label=""
+                placeholder="Full Name *"
+                value={name}
+                onChange={setName}
+                validation={{
+                  required: true,
+                  minLength: 2,
+                  maxLength: 50
+                }}
+                helper=""
+                showSuccessState
+                className="w-full"
+              />
 
-              {/* Email Field */}
-              <div>
-                <input
-                  type="email"
-                  placeholder="Email Address *"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onBlur={() => setEmailTouched(true)}
-                  className="w-full px-6 py-4 rounded-full transition-all"
-                  style={{
-                    background: 'var(--input-bg)',
-                    border: emailTouched && !emailValid ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
-                    color: 'var(--text-primary)'
-                  }}
-                  required
-                />
-                {emailTouched && !emailValid && email && (
-                  <p className="text-xs text-red-500 mt-2 ml-4">Please enter a valid email address</p>
-                )}
-              </div>
+              {/* Enhanced Email Field */}
+              <EmailField
+                name="email"
+                label=""
+                placeholder="Email Address *"
+                value={email}
+                onChange={setEmail}
+                helper=""
+                showSuccessState
+                className="w-full"
+              />
 
-              {/* Password Field */}
-              <div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Password *"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onBlur={() => setPasswordTouched(true)}
-                    className="w-full px-6 py-4 rounded-full pr-14 transition-all"
-                    style={{
-                      background: 'var(--input-bg)',
-                      border: passwordTouched && passwordStrength.score < 3 ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
-                      color: 'var(--text-primary)'
-                    }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-6 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
+              {/* Enhanced Password Field with strength indicator */}
+              <PasswordField
+                name="password"
+                label=""
+                placeholder="Password *"
+                value={password}
+                onChange={setPassword}
+                helper={password ? `Strength: ${passwordStrength.score}/5` : ""}
+                className="w-full"
+              />
+              
+              {password && passwordStrength.feedback.length > 0 && (
+                <div className="mt-2 px-4">
+                  <ul className="text-xs space-y-1" style={{ color: 'var(--text-tertiary)' }}>
+                    {passwordStrength.feedback.slice(0, 2).map((item, idx) => (
+                      <li key={idx}>• {item}</li>
+                    ))}
+                  </ul>
                 </div>
-                
-                {/* Password Strength Indicator */}
-                {password && (
-                  <div className="mt-3 px-4">
-                    <div className="flex gap-1 mb-2">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="h-1 flex-1 rounded-full transition-all"
-                          style={{
-                            background: i < passwordStrength.score 
-                              ? passwordStrength.score <= 2 ? '#ef4444' 
-                              : passwordStrength.score <= 3 ? '#f59e0b' 
-                              : '#22c55e'
-                              : 'var(--border-default)'
-                          }}
-                        />
-                      ))}
-                    </div>
-                    {passwordStrength.feedback.length > 0 && (
-                      <ul className="text-xs space-y-1" style={{ color: 'var(--text-tertiary)' }}>
-                        {passwordStrength.feedback.slice(0, 2).map((item, idx) => (
-                          <li key={idx}>• {item}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
 
-              {/* Confirm Password Field */}
-              <div>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Confirm Password *"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    onBlur={() => setConfirmPasswordTouched(true)}
-                    className="w-full px-6 py-4 rounded-full pr-14 transition-all"
-                    style={{
-                      background: 'var(--input-bg)',
-                      border: confirmPasswordTouched && !passwordsMatch ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--input-border)',
-                      color: 'var(--text-primary)'
-                    }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-6 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-                {confirmPasswordTouched && !passwordsMatch && confirmPassword && (
-                  <p className="text-xs text-red-500 mt-2 ml-4">Passwords do not match</p>
-                )}
-              </div>
+              {/* Enhanced Confirm Password Field */}
+              <FormField
+                type="password"
+                name="confirmPassword"
+                label=""
+                placeholder="Confirm Password *"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                validation={{
+                  custom: (value: string) => {
+                    if (value !== password) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  }
+                }}
+                helper=""
+                className="w-full"
+              />
 
               {/* Submit Button */}
               <button
@@ -359,6 +394,7 @@ export default function RegisterPage() {
               </div>
             </form>
           </div>
+          </ScrollAnimation>
 
           {/* Terms */}
           <div className="mt-6 text-center text-xs" style={{ color: 'var(--text-quaternary)' }}>

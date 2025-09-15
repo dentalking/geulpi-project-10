@@ -11,21 +11,56 @@ const supabaseAdmin = createClient(
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
     const accessToken = cookieStore.get('access_token')?.value;
     
-    if (!accessToken) {
+    let userId: string | null = null;
+    
+    // Check email auth first
+    if (authToken) {
+      const { verifyToken } = await import('@/lib/auth/email-auth');
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        console.error('Failed to verify email auth token:', error);
+      }
+    }
+    
+    // Fall back to Google OAuth
+    if (!userId && accessToken) {
+      try {
+        // Get user info from Google API
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        if (userInfoResponse.ok) {
+          const userInfo = await userInfoResponse.json();
+
+          // Find user in database by email
+          const { data: dbUser } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .eq('email', userInfo.email)
+            .single();
+
+          if (dbUser) {
+            userId = dbUser.id;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to verify Google OAuth token:', error);
+      }
+    }
+    
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // 토큰에서 사용자 ID 추출
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid token' },
         { status: 401 }
       );
     }
@@ -48,17 +83,15 @@ export async function GET(request: NextRequest) {
         friend:users!friends_friend_id_fkey(
           id,
           email,
-          name,
-          picture
+          name
         ),
         user:users!friends_user_id_fkey(
           id,
           email,
-          name,
-          picture
+          name
         )
       `)
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
       .eq('status', 'accepted');
 
     if (error) {
@@ -71,7 +104,7 @@ export async function GET(request: NextRequest) {
 
     // 친구 정보 정리 (자신이 user_id든 friend_id든 상대방 정보를 반환)
     const friends = friendships?.map((friendship: any) => {
-      const isUserInitiator = friendship.user_id === user.id;
+      const isUserInitiator = friendship.user_id === userId;
       const friendData = isUserInitiator ? friendship.friend : friendship.user;
       // Supabase 관계 쿼리에서 배열로 반환될 수 있으므로 첫 번째 요소 사용
       const friend = Array.isArray(friendData) ? friendData[0] : friendData;
@@ -109,20 +142,35 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
     const accessToken = cookieStore.get('access_token')?.value;
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+
+    let userId: string | null = null;
+
+    // Check email auth first
+    if (authToken) {
+      const { verifyToken } = await import('@/lib/auth/email-auth');
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        console.error('Failed to verify email auth token:', error);
+      }
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    
-    if (authError || !user) {
+    // Fall back to Google OAuth
+    if (!userId && accessToken) {
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+      if (!authError && user) {
+        userId = user.id;
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -153,7 +201,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 자기 자신은 친구 추가 불가
-    if (friendUser.id === user.id) {
+    if (friendUser.id === userId) {
       return NextResponse.json(
         { success: false, error: 'Cannot add yourself as a friend' },
         { status: 400 }
@@ -164,7 +212,7 @@ export async function POST(request: NextRequest) {
     const { data: existingFriend } = await supabaseAdmin
       .from('friends')
       .select('id, status')
-      .or(`and(user_id.eq.${user.id},friend_id.eq.${friendUser.id}),and(user_id.eq.${friendUser.id},friend_id.eq.${user.id})`)
+      .or(`and(user_id.eq.${userId},friend_id.eq.${friendUser.id}),and(user_id.eq.${friendUser.id},friend_id.eq.${userId})`)
       .single();
 
     if (existingFriend) {
@@ -183,7 +231,7 @@ export async function POST(request: NextRequest) {
     const { data: newFriend, error: createError } = await supabaseAdmin
       .from('friends')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         friend_id: friendUser.id,
         status: 'pending',
         relationship_type: relationshipType,
@@ -226,20 +274,35 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const cookieStore = cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
     const accessToken = cookieStore.get('access_token')?.value;
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+
+    let userId: string | null = null;
+
+    // Check email auth first
+    if (authToken) {
+      const { verifyToken } = await import('@/lib/auth/email-auth');
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        console.error('Failed to verify email auth token:', error);
+      }
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    
-    if (authError || !user) {
+    // Fall back to Google OAuth
+    if (!userId && accessToken) {
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+      if (!authError && user) {
+        userId = user.id;
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -259,7 +322,7 @@ export async function PATCH(request: NextRequest) {
       .from('friends')
       .select('*')
       .eq('id', friendshipId)
-      .eq('friend_id', user.id)
+      .eq('friend_id', userId)
       .eq('status', 'pending')
       .single();
 

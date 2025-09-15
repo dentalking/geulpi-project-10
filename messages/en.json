@@ -257,6 +257,11 @@
     },
     "settings": {
       "title": "Settings",
+      "subtitle": "Customize your experience",
+      "theme": "Theme",
+      "fontSize": "Font Size",
+      "language": "Language",
+      "info": "Your preferences are saved automatically",
       "themeSection": "Theme Settings",
       "fontSection": "Font Size",
       "themes": {

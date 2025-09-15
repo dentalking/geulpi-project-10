@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { executePayment, SUBSCRIPTION_PLANS, type PlanId, type BillingCycle } from '@/lib/toss-payments';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 
 // Generate unique order ID
 function generateOrderId(): string {

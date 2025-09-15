@@ -17,11 +17,14 @@ import {
   LogOut,
   User,
   Mail,
-  Calendar
+  Calendar,
+  Monitor,
+  Key
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToastContext } from '@/providers/ToastProvider';
 import { MobileHeader, MobileBottomNav } from '@/components/MobileNavigation';
+import { SessionManager } from '@/components/SessionManager';
 
 interface SettingItem {
   icon: any;
@@ -51,6 +54,7 @@ export default function SettingsPage() {
     reminders: true,
     updates: false
   });
+  const [showSessions, setShowSessions] = useState(false);
 
   const settingsSections: SettingSection[] = [
     {
@@ -132,6 +136,18 @@ export default function SettingsPage() {
     {
       title: t('settings.security'),
       items: [
+        {
+          icon: Monitor,
+          label: 'Active Sessions',
+          value: 'Manage devices',
+          action: () => setShowSessions(!showSessions)
+        },
+        {
+          icon: Key,
+          label: 'Password',
+          value: 'Change password',
+          action: () => toast.info(t('settings.comingSoon'))
+        },
         {
           icon: Shield,
           label: t('settings.privacy'),
@@ -254,6 +270,22 @@ export default function SettingsPage() {
               </div>
             </motion.div>
           ))}
+          
+          {/* Session Manager Modal/Section */}
+          {showSessions && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="mt-6"
+            >
+              <h2 className="text-sm font-semibold mb-3 px-2" 
+                  style={{ color: 'var(--text-secondary)' }}>
+                Active Sessions
+              </h2>
+              <SessionManager />
+            </motion.div>
+          )}
         </div>
 
         {/* App Version */}

@@ -17,14 +17,31 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
     
-    // 현재 로그인한 사용자의 ID 자동 추출 (Google OAuth 토큰에서)
+    // 현재 로그인한 사용자의 ID 자동 추출
     if (!userId) {
       try {
         const { cookies } = await import('next/headers');
         const cookieStore = cookies();
+        const authToken = cookieStore.get('auth-token')?.value;
         const accessToken = cookieStore.get('access_token')?.value;
         
-        if (accessToken) {
+        // 먼저 email auth 확인
+        if (authToken) {
+          const { verifyToken } = await import('@/lib/auth/supabase-auth');
+          try {
+            const user = await verifyToken(authToken);
+            if (user) {
+              userId = user.id;
+              logger.debug('Auto-detected user ID from email auth', { userId });
+            } else {
+              logger.warn('Chat sessions API - Email auth token verification returned null');
+            }
+          } catch (error) {
+            logger.error('Failed to verify email auth token', error);
+          }
+        }
+        // Google OAuth 확인
+        else if (accessToken) {
           // Google OAuth userinfo API 호출
           const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
@@ -39,7 +56,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (error) {
-        logger.error('Failed to get user ID from Google token', error);
+        logger.error('Failed to get user ID from auth tokens', error);
       }
     }
 

@@ -18,6 +18,8 @@ export async function PUT(request: NextRequest) {
       if (user) {
         userId = user.id;
         authType = 'email';
+      } else {
+        console.warn('User profile API - Email auth token verification returned null');
       }
     }
     

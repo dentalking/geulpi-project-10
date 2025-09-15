@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { issueBillingKey } from '@/lib/toss-payments';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +21,12 @@ export async function POST(request: NextRequest) {
     let userId: string;
     if (authToken) {
       const user = await verifyToken(authToken);
+      if (!user) {
+        return NextResponse.json(
+          { success: false, message: 'Invalid authentication token' },
+          { status: 401 }
+        );
+      }
       userId = user.id;
     } else {
       // For Google OAuth users, we need to get user info from session

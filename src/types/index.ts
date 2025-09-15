@@ -9,6 +9,13 @@ export interface CalendarEvent {
   summary: string;
   description?: string;
   location?: string;
+  placeDetails?: {
+    name: string;
+    address: string;
+    placeId: string;
+    location: { lat: number; lng: number };
+    details?: any;
+  };
   start?: {
     dateTime?: string;
     date?: string;
@@ -102,6 +109,10 @@ export interface UserPattern {
   preferredDurations: Map<string, number>;
   eventTypePatterns: Map<string, EventPattern>;
   weeklyPattern?: WeeklyPattern;
+  // Additional computed properties for AI suggestions
+  mostFrequentTime?: string;
+  mostFrequentLocation?: string;
+  averageEventDuration?: number;
 }
 
 export interface EventPattern {

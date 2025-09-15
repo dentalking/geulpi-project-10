@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import Logo from '@/components/Logo';
+import { ErrorTestButton } from '@/components/ErrorTestButton';
 
 function AuthChecker() {
   const router = useRouter();
@@ -125,15 +126,18 @@ function AuthChecker() {
 
 export default function Home() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary, #000000)' }}>
-        <div className="text-center">
-          <Logo size={64} color="white" className="mb-6 mx-auto opacity-50" />
-          <div className="w-12 h-12 border-3 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+    <>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary, #000000)' }}>
+          <div className="text-center">
+            <Logo size={64} color="white" className="mb-6 mx-auto opacity-50" />
+            <div className="w-12 h-12 border-3 border-white/20 border-t-white rounded-full animate-spin mx-auto" />
+          </div>
         </div>
-      </div>
-    }>
-      <AuthChecker />
-    </Suspense>
+      }>
+        <AuthChecker />
+      </Suspense>
+      <ErrorTestButton />
+    </>
   );
 }

@@ -1511,3 +1511,125 @@ a:focus-visible {
     min-width: 45px !important;
   }
 }
+
+/* Skeleton Loading Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(156, 163, 175, 0.1) 0%,
+    rgba(156, 163, 175, 0.3) 50%,
+    rgba(156, 163, 175, 0.1) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* Dark mode shimmer */
+.dark .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(75, 85, 99, 0.2) 0%,
+    rgba(75, 85, 99, 0.4) 50%,
+    rgba(75, 85, 99, 0.2) 100%
+  );
+}
+
+/* Hide scrollbars */
+.scrollbar-hide {
+  /* IE and Edge */
+  -ms-overflow-style: none;
+  
+  /* Firefox */
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  /* Safari and Chrome */
+  display: none;
+}
+
+/* ==================== PERFORMANCE OPTIMIZATIONS ==================== */
+/* GPU Acceleration Classes */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+/* Optimized blur effect container */
+.calendar-blur-container {
+  position: relative;
+  transform: translateZ(0);
+  will-change: filter;
+}
+
+/* Blur level classes with transitions */
+.calendar-blur-light {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: backdrop-filter 0.2s ease;
+}
+
+.calendar-blur-medium {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: backdrop-filter 0.2s ease;
+}
+
+.calendar-blur-heavy {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: backdrop-filter 0.2s ease;
+}
+
+/* Smooth transitions for blur effects */
+.blur-transition {
+  transition: backdrop-filter 0.2s ease, opacity 0.2s ease;
+}
+
+/* Performance hints for heavy components */
+.perf-optimize {
+  contain: layout style paint;
+}
+
+.perf-optimize-strict {
+  contain: strict;
+}
+
+/* Optimized animation class */
+.animation-optimized {
+  transform: translateZ(0);
+  will-change: auto;
+  contain: layout;
+}
+
+/* Reduced motion for better performance */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .blur-transition {
+    transition: none !important;
+  }
+
+  .calendar-blur-light,
+  .calendar-blur-medium,
+  .calendar-blur-heavy {
+    transition: none !important;
+  }
+}

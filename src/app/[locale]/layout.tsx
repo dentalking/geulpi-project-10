@@ -2,6 +2,8 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/config';
+import { RouteTransition } from '@/components/PageTransition';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -45,7 +47,11 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      {children}
+      <ErrorBoundary>
+        <RouteTransition>
+          {children}
+        </RouteTransition>
+      </ErrorBoundary>
     </NextIntlClientProvider>
   );
 }

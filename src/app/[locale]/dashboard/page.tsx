@@ -5,15 +5,15 @@ import { useToastContext } from '@/providers/ToastProvider';
 import type { CalendarEvent } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
+import { motion } from 'framer-motion';
 import { 
   Bell, 
   Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
-  MessageSquare,
   Menu,
-  X
+  Layout
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import Link from 'next/link';
@@ -21,11 +21,20 @@ import { FullPageLoader, CalendarSkeleton } from '@/components/LoadingStates';
 import { MobileBottomNav } from '@/components/MobileNavigation';
 import { UnifiedSidebar, UnifiedHeader } from '@/components/UnifiedSidebar';
 import { UnifiedCalendarView } from '@/components/MobileCalendarView';
-import { AIChatInterface } from '@/components/AIChatInterface';
-import { EmptyState } from '@/components/EmptyState';
 import { SubscriptionManagement } from '@/components/SubscriptionManagement';
-import { FriendsList } from '@/components/FriendsList';
+import { FriendsManager } from '@/components/FriendsManager';
+import { EventSharingModal } from '@/components/EventSharingModal';
 import { ProfilePanel } from '@/components/ProfilePanel';
+import { ScrollAnimation, ScrollStagger } from '@/components/ScrollAnimation';
+// import { useKeyboardShortcuts } from '@/components/KeyboardNavigation';
+import { PullToRefresh, Swipeable, BottomSheet } from '@/components/MobileInteractions';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
+import { AIEventDetailModal } from '@/components/AIEventDetailModal';
+import { fetchWithRetry } from '@/hooks/useRetry';
+import { AIOverlayDashboard } from '@/components/AIOverlayDashboard';
+import { chatStorage } from '@/utils/chatStorage';
+import { SearchModal } from '@/components/SearchModal';
+import { Modal, ModalBody } from '@/components/ui';
 
 // Lazy load heavy components
 const GoogleCalendarLink = lazy(() => import('@/components/GoogleCalendarLink'));
@@ -50,16 +59,99 @@ export default function SimplifiedDashboardPage() {
   
   // UI states
   const [showSettings, setShowSettings] = useState(false);
-  const [showAIChat, setShowAIChat] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [currentChatId, setCurrentChatId] = useState<string | undefined>(undefined);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showEventSharing, setShowEventSharing] = useState(false);
+  const [eventToShare, setEventToShare] = useState<CalendarEvent | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<Date | undefined>();
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Dashboard view mode - Feature flag for overlay dashboard
+  const [dashboardView, setDashboardView] = useState<'classic' | 'overlay'>(() => {
+    // Check localStorage for user preference, default to classic for safety
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dashboard-view');
+      // Migrate from old modes to overlay
+      if (saved === 'ai-first' || saved === 'enhanced') {
+        localStorage.setItem('dashboard-view', 'overlay');
+        return 'overlay';
+      }
+      return saved as 'classic' | 'overlay' || 'classic';
+    }
+    return 'classic';
+  });
+  
+  // Dashboard view cycle function
+  const cycleDashboardView = useCallback(() => {
+    const views: ('classic' | 'overlay')[] = ['classic', 'overlay'];
+    const currentIndex = views.indexOf(dashboardView);
+    const newView = views[(currentIndex + 1) % views.length];
+    setDashboardView(newView);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dashboard-view', newView);
+    }
+    const messages = {
+      'classic': locale === 'ko' ? '클래식 대시보드로 전환했습니다' : 'Switched to Classic Dashboard',
+      'overlay': locale === 'ko' ? 'AI 오버레이 대시보드로 전환했습니다' : 'Switched to AI Overlay Dashboard'
+    };
+    toast.success(messages[newView]);
+  }, [dashboardView, locale, toast]);
+
+  // Open AI chat with event context
+  const handleOpenAIChatWithEvent = useCallback((event?: CalendarEvent) => {
+    // Store event context for AI chat
+    if (event) {
+      localStorage.setItem('ai-chat-event-context', JSON.stringify({
+        id: event.id,
+        title: event.summary,
+        date: event.start?.dateTime || event.start?.date,
+        location: event.location,
+        description: event.description
+      }));
+    }
+    // Switch to AI overlay
+    setDashboardView('overlay');
+  }, []);
+  
+  // Sync events when switching to overlay mode if needed
+  useEffect(() => {
+    if (dashboardView === 'overlay' && (!events || events.length === 0) && isAuthenticated) {
+      console.log('[Dashboard] Forcing sync for overlay mode');
+      // Direct sync without using the callback to avoid dependency issues
+      setSyncStatus('syncing');
+      fetch(`/api/calendar/sync?sessionId=${sessionId}`)
+        .then(response => response.json())
+        .then(data => {
+          console.log('[Dashboard] Overlay sync response:', {
+            success: data.success,
+            eventCount: data.data?.events?.length || 0,
+            source: data.data?.source,
+            data: data
+          });
+          if (data.success && data.data) {
+            setEvents(data.data.events || []);
+            setLastSyncTime(new Date());
+            setSyncStatus('success');
+          } else {
+            setSyncStatus('error');
+            console.error('[Dashboard] Sync failed:', data.error);
+          }
+        })
+        .catch(error => {
+          console.error('Event sync failed:', error);
+          setSyncStatus('error');
+        });
+    }
+  }, [dashboardView, isAuthenticated, sessionId]);
+  
+  // Mobile Bottom Sheet for event details
+  const [showEventBottomSheet, setShowEventBottomSheet] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   
   // Memoized notification count
   const notificationCount = useMemo(() => {
@@ -77,7 +169,13 @@ export default function SimplifiedDashboardPage() {
   
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/auth/status');
+      const response = await fetchWithRetry('/api/auth/status', {
+        retryOptions: {
+          maxAttempts: 2,
+          delay: 500,
+          backoff: 'linear'
+        }
+      });
       const data = await response.json();
       console.log('Auth status response:', data); // Debug log
       setIsAuthenticated(data.authenticated);
@@ -91,32 +189,56 @@ export default function SimplifiedDashboardPage() {
         router.push('/landing');
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('Auth check failed after retries:', error);
       router.push('/landing');
     } finally {
       setLoading(false);
     }
   };
   
-  // Manual sync function for user-triggered syncs
+  // Manual sync function for user-triggered syncs with retry logic
   const syncEvents = useCallback(async () => {
+    console.log('[Dashboard] Manual sync triggered');
     setSyncStatus('syncing');
     try {
-      const response = await fetch(`/api/calendar/sync?sessionId=${sessionId}`);
+      const response = await fetchWithRetry(
+        `/api/calendar/sync?sessionId=${sessionId}`,
+        {
+          retryOptions: {
+            maxAttempts: 3,
+            delay: 1000,
+            backoff: 'exponential',
+            onRetry: (attempt) => {
+              console.log(`Retrying event sync... Attempt ${attempt}`);
+              toast.info(`재시도 중... (${attempt}/3)`);
+            }
+          }
+        }
+      );
       const data = await response.json();
+      console.log('[Dashboard] Manual sync response:', {
+        success: data.success,
+        eventCount: data.data?.events?.length || 0,
+        source: data.data?.source,
+        error: data.error
+      });
+      
       if (data.success && data.data) {
-        setEvents(data.data.events || []);
+        const receivedEvents = data.data.events || [];
+        console.log('[Dashboard] Setting events from manual sync:', receivedEvents.length);
+        setEvents(receivedEvents);
         setLastSyncTime(new Date());
         setSyncStatus('success');
-        toast.success(t('dashboard.sync.success'));
+        toast.success(`${t('dashboard.sync.success')} (${receivedEvents.length} events)`);
       } else {
         setSyncStatus('error');
-        toast.error(t('dashboard.sync.failed'));
+        toast.error(data.error?.message || t('dashboard.sync.failed'));
+        console.error('[Dashboard] Sync error:', data.error);
       }
     } catch (error) {
-      console.error('Event sync failed:', error);
+      console.error('Event sync failed after retries:', error);
       setSyncStatus('error');
-      toast.error(t('dashboard.sync.failed'));
+      toast.error(`${t('dashboard.sync.failed')} - 네트워크 연결을 확인해주세요`);
     }
   }, [sessionId, t, toast]);
   
@@ -130,12 +252,18 @@ export default function SimplifiedDashboardPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
     
+    console.log('[Dashboard] Initial sync - isAuthenticated:', isAuthenticated);
+    console.log('[Dashboard] Dashboard view:', dashboardView);
+    
     setSyncStatus('syncing');
     fetch(`/api/calendar/sync?sessionId=${sessionId}`)
       .then(response => response.json())
       .then(data => {
+        console.log('[Dashboard] Sync response:', data);
         if (data.success && data.data) {
-          setEvents(data.data.events || []);
+          const receivedEvents = data.data.events || [];
+          console.log('[Dashboard] Setting events:', receivedEvents.length, 'events');
+          setEvents(receivedEvents);
           setLastSyncTime(new Date());
           setSyncStatus('success');
           toast.success(t('dashboard.sync.success'));
@@ -160,91 +288,104 @@ export default function SimplifiedDashboardPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if user is typing in an input field
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      
-      switch(e.key) {
-        case 'ArrowLeft':
-          if (e.ctrlKey || e.metaKey) {
-            // Previous month
-            const newDate = new Date(currentDate);
-            newDate.setMonth(newDate.getMonth() - 1);
-            setCurrentDate(newDate);
-          }
-          break;
-        case 'ArrowRight':
-          if (e.ctrlKey || e.metaKey) {
-            // Next month
-            const newDate = new Date(currentDate);
-            newDate.setMonth(newDate.getMonth() + 1);
-            setCurrentDate(newDate);
-          }
-          break;
-        case 't':
-          if (e.ctrlKey || e.metaKey) {
-            // Today
-            e.preventDefault();
-            setCurrentDate(new Date());
-          }
-          break;
-        case 'm':
-          if (e.ctrlKey || e.metaKey) {
-            // Toggle menu/sidebar
-            e.preventDefault();
-            setShowSidebar(!showSidebar);
-          }
-          break;
-        case '/':
-          // Open AI chat
-          e.preventDefault();
-          setShowAIChat(true);
-          break;
-        case 'Escape':
-          // Close modals
-          setShowSidebar(false);
-          setShowSettings(false);
-          setShowAIChat(false);
-          setShowNotifications(false);
-          setShowSubscription(false);
-          break;
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentDate]);
+  // Keyboard shortcuts with improved hook - temporarily disabled
+  /*
+  const shortcuts = useMemo(() => [
+    { 
+      key: 'ArrowLeft', 
+      ctrl: true, 
+      action: () => {
+        const prevMonth = new Date(currentDate);
+        prevMonth.setMonth(prevMonth.getMonth() - 1);
+        setCurrentDate(prevMonth);
+      },
+      description: '이전 달'
+    },
+    { 
+      key: 'ArrowRight', 
+      ctrl: true, 
+      action: () => {
+        const nextMonth = new Date(currentDate);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        setCurrentDate(nextMonth);
+      },
+      description: '다음 달'
+    },
+    { 
+      key: 't', 
+      ctrl: true, 
+      action: () => setCurrentDate(new Date()),
+      description: '오늘로 이동'
+    },
+    { 
+      key: 'n', 
+      ctrl: true, 
+      action: () => cycleDashboardView(),
+      description: 'AI 오버레이 전환'
+    },
+    { 
+      key: 'm', 
+      ctrl: true, 
+      action: () => setShowSidebar(!showSidebar),
+      description: '메뉴 토글'
+    },
+    { 
+      key: '/', 
+      action: () => cycleDashboardView(),
+      description: 'AI 오버레이 전환'
+    },
+    { 
+      key: 'Escape', 
+      action: () => {
+        setShowSidebar(false);
+        setShowSettings(false);
+        setShowNotifications(false);
+        setShowSubscription(false);
+        setShowFriends(false);
+        setShowProfile(false);
+      },
+      description: '모든 창 닫기'
+    }
+  ], [currentDate, showSidebar]);
+
+  useKeyboardShortcuts(shortcuts);
+  */
   
   if (loading) {
-    return <FullPageLoader message={t('common.loading')} />;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+        <DashboardSkeleton />
+      </div>
+    );
   }
   
   return (
     <div className="min-h-screen pb-safe-bottom" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       
-      {/* Unified Header for both mobile and desktop */}
-      <UnifiedHeader 
-        onMenuClick={() => setShowSidebar(true)}
-        onSearchClick={() => router.push(`/${locale}/search`)}
-        onAddEvent={() => setShowAIChat(true)}
-        showMenuButton={true}
-        isMobile={isMobile}
-      />
-      
-      {/* Mobile Bottom Navigation */}
-      {isMobile && (
-        <MobileBottomNav onAddEvent={() => setShowAIChat(true)} />
+      {/* Unified Header for both mobile and desktop - Hide in overlay mode */}
+      {dashboardView === 'classic' && (
+        <div className="logo-container">
+          <UnifiedHeader 
+          onMenuClick={() => setShowSidebar(true)}
+          onSearchClick={() => setShowSearch(true)}
+          onAddEvent={cycleDashboardView}
+          showMenuButton={true}
+          isMobile={isMobile}
+        />
+        </div>
       )}
+      
       
       {/* Unified Sidebar for both mobile and desktop */}
       <UnifiedSidebar 
         isOpen={showSidebar} 
         onClose={() => setShowSidebar(false)}
+        onSearchClick={() => {
+          setShowSidebar(false);
+          setShowSearch(true);
+        }}
         onSettingsClick={() => {
+          console.log('[Dashboard] Settings clicked, opening settings modal');
           setShowSidebar(false);
           setShowSettings(true);
         }}
@@ -263,25 +404,29 @@ export default function SimplifiedDashboardPage() {
         }}
         onAIChatClick={() => {
           setShowSidebar(false);
-          setCurrentChatId(undefined); // 새 채팅
-          setShowAIChat(true);
+          // AI 오버레이로 전환 (새 채팅) - 활성 세션 클리어는 UnifiedSidebar에서 이미 처리
+          setDashboardView('overlay');
         }}
-        onChatClick={(chatId: string) => {
+        onChatClick={async (chatId: string) => {
           setShowSidebar(false);
-          setCurrentChatId(chatId); // 특정 채팅 불러오기
-          setShowAIChat(true);
+          // 특정 채팅을 활성 세션으로 설정
+          await chatStorage.setActiveSession(chatId);
+          console.log('[Dashboard] Loading specific chat:', chatId);
+          // AI 오버레이로 전환 - AIOverlayDashboard가 폴링으로 감지하여 자동 로드
+          setDashboardView('overlay');
         }}
         isMobile={isMobile}
         userInfo={userInfo}
       />
       
       {/* Main Content - Optimized for Mobile */}
-      <main className={`${isMobile ? '' : 'max-w-[1400px] mx-auto px-4 sm:px-6 py-4'}`}>
+      <main className={`main-content ${dashboardView === 'overlay' ? '' : isMobile ? '' : 'max-w-[1400px] mx-auto px-4 sm:px-6 py-4'}`}>
         
-        {/* Month Navigation and Actions Bar */}
-        <div className={`${isMobile ? 'sticky top-[56px]' : ''} backdrop-blur-xl border-b`}
-             style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)', zIndex: 20 }}>
-          <div className="flex items-center justify-between py-3 px-4">
+        {/* Month Navigation and Actions Bar - Hide in overlay mode */}
+        {dashboardView === 'classic' && (
+          <div className={`month-navigation ${isMobile ? 'sticky top-[56px]' : ''} backdrop-blur-xl border-b`}
+               style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)', zIndex: 20 }}>
+            <div className="flex items-center justify-between py-3 px-4">
             <div className="flex items-center gap-2">
               {/* Today button - Moved to the left */}
               <button
@@ -330,16 +475,18 @@ export default function SimplifiedDashboardPage() {
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Google Calendar Sync - Moved to the top row */}
-              <Suspense fallback={null}>
-                <GoogleCalendarLink
-                  currentDate={currentDate}
-                  currentView="month"
-                  lastSyncTime={lastSyncTime}
-                  syncStatus={syncStatus}
-                  onSync={syncEvents}
-                />
-              </Suspense>
+              {/* Google Calendar Sync */}
+              <div className="google-sync-button">
+                <Suspense fallback={null}>
+                  <GoogleCalendarLink
+                    currentDate={currentDate}
+                    currentView="month"
+                    lastSyncTime={lastSyncTime}
+                    syncStatus={syncStatus}
+                    onSync={syncEvents}
+                  />
+                </Suspense>
+              </div>
               
               {/* Notifications - If any */}
               {notificationCount > 0 && (
@@ -356,58 +503,141 @@ export default function SimplifiedDashboardPage() {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        )}
         
-        {/* Calendar */}
-        <div className={isMobile ? '' : 'mt-4'} style={{ height: isMobile ? 'calc(100vh - 160px)' : '75vh' }}>
-          {events && events.length > 0 ? (
-            <div className={isMobile ? '' : 'backdrop-blur-xl rounded-xl border overflow-hidden'}
-                 style={isMobile ? {} : { 
-                   background: 'var(--surface-primary)', 
-                   borderColor: 'var(--glass-border)',
-                   height: '100%'
-                 }}>
-              <UnifiedCalendarView
+        {/* Dashboard Content - Conditional Rendering */}
+        <ScrollAnimation animation="fadeUp" delay={0.1}>
+          {dashboardView === 'overlay' ? (
+            // AI Overlay Dashboard View - Full screen with medium opacity background
+            <div className="fixed inset-0 z-40">
+              <AIOverlayDashboard
+                locale={locale as 'ko' | 'en'}
+                userId={userInfo?.id}
                 events={events}
                 currentDate={currentDate}
-                locale={locale}
-                isDesktop={!isMobile}
+                onDateChange={setCurrentDate}
+                onEventCreated={syncEvents}
                 highlightedEventId={highlightedEventId}
                 spotlightEvent={spotlightEvent}
-                onEventClick={(event) => {
-                  // Let the calendar component handle event clicks internally with its modal system
-                  if (event.start) {
-                    const eventDate = new Date(event.start.dateTime || event.start.date || '');
-                    setSelectedDate(eventDate);
-                  }
-                }}
-                onDateClick={(date) => {
-                  setSelectedDate(date);
-                }}
-                onAddEvent={() => setShowAIChat(true)}
-                onEventCreated={() => {
-                  // Refresh events after creation
-                  syncEvents();
-                }}
-              >
-                <div />
-              </UnifiedCalendarView>
+                sessionId={sessionId}
+                userInfo={userInfo}
+                onViewToggle={cycleDashboardView}
+              />
             </div>
           ) : (
-            <EmptyState onAddEvent={() => setShowAIChat(true)} />
+            // Classic Calendar View
+            <div>
+            {isMobile ? (
+            // Mobile view with pull-to-refresh and swipe gestures
+            <PullToRefresh onRefresh={syncEvents} threshold={80}>
+              <div className="calendar-container" style={{ height: 'calc(100vh - 160px)' }}>
+                  <Swipeable
+                    onSwipeLeft={() => {
+                      // Next month
+                      const nextMonth = new Date(currentDate);
+                      nextMonth.setMonth(nextMonth.getMonth() + 1);
+                      setCurrentDate(nextMonth);
+                      toast.info(`${nextMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}`);
+                    }}
+                    onSwipeRight={() => {
+                      // Previous month
+                      const prevMonth = new Date(currentDate);
+                      prevMonth.setMonth(prevMonth.getMonth() - 1);
+                      setCurrentDate(prevMonth);
+                      toast.info(`${prevMonth.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}`);
+                    }}
+                    threshold={50}
+                  >
+                    <UnifiedCalendarView
+                      events={events || []}
+                      currentDate={currentDate}
+                      locale={locale as 'ko' | 'en'}
+                      isDesktop={false}
+                      highlightedEventId={highlightedEventId}
+                      spotlightEvent={spotlightEvent}
+                      onEventClick={(event) => {
+                        if (event.start) {
+                          const eventDate = new Date(event.start.dateTime || event.start.date || '');
+                          setSelectedDate(eventDate);
+                          // Open bottom sheet for mobile
+                          setSelectedEvent(event);
+                          setShowEventBottomSheet(true);
+                        }
+                      }}
+                      onDateClick={(date) => {
+                        setSelectedDate(date);
+                      }}
+                      onAddEvent={cycleDashboardView}
+                      onEventCreated={() => {
+                        syncEvents();
+                      }}
+                      onOpenAIChat={handleOpenAIChatWithEvent}
+                    >
+                      <div />
+                    </UnifiedCalendarView>
+                  </Swipeable>
+              </div>
+            </PullToRefresh>
+          ) : (
+            // Desktop view without pull-to-refresh
+            <div className="calendar-container mt-4" style={{ height: '75vh' }}>
+                <div className="backdrop-blur-xl rounded-xl border overflow-hidden"
+                     style={{ 
+                       background: 'var(--surface-primary)', 
+                       borderColor: 'var(--glass-border)',
+                       height: '100%'
+                     }}>
+                  <UnifiedCalendarView
+                    events={events || []}
+                    currentDate={currentDate}
+                    locale={locale as 'ko' | 'en'}
+                    isDesktop={true}
+                    highlightedEventId={highlightedEventId}
+                    spotlightEvent={spotlightEvent}
+                    onEventClick={(event) => {
+                      if (event.start) {
+                        const eventDate = new Date(event.start.dateTime || event.start.date || '');
+                        setSelectedDate(eventDate);
+                        // Show event detail modal for desktop too
+                        setSelectedEvent(event);
+                        setShowEventBottomSheet(true);
+                      }
+                    }}
+                    onDateClick={(date) => {
+                      setSelectedDate(date);
+                    }}
+                    onAddEvent={cycleDashboardView}
+                    onEventCreated={() => {
+                      syncEvents();
+                    }}
+                    onOpenAIChat={handleOpenAIChatWithEvent}
+                  >
+                    <div />
+                  </UnifiedCalendarView>
+                </div>
+            </div>
+            )}
+            </div>
           )}
-        </div>
+        </ScrollAnimation>
         
       </main>
       
       {/* Settings Panel */}
       <Suspense fallback={null}>
         {showSettings && (
-          <SettingsPanel 
-            isOpen={showSettings} 
-            onClose={() => setShowSettings(false)} 
-            showTriggerButton={false}
-          />
+          <>
+            {console.log('[Dashboard] Rendering SettingsPanel, showSettings:', showSettings)}
+            <SettingsPanel 
+              isOpen={showSettings} 
+              onClose={() => {
+                console.log('[Dashboard] Closing settings modal');
+                setShowSettings(false);
+              }} 
+              showTriggerButton={false}
+            />
+          </>
         )}
       </Suspense>
       
@@ -422,56 +652,6 @@ export default function SimplifiedDashboardPage() {
         </div>
       )}
       
-      {/* AI Chat Interface */}
-      <AIChatInterface
-        isOpen={showAIChat}
-        locale={locale as 'ko' | 'en'}
-        userId={userInfo?.id}
-        onClose={() => {
-          setShowAIChat(false);
-          setCurrentChatId(undefined); // 채팅창 닫을 때 ID 리셋
-        }}
-        onSubmit={async (input, type) => {
-          console.log('AI Chat event created:', { input, type });
-          // 캘린더 새로고침
-          await syncEvents();
-        }}
-        onEventCreated={async (eventId, eventData) => {
-          // 이벤트 정보로 스포트라이트 모드 설정
-          if (eventId && eventData) {
-            const eventDate = new Date(eventData.date);
-            
-            // 해당 월로 이동 (필요한 경우)
-            if (eventDate.getMonth() !== currentDate.getMonth() || 
-                eventDate.getFullYear() !== currentDate.getFullYear()) {
-              setCurrentDate(eventDate);
-            }
-            
-            // 채팅창 페이드아웃 후 스포트라이트 시작
-            setTimeout(() => {
-              setShowAIChat(false);
-              setSpotlightEvent({
-                id: eventId,
-                date: eventDate,
-                title: eventData.title
-              });
-            }, 300);
-          }
-          
-          // 캘린더 새로고침
-          await syncEvents();
-          
-          // 4초 후 스포트라이트 모드 종료
-          setTimeout(() => {
-            setSpotlightEvent(null);
-            // 채팅창 부드럽게 다시 열기
-            setTimeout(() => {
-              setShowAIChat(true);
-            }, 500);
-          }, 4000);
-        }}
-        initialChatId={currentChatId}
-      />
       
       {/* Subscription Management Modal */}
       <SubscriptionManagement
@@ -479,30 +659,85 @@ export default function SimplifiedDashboardPage() {
         onClose={() => setShowSubscription(false)}
       />
       
-      {/* Friends Modal */}
-      {showFriends && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-4xl max-h-[80vh] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-y-auto">
-            <div className="sticky top-0 z-10 p-4 border-b bg-white dark:bg-gray-800">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">친구 관리</h2>
-                <button
-                  onClick={() => setShowFriends(false)}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <FriendsList />
-          </div>
-        </div>
-      )}
+      {/* Friends Manager */}
+      <FriendsManager
+        isOpen={showFriends}
+        onClose={() => setShowFriends(false)}
+      />
+      
+      {/* Search Modal */}
+      <SearchModal
+        isOpen={showSearch}
+        onClose={() => setShowSearch(false)}
+        onSelectEvent={(event) => {
+          // Handle event selection - could open event detail modal or navigate to date
+          setSelectedDate(new Date(event.start?.dateTime || event.start?.date || new Date()));
+          setHighlightedEventId(event.id || null);
+          toast.success(locale === 'ko' ? '일정을 선택했습니다' : 'Event selected');
+        }}
+      />
       
       {/* Profile Panel */}
       <ProfilePanel
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
+      />
+      
+      {/* Event Sharing Modal */}
+      <EventSharingModal
+        isOpen={showEventSharing}
+        onClose={() => {
+          setShowEventSharing(false);
+          setEventToShare(null);
+        }}
+        event={eventToShare}
+        onEventUpdated={() => {
+          syncEvents();
+        }}
+      />
+      
+      {/* AI Event Detail Modal with Tabs */}
+      <AIEventDetailModal
+        isOpen={showEventBottomSheet}
+        onClose={() => {
+          setShowEventBottomSheet(false);
+          setSelectedEvent(null);
+        }}
+        event={selectedEvent}
+        onEdit={(event) => {
+          // Edit event logic
+          setShowEventBottomSheet(false);
+          // AI 오버레이로 전환하여 수정
+          setDashboardView('overlay');
+        }}
+        onDelete={async (event) => {
+          // Delete event logic
+          if (confirm('이 일정을 삭제하시겠습니까?')) {
+            try {
+              const response = await fetch(`/api/calendar/events/${event.id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+              });
+              if (response.ok) {
+                toast.success(t('eventDeleted'));
+                setShowEventBottomSheet(false);
+                setSelectedEvent(null);
+                syncEvents();
+              }
+            } catch (error) {
+              toast.error(t('errorDeletingEvent'));
+            }
+          }
+        }}
+        locale={locale}
+        onChatAboutEvent={(event) => {
+          setShowEventBottomSheet(false);
+          setDashboardView('overlay');
+        }}
+        onShareEvent={(event) => {
+          setEventToShare(event);
+          setShowEventSharing(true);
+        }}
       />
     </div>
   );

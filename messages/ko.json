@@ -257,6 +257,11 @@
     },
     "settings": {
       "title": "설정",
+      "subtitle": "사용 환경을 맞춤 설정하세요",
+      "theme": "테마",
+      "fontSize": "글꼴 크기",
+      "language": "언어",
+      "info": "설정은 자동으로 저장됩니다",
       "themeSection": "테마 설정",
       "fontSection": "글자 크기",
       "themes": {
@@ -312,6 +317,9 @@
   },
   "dashboard": {
     "title": "대시보드",
+    "today": "오늘",
+    "tomorrow": "내일",
+    "thisWeek": "이번 주",
     "previousMonth": "이전 달",
     "nextMonth": "다음 달",
     "searchOrAskAI": "검색하거나 AI에게 물어보기",

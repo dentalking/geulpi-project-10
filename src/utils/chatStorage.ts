@@ -10,6 +10,7 @@ export class ChatStorage {
   static async getAllSessions(userId?: string): Promise<ChatSession[]> {
     try {
       const params = new URLSearchParams();
+      // userId가 없어도 API가 쿠키에서 자동 추출하도록 함
       if (userId) params.set('userId', userId);
       params.set('limit', '100'); // 최대 100개 세션
 
@@ -24,10 +25,9 @@ export class ChatStorage {
         return [];
       }
 
-      // Date 문자열을 Date 객체로 변환
-      // API 응답 형식 처리: data가 배열이거나 {sessions: [...]} 형태일 수 있음
-      const sessionsData = Array.isArray(result.data) ? result.data : (result.data?.sessions || result.data?.data || []);
-      const sessions = (sessionsData || []).map((session: any) => ({
+      // API 응답 형식: {sessions: [...], count: n}
+      const sessionsData = result.data?.sessions || [];
+      const sessions = sessionsData.map((session: any) => ({
         ...session,
         createdAt: new Date(session.createdAt),
         updatedAt: new Date(session.updatedAt),
@@ -37,6 +37,7 @@ export class ChatStorage {
         })) || []
       }));
 
+      console.log(`[ChatStorage] Loaded ${sessions.length} sessions`);
       return sessions;
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
@@ -299,9 +300,10 @@ export class ChatStorage {
   /**
    * 최근 채팅 세션들 가져오기 (제한된 수)
    */
-  static async getRecentSessions(limit: number = 10): Promise<ChatSession[]> {
+  static async getRecentSessions(limit: number = 10, userId?: string): Promise<ChatSession[]> {
     try {
-      const sessions = await this.getAllSessions();
+      // userId를 getAllSessions에 전달 (없으면 API가 쿠키에서 자동 추출)
+      const sessions = await this.getAllSessions(userId);
       return sessions
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
         .slice(0, limit);
@@ -346,6 +348,6 @@ export const chatStorage = {
   getActiveSessionId: () => ChatStorage.getActiveSessionId(), // 이것만 동기
   setActiveSession: (sessionId: string) => ChatStorage.setActiveSession(sessionId),
   clearActiveSession: () => ChatStorage.clearActiveSession(), // 이것만 동기
-  getRecentSessions: (limit?: number) => ChatStorage.getRecentSessions(limit),
+  getRecentSessions: (limit?: number, userId?: string) => ChatStorage.getRecentSessions(limit, userId),
   clearAll: () => ChatStorage.clearAll()
 };

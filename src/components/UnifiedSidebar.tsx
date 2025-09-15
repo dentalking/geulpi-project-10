@@ -19,7 +19,7 @@ import {
   Bell,
   MessageSquare,
   Home,
-  Plus,
+  Layout,
   ChevronDown,
   Clock
 } from 'lucide-react';
@@ -66,40 +66,55 @@ export function UnifiedSidebar({
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [chatHistory, setChatHistory] = useState<{id: string, title: string, timestamp: Date}[]>([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(true);
-  
-  // Debug log
-  console.log('UnifiedSidebar userInfo:', userInfo);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   
   // Load chat history asynchronously
   useEffect(() => {
-    const loadChatHistory = async () => {
+    const loadChatHistory = async (showLoading: boolean = false) => {
       try {
-        setChatHistoryLoading(true);
+        // Only show loading on first load
+        if (showLoading) {
+          setChatHistoryLoading(true);
+        }
+        
         const sessions = await chatStorage.getRecentSessions(5);
         const historyData = sessions.map(session => ({
           id: session.id,
           title: session.title,
           timestamp: new Date(session.updatedAt) // Date 객체로 변환
         }));
-        setChatHistory(historyData);
+        
+        // Only update if data has changed to prevent unnecessary re-renders
+        setChatHistory(prev => {
+          const hasChanged = prev.length !== historyData.length || 
+            prev.some((item, idx) => item.id !== historyData[idx]?.id);
+          return hasChanged ? historyData : prev;
+        });
+        
         console.log('UnifiedSidebar chatHistory loaded:', historyData);
       } catch (error) {
         console.error('Failed to load chat history:', error);
-        setChatHistory([]);
+        if (showLoading) {
+          setChatHistory([]);
+        }
       } finally {
-        setChatHistoryLoading(false);
+        if (showLoading) {
+          setChatHistoryLoading(false);
+          setIsFirstLoad(false);
+        }
       }
     };
 
-    loadChatHistory();
+    // Initial load with loading indicator
+    loadChatHistory(isFirstLoad);
     
-    // Reload chat history every 3 seconds when sidebar is open
-    const interval = isOpen ? setInterval(loadChatHistory, 3000) : null;
+    // Reload chat history every 3 seconds when sidebar is open (without loading indicator)
+    const interval = isOpen ? setInterval(() => loadChatHistory(false), 3000) : null;
     
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isOpen]); // Reload when sidebar opens/closes
+  }, [isOpen, isFirstLoad]); // Reload when sidebar opens/closes
   
   const menuItems = [
     { 
@@ -120,12 +135,6 @@ export function UnifiedSidebar({
       onClick: onSearchClick, 
       href: onSearchClick ? undefined : `/${locale}/search`,
       isActive: pathname === `/${locale}/search`
-    },
-    {
-      icon: Users,
-      label: locale === 'ko' ? '친구' : 'Friends',
-      onClick: onFriendsClick,
-      isActive: false
     }
   ];
 
@@ -209,7 +218,12 @@ export function UnifiedSidebar({
                   const props = isButton 
                     ? { 
                         onClick: () => {
-                          item.onClick?.();
+                          console.log('[UnifiedSidebar] Menu item clicked:', item.label, 'onClick:', item.onClick);
+                          if (item.onClick) {
+                            item.onClick();
+                          } else {
+                            console.warn('[UnifiedSidebar] No onClick handler for:', item.label);
+                          }
                           if (isMobile) onClose();
                         },
                         type: 'button' as const
@@ -254,23 +268,69 @@ export function UnifiedSidebar({
               
               {/* Chat History Section */}
               <div className="flex-1 p-4 overflow-y-auto">
-                <h3 className="text-xs font-semibold uppercase tracking-wider px-3 mb-3" style={{ color: 'var(--text-tertiary)' }}>
-                  {t('sidebar.recentChats')}
-                </h3>
+                <div className="flex items-center justify-between px-3 mb-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+                    {t('sidebar.recentChats')}
+                  </h3>
+                  {onAIChatClick && (
+                    <button
+                      onClick={() => {
+                        // 활성 세션 클리어하고 새 채팅 시작
+                        chatStorage.clearActiveSession();
+                        console.log('[UnifiedSidebar] Starting new chat');
+                        onAIChatClick();
+                        if (isMobile) onClose();
+                      }}
+                      className="p-1 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
+                      title={locale === 'ko' ? '새 채팅' : 'New Chat'}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-1">
                   {chatHistoryLoading ? (
-                    <div className="px-3 py-4 text-center">
-                      <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                        {locale === 'ko' ? '채팅 기록 로딩 중...' : 'Loading chat history...'}
-                      </div>
+                    // Skeleton loader for better UX
+                    <div className="px-3 py-2 space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-4 h-4 rounded" 
+                              style={{ backgroundColor: 'var(--surface-tertiary)' }}
+                            />
+                            <div className="flex-1 space-y-2">
+                              <div 
+                                className="h-3 rounded" 
+                                style={{ 
+                                  backgroundColor: 'var(--surface-tertiary)',
+                                  width: `${60 + i * 10}%` 
+                                }}
+                              />
+                              <div 
+                                className="h-2 rounded" 
+                                style={{ 
+                                  backgroundColor: 'var(--surface-tertiary)',
+                                  width: '40%' 
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : chatHistory.length > 0 ? (
                     chatHistory.map((chat) => (
                       <button
                         key={chat.id}
-                        onClick={() => {
-                          console.log('Load chat:', chat.id);
-                          // 특정 채팅 불러오기
+                        onClick={async () => {
+                          console.log('[UnifiedSidebar] Chat clicked:', chat.id, chat.title);
+                          
+                          // 활성 세션으로 설정
+                          await chatStorage.setActiveSession(chat.id);
+                          console.log('[UnifiedSidebar] Set active session to:', chat.id);
+                          
+                          // 콜백 호출
                           onChatClick?.(chat.id);
                           if (isMobile) onClose();
                         }}
@@ -387,6 +447,24 @@ export function UnifiedSidebar({
                         
                         <button
                           onClick={() => {
+                            onFriendsClick?.();
+                            setShowUserDropdown(false);
+                            if (isMobile) onClose();
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left"
+                          style={{ 
+                            backgroundColor: 'transparent',
+                            color: 'var(--text-primary)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <Users className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                          <span className="text-sm">{locale === 'ko' ? '친구' : 'Friends'}</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
                             onSettingsClick?.();
                             setShowUserDropdown(false);
                             if (isMobile) onClose();
@@ -408,6 +486,9 @@ export function UnifiedSidebar({
                         <Link
                           href="/api/auth/logout"
                           onClick={() => {
+                            // 로그아웃 시 활성 채팅 세션 클리어
+                            chatStorage.clearActiveSession();
+                            console.log('[UnifiedSidebar] Cleared active chat session on logout');
                             setShowUserDropdown(false);
                             if (isMobile) onClose();
                           }}
@@ -495,14 +576,15 @@ export function UnifiedHeader({
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Add Event Button - Desktop Only */}
+            {/* AI Overlay Toggle Button - Desktop Only */}
             {!isMobile && onAddEvent && (
               <button
                 onClick={onAddEvent}
                 className="p-2 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"
-                aria-label="Add Event"
+                aria-label="Switch to AI Overlay"
+                title="Switch to AI Overlay"
               >
-                <Plus className="w-5 h-5" />
+                <Layout className="w-5 h-5" />
               </button>
             )}
             

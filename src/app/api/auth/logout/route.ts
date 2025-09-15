@@ -1,15 +1,24 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { sessionManager } from '@/lib/auth/session-manager';
 
 export async function GET() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   
-  // Clear Google OAuth tokens
+  // Get current session ID to revoke it
+  const sessionId = cookieStore.get('session-id')?.value;
+  
+  if (sessionId) {
+    // Revoke the session on server side
+    await sessionManager.revokeSession(sessionId);
+  }
+  
+  // Clear all auth-related cookies
   cookieStore.delete('access_token');
   cookieStore.delete('refresh_token');
-  
-  // Clear Supabase auth token
   cookieStore.delete('auth-token');
+  cookieStore.delete('refresh-token'); 
+  cookieStore.delete('session-id');
   
   return NextResponse.redirect(new URL('/', process.env.NEXTAUTH_URL || 'http://localhost:3000'));
 }

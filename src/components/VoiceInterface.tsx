@@ -43,9 +43,17 @@ export function VoiceInterface({
     });
 
     return () => {
+      // 타이머 정리
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      
+      // Voice Service 정리
       if (voiceServiceRef.current) {
         voiceServiceRef.current.stopListening();
         voiceServiceRef.current.stopSpeaking();
+        voiceServiceRef.current = null;
       }
     };
   }, [wakeWordEnabled]);

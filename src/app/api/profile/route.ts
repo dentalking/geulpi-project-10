@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { EnhancedErrorLogger } from '@/lib/enhanced-error-handler';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,10 +38,15 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116: no rows returned
-      console.error('Error fetching profile:', error);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch profile' },
-        { status: 500 }
+      return EnhancedErrorLogger.createApiErrorResponse(
+        error,
+        { 
+          userId: user.id, 
+          action: 'fetch_profile',
+          endpoint: '/api/profile',
+          userAgent: request.headers.get('user-agent') || undefined
+        },
+        '프로필 정보를 불러올 수 없습니다.'
       );
     }
 

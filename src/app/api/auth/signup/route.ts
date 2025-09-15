@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registerUser } from '@/lib/auth/supabase-auth';
+import { checkRateLimit } from '@/lib/rate-limiter';
 
 export async function POST(request: NextRequest) {
   try {
+    // Get client IP for rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 
+               request.headers.get('x-real-ip') || 
+               'unknown';
+    
+    // Check rate limit
+    try {
+      await checkRateLimit('auth.signup', ip);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message || 'Too many signup attempts. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { email, password, name } = body;
 

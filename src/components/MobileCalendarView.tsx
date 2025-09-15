@@ -4,7 +4,10 @@ import { useState, useCallback } from 'react';
 import { motion, useAnimation, PanInfo, AnimatePresence } from 'framer-motion';
 import { Plus, Calendar, Clock, MapPin, X } from 'lucide-react';
 import type { CalendarEvent } from '@/types';
-import { EventListModal, EventDetailModal, EventCreateModal } from './EventModals';
+import { EventListModal, EventCreateModal } from './EventModals';
+import { UnifiedEventDetailModal } from './UnifiedEventDetailModal';
+import { AIEventReportModal } from './AIEventReportModal';
+import { NotionStyleEventModal } from './NotionStyleEventModal';
 import { useToastContext } from '@/providers/ToastProvider';
 import { useTranslations } from 'next-intl';
 import { TypingAnimation } from './TypingAnimation';
@@ -21,6 +24,7 @@ interface UnifiedCalendarViewProps {
   isDesktop?: boolean;
   highlightedEventId?: string | null;
   spotlightEvent?: { id: string; date: Date; title: string } | null;
+  onOpenAIChat?: (eventContext?: CalendarEvent) => void;
 }
 
 export function UnifiedCalendarView({
@@ -34,13 +38,15 @@ export function UnifiedCalendarView({
   children,
   isDesktop = false,
   highlightedEventId,
-  spotlightEvent
+  spotlightEvent,
+  onOpenAIChat
 }: UnifiedCalendarViewProps) {
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>(isDesktop ? 'expanded' : 'expanded');
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isDragging, setIsDragging] = useState(false);
   const [showEventListModal, setShowEventListModal] = useState(false);
   const [showEventDetailModal, setShowEventDetailModal] = useState(false);
+  const [eventViewMode, setEventViewMode] = useState<'notion' | 'ai-report' | 'unified'>('notion'); // 이벤트 뷰 모드
   const [showEventCreateModal, setShowEventCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const controls = useAnimation();
@@ -160,15 +166,39 @@ export function UnifiedCalendarView({
   }, []);
 
   const handleEventEdit = useCallback((event: CalendarEvent) => {
-    // TODO: Implement edit functionality
-    console.log('Edit event:', event);
-  }, []);
-
-  const handleEventDelete = useCallback((event: CalendarEvent) => {
-    // TODO: Implement delete functionality  
-    console.log('Delete event:', event);
+    // Close the detail modal and open edit modal
+    setSelectedEvent(event);
     setShowEventDetailModal(false);
-  }, []);
+    // TODO: Open edit modal
+    toast.info(locale === 'ko' ? '편집 기능 준비 중입니다' : 'Edit feature coming soon');
+  }, [locale, toast]);
+
+  const handleEventDelete = useCallback(async (event: CalendarEvent) => {
+    try {
+      const response = await fetch(`/api/calendar/events/${event.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete event');
+      }
+
+      toast.success(locale === 'ko' ? '일정이 삭제되었습니다' : 'Event deleted successfully');
+      setShowEventDetailModal(false);
+      
+      // Trigger a refresh of events
+      if (onEventCreated) {
+        onEventCreated();
+      }
+    } catch (error) {
+      console.error('Delete event error:', error);
+      toast.error(locale === 'ko' ? '삭제 실패' : 'Failed to delete event');
+    }
+  }, [locale, toast, onEventCreated]);
 
   const handleEventCreate = useCallback(async (eventData: any) => {
     try {
@@ -535,15 +565,39 @@ export function UnifiedCalendarView({
         locale={locale}
       />
 
-      {/* Event Detail Modal */}
-      <EventDetailModal
-        isOpen={showEventDetailModal}
-        onClose={() => setShowEventDetailModal(false)}
-        event={selectedEvent}
-        onEdit={handleEventEdit}
-        onDelete={handleEventDelete}
-        locale={locale}
-      />
+      {/* Event Detail Modal - Different View Modes */}
+      {eventViewMode === 'notion' ? (
+        <NotionStyleEventModal
+          isOpen={showEventDetailModal}
+          onClose={() => setShowEventDetailModal(false)}
+          event={selectedEvent}
+          onEdit={handleEventEdit}
+          onDelete={handleEventDelete}
+          locale={locale}
+        />
+      ) : eventViewMode === 'ai-report' ? (
+        <AIEventReportModal
+          isOpen={showEventDetailModal}
+          onClose={() => setShowEventDetailModal(false)}
+          event={selectedEvent}
+          onEdit={handleEventEdit}
+          onDelete={handleEventDelete}
+          locale={locale}
+        />
+      ) : (
+        <UnifiedEventDetailModal
+          isOpen={showEventDetailModal}
+          onClose={() => setShowEventDetailModal(false)}
+          event={selectedEvent}
+          onEdit={handleEventEdit}
+          onDelete={handleEventDelete}
+          locale={locale}
+          onChatAboutEvent={(event) => {
+            setShowEventDetailModal(false);
+            onOpenAIChat?.(event);
+          }}
+        />
+      )}
 
       {/* Event Create Modal */}
       <EventCreateModal

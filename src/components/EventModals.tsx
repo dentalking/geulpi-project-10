@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useModalKeyboard } from '@/hooks/useModalKeyboard';
 import { 
   X, 
   Calendar, 
@@ -17,6 +18,7 @@ import {
   Plus
 } from 'lucide-react';
 import type { CalendarEvent } from '@/types';
+import PlaceSearchInput from './PlaceSearchInput';
 
 interface EventListModalProps {
   isOpen: boolean;
@@ -55,6 +57,8 @@ export function EventListModal({
   onAddEvent,
   locale
 }: EventListModalProps) {
+  const modalRef = useModalKeyboard({ isOpen, onClose });
+
   const dayEvents = (events || []).filter(event => {
     const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
     return eventDate.toDateString() === selectedDate.toDateString();
@@ -81,15 +85,23 @@ export function EventListModal({
             className="fixed inset-0 bg-black/60 z-50"
           />
           
-          <motion.div
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 rounded-t-3xl"
-            style={{ maxHeight: '85vh' }}
-          >
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+              <motion.div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${selectedDate.toLocaleDateString()} events`}
+                tabIndex={-1}
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-lg bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
+                style={{ maxHeight: 'min(85vh, 700px)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
             {/* Header */}
-            <div className="sticky top-0 bg-gray-900 rounded-t-3xl p-5 pb-3">
+            <div className="sticky top-0 bg-gray-900 rounded-t-2xl p-4 md:p-5 pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <h2 className="text-3xl font-bold text-white">
@@ -119,7 +131,7 @@ export function EventListModal({
             </div>
 
             {/* Event List */}
-            <div className="px-5 pb-5 overflow-y-auto" style={{ maxHeight: 'calc(85vh - 120px)' }}>
+            <div className="px-4 md:px-5 pb-5 overflow-y-auto" style={{ maxHeight: 'calc(min(85vh, 700px) - 140px)' }}>
               {dayEvents.length > 0 ? (
                 <div className="space-y-3">
                   {dayEvents.map((event, index) => (
@@ -170,17 +182,19 @@ export function EventListModal({
 
             {/* Add Event Button */}
             {dayEvents.length > 0 && (
-              <div className="sticky bottom-0 p-5 bg-gradient-to-t from-gray-900">
+              <div className="sticky bottom-0 p-4 md:p-5 bg-gradient-to-t from-gray-900">
                 <button
                   onClick={onAddEvent}
-                  className="w-full py-4 bg-purple-500 text-white rounded-2xl flex items-center justify-center gap-2 hover:bg-purple-600 transition-all"
+                  className="w-full py-3 bg-purple-500 text-white rounded-xl flex items-center justify-center gap-2 hover:bg-purple-600 transition-all"
                 >
                   <Plus className="w-5 h-5" />
                   {locale === 'ko' ? '일정 추가' : 'Add Event'}
                 </button>
               </div>
             )}
-          </motion.div>
+              </motion.div>
+            </div>
+          </div>
         </>
       )}
     </AnimatePresence>
@@ -196,6 +210,8 @@ export function EventDetailModal({
   onDelete,
   locale
 }: EventDetailModalProps) {
+  const modalRef = useModalKeyboard({ isOpen, onClose });
+
   if (!event) return null;
 
   const formatDateTime = (dateTime: string | undefined) => {
@@ -222,12 +238,21 @@ export function EventDetailModal({
             className="fixed inset-0 bg-black/60 z-50"
           />
           
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-gray-900 rounded-3xl max-h-[80vh] overflow-hidden"
-          >
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+              <motion.div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="event-modal-title"
+                tabIndex={-1}
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-lg bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
+                style={{ maxHeight: 'min(85vh, 700px)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
             {/* Header */}
             <div className="p-5 border-b border-gray-800">
               <div className="flex items-center justify-between">
@@ -237,7 +262,7 @@ export function EventDetailModal({
                 >
                   <ChevronLeft className="w-5 h-5 text-gray-400" />
                 </button>
-                <h3 className="text-lg font-medium text-white">
+                <h3 id="event-modal-title" className="text-lg font-medium text-white">
                   {event.summary || '제목 없음'}
                 </h3>
                 <div className="w-5 h-5 rounded-full bg-purple-500" />
@@ -245,7 +270,7 @@ export function EventDetailModal({
             </div>
 
             {/* Content */}
-            <div className="p-5 space-y-5 overflow-y-auto" style={{ maxHeight: 'calc(80vh - 200px)' }}>
+            <div className="p-4 md:p-5 space-y-5 overflow-y-auto" style={{ maxHeight: 'calc(min(85vh, 700px) - 160px)' }}>
               {/* Date & Time */}
               <div className="flex items-start gap-4">
                 <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
@@ -309,7 +334,7 @@ export function EventDetailModal({
             </div>
 
             {/* Actions */}
-            <div className="p-5 border-t border-gray-800 flex gap-3">
+            <div className="p-4 md:p-5 border-t border-gray-800 flex gap-3">
               <button
                 onClick={() => onEdit(event)}
                 className="flex-1 py-3 bg-gray-800 text-white rounded-xl flex items-center justify-center gap-2 hover:bg-gray-700"
@@ -325,7 +350,9 @@ export function EventDetailModal({
                 {locale === 'ko' ? '삭제' : 'Delete'}
               </button>
             </div>
-          </motion.div>
+              </motion.div>
+            </div>
+          </div>
         </>
       )}
     </AnimatePresence>
@@ -340,11 +367,14 @@ export function EventCreateModal({
   onCreate,
   locale
 }: EventCreateModalProps) {
+  const modalRef = useModalKeyboard({ isOpen, onClose });
+
   const [title, setTitle] = useState('');
   const [allDay, setAllDay] = useState(false);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [location, setLocation] = useState('');
+  const [selectedPlace, setSelectedPlace] = useState<any>(null);
   const [description, setDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -366,7 +396,8 @@ export function EventCreateModal({
       time: allDay ? null : startTime,
       endTime: allDay ? null : endTime,
       location,
-      description
+      description,
+      placeDetails: selectedPlace || null
     };
 
     await onCreate(eventData);
@@ -377,6 +408,7 @@ export function EventCreateModal({
     setStartTime('09:00');
     setEndTime('10:00');
     setLocation('');
+    setSelectedPlace(null);
     setDescription('');
     setIsCreating(false);
   };
@@ -393,17 +425,25 @@ export function EventCreateModal({
             className="fixed inset-0 bg-black/60 z-50"
           />
           
-          <motion.div
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 rounded-t-3xl"
-            style={{ maxHeight: '90vh' }}
-          >
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+              <motion.div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="create-modal-title"
+                tabIndex={-1}
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-lg bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
+                style={{ maxHeight: 'min(85vh, 700px)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
             {/* Header */}
-            <div className="sticky top-0 bg-gray-900 rounded-t-3xl p-5 border-b border-gray-800">
+            <div className="sticky top-0 bg-gray-900 rounded-t-2xl p-4 md:p-5 border-b border-gray-800">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-white">
+                <h3 id="create-modal-title" className="text-lg font-medium text-white">
                   {locale === 'ko' ? '새 일정' : 'New Event'}
                 </h3>
                 <button
@@ -416,7 +456,7 @@ export function EventCreateModal({
             </div>
 
             {/* Form */}
-            <div className="p-5 space-y-5 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+            <div className="p-4 md:p-5 space-y-5 overflow-y-auto" style={{ maxHeight: 'calc(min(85vh, 700px) - 160px)' }}>
               {/* Title */}
               <div>
                 <input
@@ -487,12 +527,14 @@ export function EventCreateModal({
 
               {/* Location */}
               <div>
-                <input
-                  type="text"
+                <PlaceSearchInput
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder={locale === 'ko' ? '장소' : 'Location'}
-                  className="w-full px-4 py-3 bg-gray-800 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  onSelectPlace={(place) => {
+                    setLocation(place.name + (place.address ? `, ${place.address}` : ''));
+                    setSelectedPlace(place);
+                  }}
+                  placeholder={locale === 'ko' ? '장소 검색...' : 'Search location...'}
+                  showDetails={false}
                 />
               </div>
 
@@ -509,7 +551,7 @@ export function EventCreateModal({
             </div>
 
             {/* Actions */}
-            <div className="sticky bottom-0 p-5 bg-gray-900 border-t border-gray-800 flex gap-3">
+            <div className="sticky bottom-0 p-4 md:p-5 bg-gray-900 border-t border-gray-800 flex gap-3">
               <button
                 onClick={onClose}
                 className="flex-1 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700"
@@ -531,7 +573,9 @@ export function EventCreateModal({
                 )}
               </button>
             </div>
-          </motion.div>
+              </motion.div>
+            </div>
+          </div>
         </>
       )}
     </AnimatePresence>

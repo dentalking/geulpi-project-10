@@ -1,20 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { CalendarEvent } from '@/types';
+import { SwipeableCard3D, EnhancedTouchable, PinchZoomContainer } from './ui/EnhancedTouchInteractions';
+import { PullToRefresh, SwipeToDelete, BottomSheet } from './MobileInteractions';
+import { useHaptic, contextualHaptic } from '@/hooks/useHaptic';
+import { ChevronLeft, ChevronRight, Calendar, Clock, MapPin, Users, Plus } from 'lucide-react';
 
 interface SimpleCalendarProps {
     events: CalendarEvent[];
     onEventClick?: (event: CalendarEvent) => void;
     onTimeSlotClick?: (date: Date, hour: number) => void;
+    onRefresh?: () => Promise<void>;
+    isMobile?: boolean;
+    locale?: 'ko' | 'en';
+    highlightedEventId?: string | null;
 }
 
-export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotClick }: SimpleCalendarProps) {
+function SimpleCalendar({ events = [], onEventClick, onTimeSlotClick, onRefresh, isMobile = false, locale = 'ko', highlightedEventId = null }: SimpleCalendarProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewType, setViewType] = useState<'list' | 'week' | 'month' | 'day'>('month');
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [focusedDayIndex, setFocusedDayIndex] = useState<number>(-1);
     const [showMonthsWithEvents, setShowMonthsWithEvents] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+    const [showEventDetails, setShowEventDetails] = useState(false);
+    const { trigger } = useHaptic();
 
     const today = new Date();
     const isToday = (date: Date) => date.toDateString() === today.toDateString();
@@ -24,8 +36,8 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
         return date.toDateString() === tomorrow.toDateString();
     };
 
-    // Get months that have events
-    const getMonthsWithEvents = () => {
+    // Get months that have events - Memoized for performance
+    const monthsWithEvents = useMemo(() => {
         const monthsMap = new Map<string, number>();
         (events || []).forEach(event => {
             const eventDate = event.start?.dateTime || event.start?.date;
@@ -36,9 +48,7 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
             }
         });
         return monthsMap;
-    };
-
-    const monthsWithEvents = getMonthsWithEvents();
+    }, [events]);
     const currentMonthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
     const currentMonthEventCount = monthsWithEvents.get(currentMonthKey) || 0;
 
@@ -66,29 +76,77 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
         return days;
     };
 
-    const calendarDays = generateCalendarDays(currentDate);
+    const calendarDays = useMemo(() => generateCalendarDays(currentDate), [currentDate]);
     
-    // 날짜별 이벤트 그룹화
-    const getEventsForDate = (date: Date) => {
+    // 날짜별 이벤트 그룹화 - Memoized for performance
+    const getEventsForDate = useCallback((date: Date) => {
         const dateString = date.toDateString();
         return (events || []).filter(event => {
             const eventDate = event.start?.dateTime || event.start?.date;
             if (!eventDate) return false;
             return new Date(eventDate).toDateString() === dateString;
         });
-    };
+    }, [events]);
 
-    const upcomingEvents = (events || [])
-        .filter(event => {
-            const startTime = event.start?.dateTime || event.start?.date;
-            return startTime && new Date(startTime) >= today;
-        })
-        .sort((a, b) => {
-            const aStart = a.start?.dateTime || a.start?.date || '';
-            const bStart = b.start?.dateTime || b.start?.date || '';
-            return new Date(aStart).getTime() - new Date(bStart).getTime();
-        })
-        .slice(0, 10);
+    const upcomingEvents = useMemo(() => {
+        return (events || [])
+            .filter(event => {
+                const startTime = event.start?.dateTime || event.start?.date;
+                return startTime && new Date(startTime) >= today;
+            })
+            .sort((a, b) => {
+                const aStart = a.start?.dateTime || a.start?.date || '';
+                const bStart = b.start?.dateTime || b.start?.date || '';
+                return new Date(aStart).getTime() - new Date(bStart).getTime();
+            })
+            .slice(0, 10);
+    }, [events, today.toDateString()]);
+
+    // 모바일용 스와이프 핸들러
+    const handleSwipeLeft = useCallback(() => {
+        if (viewType === 'month') {
+            const nextMonth = new Date(currentDate);
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            setCurrentDate(nextMonth);
+            trigger('medium');
+        } else if (viewType === 'week') {
+            const nextWeek = new Date(currentDate);
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            setCurrentDate(nextWeek);
+            trigger('light');
+        }
+    }, [currentDate, viewType, trigger]);
+
+    const handleSwipeRight = useCallback(() => {
+        if (viewType === 'month') {
+            const prevMonth = new Date(currentDate);
+            prevMonth.setMonth(prevMonth.getMonth() - 1);
+            setCurrentDate(prevMonth);
+            trigger('medium');
+        } else if (viewType === 'week') {
+            const prevWeek = new Date(currentDate);
+            prevWeek.setDate(prevWeek.getDate() - 7);
+            setCurrentDate(prevWeek);
+            trigger('light');
+        }
+    }, [currentDate, viewType, trigger]);
+
+    // 날짜 선택 핸들러 (햅틱 피드백 포함)
+    const handleDateSelect = useCallback((date: Date) => {
+        setSelectedDate(date);
+        contextualHaptic.dateSelect();
+    }, []);
+
+    // 이벤트 클릭 핸들러 (모바일 최적화)
+    const handleEventClick = useCallback((event: CalendarEvent) => {
+        if (isMobile) {
+            setSelectedEvent(event);
+            setShowEventDetails(true);
+            trigger('light');
+        } else {
+            onEventClick?.(event);
+        }
+    }, [isMobile, onEventClick, trigger]);
         
     // 주간 뷰용 함수들
     const getWeekDays = (date: Date) => {
@@ -227,27 +285,42 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
         });
     };
 
-    // 네비게이션 함수들
-    const navigateMonth = (direction: 'prev' | 'next') => {
+    // 네비게이션 함수들 - Memoized to prevent recreations
+    const navigateMonth = useCallback((direction: 'prev' | 'next') => {
         setCurrentDate(prev => {
             const newDate = new Date(prev);
             newDate.setMonth(prev.getMonth() + (direction === 'next' ? 1 : -1));
             return newDate;
         });
-    };
+    }, []);
     
-    const navigateWeek = (direction: 'prev' | 'next') => {
+    const navigateWeek = useCallback((direction: 'prev' | 'next') => {
         setCurrentDate(prev => {
             const newDate = new Date(prev);
             newDate.setDate(prev.getDate() + (direction === 'next' ? 7 : -7));
             return newDate;
         });
-    };
+    }, []);
 
-    return (
-        <div className="glass-medium" style={{
+    // 캘린더 내용을 렌더링하는 함수
+    const CalendarContent = () => (
+        <>
+            <style jsx>{`
+                @keyframes pulse {
+                    0% {
+                        box-shadow: 0 0 15px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.4);
+                    }
+                    50% {
+                        box-shadow: 0 0 25px rgba(59, 130, 246, 1), 0 0 50px rgba(59, 130, 246, 0.6);
+                    }
+                    100% {
+                        box-shadow: 0 0 15px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.4);
+                    }
+                }
+            `}</style>
+            <div className="glass-medium" style={{
             borderRadius: 'var(--radius-2xl)',
-            padding: 'var(--space-6)',
+            padding: isMobile ? 'var(--space-4)' : 'var(--space-6)',
             position: 'relative',
             overflow: 'hidden'
         }}>
@@ -408,6 +481,10 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                                 key={key}
                                 onClick={() => setViewType(key as any)}
                                 className="glass-light interactive focus-ring"
+                                role="tab"
+                                aria-selected={viewType === key}
+                                aria-controls="calendar-view"
+                                aria-label={`${label} 보기로 전환`}
                                 style={{
                                     padding: 'var(--space-2) var(--space-3)',
                                     background: viewType === key 
@@ -430,7 +507,6 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                                     alignItems: 'center',
                                     gap: 'var(--space-1)'
                                 }}
-                                aria-label={`${label} 보기`}
                                 aria-pressed={viewType === key}
                             >
                                 {label}
@@ -522,6 +598,15 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                                     }}
                                     onClick={() => {
                                         onTimeSlotClick?.(selectedDate, hour);
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`${hour}시 - ${dayEvents.length > 0 ? `${dayEvents.length}개 일정 있음` : '일정 없음'}. 클릭하여 일정 추가`}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            onTimeSlotClick?.(selectedDate, hour);
+                                        }
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'scale(1.3)';
@@ -1042,7 +1127,11 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                                                         textOverflow: 'ellipsis',
                                                         cursor: 'pointer',
                                                         transition: 'var(--transition-fast)',
-                                                        fontWeight: '500'
+                                                        fontWeight: '500',
+                                                        boxShadow: highlightedEventId === event.id 
+                                                            ? '0 0 15px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.4)' 
+                                                            : 'none',
+                                                        animation: highlightedEventId === event.id ? 'pulse 2s infinite' : undefined
                                                     }}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1201,6 +1290,15 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                                             onClick={() => {
                                                 // 시간 슬롯 클릭 시 AI 채팅에 해당 시간으로 일정 생성 제안
                                                 onTimeSlotClick?.(day, hour);
+                                            }}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`${day.toLocaleDateString('ko-KR', { weekday: 'short', month: 'short', day: 'numeric' })} ${hour}시 슬롯. ${slotEvents.length > 0 ? `${slotEvents.length}개 일정` : '비어있음'}`}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    onTimeSlotClick?.(day, hour);
+                                                }
                                             }}
                                             onMouseEnter={(e) => {
                                                 e.currentTarget.style.backgroundColor = isDayToday ? 
@@ -1585,5 +1683,117 @@ export default function SimpleCalendar({ events = [], onEventClick, onTimeSlotCl
                 </div>
             )}
         </div>
+        </>
     );
+
+    // 모바일 최적화된 렌더링
+    if (isMobile) {
+        return (
+            <>
+                {/* Pull to Refresh 지원 */}
+                {onRefresh ? (
+                    <PullToRefresh onRefresh={onRefresh} className="h-full">
+                        <SwipeableCard3D
+                            onSwipeLeft={handleSwipeLeft}
+                            onSwipeRight={handleSwipeRight}
+                            className="h-full"
+                        >
+                            <CalendarContent />
+                        </SwipeableCard3D>
+                    </PullToRefresh>
+                ) : (
+                    <SwipeableCard3D
+                        onSwipeLeft={handleSwipeLeft}
+                        onSwipeRight={handleSwipeRight}
+                        className="h-full"
+                    >
+                        <CalendarContent />
+                    </SwipeableCard3D>
+                )}
+
+                {/* 이벤트 상세 정보 바텀 시트 */}
+                <BottomSheet
+                    isOpen={showEventDetails}
+                    onClose={() => {
+                        setShowEventDetails(false);
+                        setSelectedEvent(null);
+                    }}
+                    height="60vh"
+                >
+                    {selectedEvent && (
+                        <div className="p-4 space-y-4">
+                            <h2 className="text-xl font-bold">{selectedEvent.summary || '제목 없음'}</h2>
+                            
+                            {selectedEvent.start?.dateTime && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Clock className="w-4 h-4" />
+                                    <span>
+                                        {new Date(selectedEvent.start.dateTime).toLocaleString('ko-KR', {
+                                            month: 'long',
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit'
+                                        })}
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {selectedEvent.location && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <MapPin className="w-4 h-4" />
+                                    <span>{selectedEvent.location}</span>
+                                </div>
+                            )}
+                            
+                            {selectedEvent.attendees && selectedEvent.attendees.length > 0 && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Users className="w-4 h-4" />
+                                    <span>{selectedEvent.attendees.length}명 참석</span>
+                                </div>
+                            )}
+                            
+                            {selectedEvent.description && (
+                                <div className="pt-4 border-t">
+                                    <h3 className="font-semibold mb-2">설명</h3>
+                                    <p className="text-sm text-gray-600">{selectedEvent.description}</p>
+                                </div>
+                            )}
+                            
+                            <button
+                                onClick={() => {
+                                    onEventClick?.(selectedEvent);
+                                    setShowEventDetails(false);
+                                }}
+                                className="w-full py-3 bg-blue-500 text-white rounded-lg font-medium"
+                            >
+                                자세히 보기
+                            </button>
+                        </div>
+                    )}
+                </BottomSheet>
+            </>
+        );
+    }
+
+    // 데스크톱 렌더링
+    return <CalendarContent />;
 }
+
+// React.memo로 감싸서 props가 변경되지 않으면 리렌더링 방지
+export default React.memo(SimpleCalendar, (prevProps, nextProps) => {
+    // 커스텀 비교 함수: events 배열의 참조가 같거나 내용이 같으면 리렌더링 방지
+    if (prevProps.events === nextProps.events) return true;
+    if (prevProps.events?.length !== nextProps.events?.length) return false;
+    
+    // 이벤트 ID만 비교하여 성능 최적화
+    const prevIds = prevProps.events?.map(e => e.id).join(',') || '';
+    const nextIds = nextProps.events?.map(e => e.id).join(',') || '';
+    
+    return prevIds === nextIds && 
+           prevProps.onEventClick === nextProps.onEventClick &&
+           prevProps.onTimeSlotClick === nextProps.onTimeSlotClick &&
+           prevProps.onRefresh === nextProps.onRefresh &&
+           prevProps.isMobile === nextProps.isMobile &&
+           prevProps.locale === nextProps.locale &&
+           prevProps.highlightedEventId === nextProps.highlightedEventId;
+});

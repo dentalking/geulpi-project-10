@@ -22,6 +22,12 @@ export type SocketEvent = {
 class SocketClient {
   private socket: ClientSocket | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heartbeatTimeout: NodeJS.Timeout | null = null;
+  private missedHeartbeats: number = 0;
+  private readonly HEARTBEAT_INTERVAL = 30000; // 30초
+  private readonly HEARTBEAT_TIMEOUT = 10000; // 10초
+  private readonly MAX_MISSED_HEARTBEATS = 3;
 
   connect() {
     if (this.socket?.connected) {
@@ -40,17 +46,29 @@ class SocketClient {
 
     this.socket.on('connect', () => {
       console.log('Socket connected');
+      this.missedHeartbeats = 0;
+      this.startHeartbeat();
       this.emit('system:connected', { timestamp: new Date() });
     });
 
     this.socket.on('disconnect', () => {
       console.log('Socket disconnected');
+      this.stopHeartbeat();
       this.emit('system:disconnected', { timestamp: new Date() });
     });
 
     this.socket.on('error', (error) => {
       console.error('Socket error:', error);
       this.emit('system:error', { error, timestamp: new Date() });
+    });
+
+    // 하트비트 응답 처리
+    this.socket.on('pong', () => {
+      this.missedHeartbeats = 0;
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout);
+        this.heartbeatTimeout = null;
+      }
     });
 
     // 일반 이벤트 리스너
@@ -62,10 +80,46 @@ class SocketClient {
   }
 
   disconnect() {
+    this.stopHeartbeat();
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat(); // 기존 하트비트 정리
+    
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket?.connected) {
+        // 하트비트 전송
+        this.socket.emit('ping');
+        
+        // 응답 타임아웃 설정
+        this.heartbeatTimeout = setTimeout(() => {
+          this.missedHeartbeats++;
+          console.warn(`Missed heartbeat ${this.missedHeartbeats}/${this.MAX_MISSED_HEARTBEATS}`);
+          
+          if (this.missedHeartbeats >= this.MAX_MISSED_HEARTBEATS) {
+            console.error('Too many missed heartbeats, reconnecting...');
+            this.socket?.disconnect();
+            this.socket?.connect();
+          }
+        }, this.HEARTBEAT_TIMEOUT);
+      }
+    }, this.HEARTBEAT_INTERVAL);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout);
+      this.heartbeatTimeout = null;
+    }
+    this.missedHeartbeats = 0;
   }
 
   on(event: string, handler: Function) {
