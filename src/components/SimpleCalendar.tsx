@@ -66,7 +66,7 @@ function SimpleCalendar({ events = [], onEventClick, onTimeSlotClick, onRefresh,
         startDate.setDate(startDate.getDate() - firstDayOfMonth.getDay());
         
         // 6주 = 42일
-        const days = [];
+        const days: Date[] = [];
         for (let i = 0; i < 42; i++) {
             const day = new Date(startDate);
             day.setDate(startDate.getDate() + i);
@@ -154,7 +154,7 @@ function SimpleCalendar({ events = [], onEventClick, onTimeSlotClick, onRefresh,
         const dayOfWeek = startOfWeek.getDay();
         startOfWeek.setDate(date.getDate() - dayOfWeek);
         
-        const weekDays = [];
+        const weekDays: Date[] = [];
         for (let i = 0; i < 7; i++) {
             const day = new Date(startOfWeek);
             day.setDate(startOfWeek.getDate() + i);
@@ -167,7 +167,7 @@ function SimpleCalendar({ events = [], onEventClick, onTimeSlotClick, onRefresh,
     
     // 시간 슬롯 생성 (9시-18시)
     const generateTimeSlots = () => {
-        const slots = [];
+        const slots: any[] = [];
         for (let hour = 9; hour <= 18; hour++) {
             slots.push(hour);
         }

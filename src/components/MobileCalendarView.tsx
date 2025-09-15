@@ -141,7 +141,7 @@ export function UnifiedCalendarView({
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
-    const days = [];
+    const days: Date[] = [];
     const current = new Date(startDate);
     
     while (current <= lastDay || current.getDay() !== 0) {

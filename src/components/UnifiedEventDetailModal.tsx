@@ -111,7 +111,7 @@ export function UnifiedEventDetailModal({
       // Simulate AI loading
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      const suggestions = [];
+      const suggestions: string[] = [];
       const title = event.summary?.toLowerCase() || '';
 
       if (title.includes('meeting') || title.includes('회의')) {

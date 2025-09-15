@@ -170,7 +170,7 @@ export function AIEventDetailModal({
   };
 
   const generatePreparationTips = (event: CalendarEvent): string[] => {
-    const tips = [];
+    const tips: string[] = [];
     const title = event.summary?.toLowerCase() || '';
     
     if (title.includes('회의') || title.includes('meeting')) {

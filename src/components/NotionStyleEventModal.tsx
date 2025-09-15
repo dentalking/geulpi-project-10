@@ -292,7 +292,7 @@ export function NotionStyleEventModal({
   };
 
   const generateChecklistItems = (event: CalendarEvent, locale: string) => {
-    const items = [];
+    const items: any[] = [];
     const title = event.summary?.toLowerCase() || '';
 
     if (title.includes('meeting') || title.includes('회의')) {
@@ -364,7 +364,7 @@ export function NotionStyleEventModal({
       // Simulate AI loading
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const suggestions = [];
+      const suggestions: string[] = [];
       const title = event?.summary?.toLowerCase() || '';
 
       if (title.includes('meeting') || title.includes('회의')) {

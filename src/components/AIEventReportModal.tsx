@@ -157,7 +157,7 @@ export function AIEventReportModal({
   };
 
   const generateInsights = (event: CalendarEvent, locale: string): string[] => {
-    const insights = [];
+    const insights: string[] = [];
     const title = event.summary?.toLowerCase() || '';
 
     if (event.attendees && event.attendees.length > 10) {
@@ -206,7 +206,7 @@ export function AIEventReportModal({
   };
 
   const generateRecommendations = (event: CalendarEvent, locale: string): string[] => {
-    const recommendations = [];
+    const recommendations: string[] = [];
     const title = event.summary?.toLowerCase() || '';
 
     if (title.includes('meeting') || title.includes('회의')) {
@@ -237,7 +237,7 @@ export function AIEventReportModal({
   };
 
   const identifyRisks = (event: CalendarEvent, locale: string): string[] => {
-    const risks = [];
+    const risks: string[] = [];
 
     // Check for conflicts (mock)
     if (Math.random() > 0.7) {
@@ -260,7 +260,7 @@ export function AIEventReportModal({
   };
 
   const generatePreparation = (event: CalendarEvent, locale: string): string[] => {
-    const prep = [];
+    const prep: string[] = [];
     const title = event.summary?.toLowerCase() || '';
 
     if (title.includes('presentation') || title.includes('발표')) {
@@ -288,7 +288,7 @@ export function AIEventReportModal({
   };
 
   const generateFollowUp = (event: CalendarEvent, locale: string): string[] => {
-    const followUp = [];
+    const followUp: string[] = [];
 
     if (event.attendees && event.attendees.length > 0) {
       followUp.push(
@@ -307,7 +307,7 @@ export function AIEventReportModal({
   };
 
   const generateContextualInfo = (event: CalendarEvent, locale: string): string => {
-    const contexts = [];
+    const contexts: string[] = [];
 
     if (event.creator?.email) {
       contexts.push(
