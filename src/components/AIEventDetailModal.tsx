@@ -195,7 +195,7 @@ export function AIEventDetailModal({
   const generateSmartChecklist = (event: CalendarEvent, locale: string): SmartChecklist => {
     const title = event.summary?.toLowerCase() || '';
     let category = locale === 'ko' ? '일반 준비사항' : 'General Preparation';
-    let items = [];
+    let items: { id: string; text: string; completed: boolean; priority: 'high' | 'medium' | 'low'; }[] = [];
     
     if (title.includes('회의') || title.includes('meeting')) {
       category = locale === 'ko' ? '회의 준비' : 'Meeting Preparation';
