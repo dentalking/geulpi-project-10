@@ -71,7 +71,7 @@ function AIOverlayDashboardComponent({
   const { toast } = useToastContext();
 
   useEffect(() => {
-    setCurrentHighlight(highlightedEventId);
+    setCurrentHighlight(highlightedEventId ?? null);
   }, [highlightedEventId]);
 
   // 채팅 세션 초기화 및 활성 세션 변경 감지
