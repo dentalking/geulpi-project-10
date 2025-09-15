@@ -16,7 +16,7 @@ interface PasswordStrength {
 }
 
 function checkPasswordStrength(password: string): PasswordStrength {
-  const feedback = [];
+  const feedback: string[] = [];
   let score = 0;
   
   if (password.length >= 8) {
