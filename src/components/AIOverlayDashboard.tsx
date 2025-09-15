@@ -90,7 +90,7 @@ function AIOverlayDashboardComponent({
           session = await chatStorage.getSession(activeSessionId);
           
           // 세션이 유효한지 확인 (삭제되었거나 다른 사용자의 세션일 수 있음)
-          if (session && session.userId === userId) {
+          if (session && session.userId === (userId ?? undefined)) {
             console.log('[AIOverlayDashboard] Continuing existing session:', session.id);
           } else {
             // 유효하지 않은 세션은 클리어
@@ -104,7 +104,7 @@ function AIOverlayDashboardComponent({
           console.log('[AIOverlayDashboard] Creating new chat session');
           session = await chatStorage.createSession(
             locale === 'ko' ? '새 채팅' : 'New Chat',
-            userId
+            userId ?? undefined
           );
           
           if (session) {
