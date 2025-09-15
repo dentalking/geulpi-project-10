@@ -285,7 +285,7 @@ function getDefaultSuggestions(locale: string, context: any): string[] {
   const { timeOfDay, currentDay } = context;
   
   if (locale === 'ko') {
-    const suggestions = [];
+    const suggestions: string[] = [];
     
     // Time-based suggestion
     if (timeOfDay === 'morning') {
@@ -312,7 +312,7 @@ function getDefaultSuggestions(locale: string, context: any): string[] {
     
     return suggestions.slice(0, 5);
   } else {
-    const suggestions = [];
+    const suggestions: string[] = [];
     
     // Time-based suggestion
     if (timeOfDay === 'morning') {

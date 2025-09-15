@@ -90,7 +90,7 @@ export function checkDuplicateEvent(
   
   let reason = '';
   if (isDuplicate && mostSimilarEvent) {
-    const reasons = [];
+    const reasons: string[] = [];
     
     // 유사도 점수에 따른 이유 설명
     if (newEvent.title?.toLowerCase() === mostSimilarEvent.summary?.toLowerCase()) {

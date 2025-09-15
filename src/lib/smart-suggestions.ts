@@ -213,7 +213,7 @@ export function getQuickActions(context: SuggestionContext): Array<{
   icon?: string;
 }> {
   const timeContext = getTimeContext(context.timezone);
-  const actions = [];
+  const actions: Array<{ label: string; action: string; icon?: string; }> = [];
   
   const labels = {
     ko: {
