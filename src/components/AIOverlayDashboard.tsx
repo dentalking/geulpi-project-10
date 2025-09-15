@@ -278,8 +278,8 @@ function AIOverlayDashboardComponent({
       content: msg.content,
       timestamp: msg.timestamp,
       action: msg.data?.action ? {
-        type: msg.data.action.type || 'create',
-        status: msg.metadata?.actionPerformed ? 'completed' : 'pending'
+        type: msg.data.action.type || 'create' as 'create' | 'update' | 'delete' | 'list' | 'search',
+        status: (msg.data.action.status || 'pending') as 'pending' | 'processing' | 'completed' | 'failed'
       } : undefined
     }));
   }, []);
@@ -349,11 +349,12 @@ function AIOverlayDashboardComponent({
             content: responseData.message,
             type: 'text',
             timestamp: new Date(),
-            data: responseData.action ? { action: responseData.action } : undefined,
-            metadata: {
-              suggestions: responseData.suggestions,
-              actionPerformed: !!responseData.action
-            }
+            data: responseData.action || responseData.suggestions ? {
+              action: responseData.action,
+              suggestions: responseData.suggestions
+            } : undefined,
+            metadata: {}
+            // Store suggestions and action status in data instead
           };
           
           await chatStorage.addMessage(currentChatSession.id, aiMessage);
@@ -526,7 +527,8 @@ function AIOverlayDashboardComponent({
             content: errorMessage,
             type: 'text',
             timestamp: new Date(),
-            metadata: {
+            metadata: {},
+            data: {
               isError: true,
               errorType: error?.message?.includes('401') ? 'auth' : 'general'
             }
@@ -732,10 +734,10 @@ function AIOverlayDashboardComponent({
           // Navigate to the event's date
           const eventDate = new Date(event.start?.dateTime || event.start?.date || new Date());
           onDateChange(eventDate);
-          toast({
-            title: locale === 'ko' ? '일정 선택됨' : 'Event Selected',
-            description: event.summary || (locale === 'ko' ? '제목 없음' : 'Untitled'),
-          });
+          toast.info(
+            locale === 'ko' ? '일정 선택됨' : 'Event Selected',
+            event.summary || (locale === 'ko' ? '제목 없음' : 'Untitled')
+          );
         }}
       />
     </div>
