@@ -21,7 +21,7 @@ export interface FriendInvitationData {
   invitationUrl: string;
 }
 
-class EmailService {
+export class EmailService {
   private fromEmail = process.env.FROM_EMAIL || 'noreply@geulpi.com';
 
   /**
@@ -219,9 +219,78 @@ Geulpi 팀 드림
     const domain = baseUrl || process.env.NEXTAUTH_URL || 'http://localhost:3000';
     return `${domain}/register?invitation=${encodeURIComponent(invitationCode)}`;
   }
+
+  /**
+   * Send meeting proposal email
+   */
+  async sendMeetingProposal(data: {
+    to: string;
+    proposerName: string;
+    meetingTitle: string;
+    proposedTime: string;
+    proposedLocation: string;
+    message?: string;
+  }): Promise<boolean> {
+    const html = `
+    <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+      <h2>📅 새로운 약속 제안</h2>
+      <p><strong>${data.proposerName}</strong>님이 약속을 제안했습니다.</p>
+
+      <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3>${data.meetingTitle}</h3>
+        <p><strong>📅 제안 시간:</strong> ${data.proposedTime}</p>
+        <p><strong>📍 제안 장소:</strong> ${data.proposedLocation}</p>
+        ${data.message ? `<p><strong>메시지:</strong> ${data.message}</p>` : ''}
+      </div>
+
+      <p>Geulpi에서 약속을 확인하고 응답해보세요!</p>
+    </div>
+    `;
+
+    return this.sendEmail({
+      to: data.to,
+      subject: `${data.proposerName}님의 약속 제안: ${data.meetingTitle}`,
+      html,
+      text: `${data.proposerName}님이 약속을 제안했습니다.\n\n제목: ${data.meetingTitle}\n시간: ${data.proposedTime}\n장소: ${data.proposedLocation}${data.message ? `\n메시지: ${data.message}` : ''}`
+    });
+  }
+
+  /**
+   * Send meeting accepted email
+   */
+  async sendMeetingAccepted(data: {
+    to: string;
+    accepterName: string;
+    meetingTitle: string;
+    finalTime: string;
+    finalLocation: string;
+  }): Promise<boolean> {
+    const html = `
+    <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+      <h2>✅ 약속이 확정되었습니다!</h2>
+      <p><strong>${data.accepterName}</strong>님이 약속을 승인했습니다.</p>
+
+      <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+        <h3>${data.meetingTitle}</h3>
+        <p><strong>📅 확정 시간:</strong> ${data.finalTime}</p>
+        <p><strong>📍 확정 장소:</strong> ${data.finalLocation}</p>
+      </div>
+
+      <p>약속을 캘린더에 추가하는 것을 잊지 마세요!</p>
+    </div>
+    `;
+
+    return this.sendEmail({
+      to: data.to,
+      subject: `약속 확정: ${data.meetingTitle}`,
+      html,
+      text: `약속이 확정되었습니다!\n\n제목: ${data.meetingTitle}\n시간: ${data.finalTime}\n장소: ${data.finalLocation}`
+    });
+  }
 }
 
-// Export both class and singleton instance
-export { EmailService };
+// Export singleton instance
 export const emailService = new EmailService();
+
+// Export as default
 export default EmailService;

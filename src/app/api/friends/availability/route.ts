@@ -184,10 +184,10 @@ function findAvailableSlots(
   current.setHours(9, 0, 0, 0); // 오전 9시부터 시작
 
   while (current < endDate) {
-    const dayOfWeek = current.toLocaleLowerCase();
+    const dayOfWeek = current.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
 
     // 주말 제외 (옵션)
-    if (current.getDay() === 0 || current.getDay() === 6) {
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
       current.setDate(current.getDate() + 1);
       current.setHours(9, 0, 0, 0);
       continue;

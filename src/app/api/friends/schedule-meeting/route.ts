@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 위치 추천 (common_locations 활용)
-    let suggestedLocations = [];
+    let suggestedLocations: string[] = [];
     if (!location) {
       if (friendship.common_locations && Array.isArray(friendship.common_locations)) {
         suggestedLocations = friendship.common_locations.slice(0, 3);
@@ -223,12 +223,9 @@ export async function POST(request: NextRequest) {
         await emailService.sendMeetingProposal({
           to: friendUser.email,
           proposerName: proposerUser?.name || proposerUser?.email || 'Friend',
-          meetingTime: new Date(proposedDateTime).toLocaleString('ko-KR'),
-          location: location || suggestedLocations[0],
-          duration: duration,
-          proposalId: proposedEvent.id,
-          acceptUrl: `${process.env.NEXT_PUBLIC_APP_URL}/meetings/accept/${proposedEvent.id}`,
-          rejectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/meetings/reject/${proposedEvent.id}`
+          meetingTitle: `${proposerUser?.name || 'Friend'}님과의 약속`,
+          proposedTime: new Date(proposedDateTime).toLocaleString('ko-KR'),
+          proposedLocation: location || suggestedLocations[0]
         });
       }
     } catch (error) {
@@ -396,8 +393,9 @@ export async function PATCH(request: NextRequest) {
           await emailService.sendMeetingAccepted({
             to: proposerUser.email,
             accepterName: userId,
-            meetingTime: new Date(proposedEvent.start_time).toLocaleString('ko-KR'),
-            location: proposedEvent.location
+            meetingTitle: proposedEvent.title || '약속',
+            finalTime: new Date(proposedEvent.start_time).toLocaleString('ko-KR'),
+            finalLocation: proposedEvent.location || '장소 미정'
           });
         }
       } catch (error) {
