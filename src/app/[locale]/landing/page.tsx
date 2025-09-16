@@ -823,11 +823,24 @@ export default function LandingPage() {
             </div>
           </div>
           
-          <div className="pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: 'var(--border-default)' }}>
+          {/* Business Information for KakaoTalk Business Channel Approval */}
+          <div className="pt-8 border-t" style={{ borderColor: 'var(--border-default)' }}>
+            <div className="text-center mb-6">
+              <h4 className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>사업자 정보</h4>
+              <div className="space-y-1 text-xs" style={{ color: 'var(--text-quaternary)' }}>
+                <p>상호: 옵티룸 | 대표자: 방희락</p>
+                <p>사업자등록번호: 802-79-00585</p>
+                <p>주소: 대전광역시 유성구 장대로 106, 2층 98A호</p>
+                <p>이메일: support@geulpi.com</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: 'var(--border-default)' }}>
             <div className="text-sm" style={{ color: 'var(--text-quaternary)' }}>
               {t('footer.copyright')}
             </div>
-            
+
             <div className="flex items-center gap-6 text-sm" style={{ color: 'var(--text-tertiary)' }}>
               <Link href="/terms" className="transition-colors" onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}>{t('footer.legal.terms')}</Link>
               <Link href="/privacy" className="hover:text-white transition-colors">{t('footer.legal.privacy')}</Link>

@@ -1,0 +1,59 @@
+[
+  {
+    "name": "schedule",
+    "description": "새로운 일정을 추가합니다",
+    "options": [
+      {
+        "name": "title",
+        "description": "일정 제목",
+        "type": 3,
+        "required": true
+      },
+      {
+        "name": "datetime",
+        "description": "날짜 및 시간 (예: 내일 오후 3시, 2024-01-15 14:00)",
+        "type": 3,
+        "required": true
+      },
+      {
+        "name": "location",
+        "description": "장소 (선택사항)",
+        "type": 3,
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "today",
+    "description": "오늘의 일정을 확인합니다",
+    "options": []
+  },
+  {
+    "name": "meet",
+    "description": "친구와 만날 시간을 찾아줍니다",
+    "options": [
+      {
+        "name": "friend",
+        "description": "만날 친구를 멘션하세요",
+        "type": 6,
+        "required": true
+      },
+      {
+        "name": "date",
+        "description": "원하는 날짜 (예: 내일, 이번 주말)",
+        "type": 3,
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "friends",
+    "description": "친구 목록을 관리합니다",
+    "options": []
+  },
+  {
+    "name": "help",
+    "description": "봇 사용법을 확인합니다",
+    "options": []
+  }
+]
