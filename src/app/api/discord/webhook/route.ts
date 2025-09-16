@@ -78,17 +78,28 @@ interface DiscordResponse {
 // Discord 서명 검증
 function verifyDiscordSignature(body: string, signature: string, timestamp: string): boolean {
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
-  if (!publicKey) return false;
+  if (!publicKey) {
+    console.error('[Discord Bot] DISCORD_PUBLIC_KEY not configured');
+    return false;
+  }
 
   try {
-    const crypto = require('crypto');
-    const timestampedBody = timestamp + body;
+    const nacl = require('tweetnacl');
 
-    // Ed25519 서명 검증 (Discord 표준)
-    // 실제 구현에서는 discord-interactions 라이브러리 사용 권장
-    return true; // 개발용 임시
+    const timestampedBody = timestamp + body;
+    const sig = Buffer.from(signature, 'hex');
+    const pub = Buffer.from(publicKey, 'hex');
+    const message = Buffer.from(timestampedBody, 'utf8');
+
+    const isValid = nacl.sign.detached.verify(message, sig, pub);
+
+    if (!isValid) {
+      console.error('[Discord Bot] Signature verification failed');
+    }
+
+    return isValid;
   } catch (error) {
-    console.error('Discord signature verification failed:', error);
+    console.error('[Discord Bot] Signature verification error:', error);
     return false;
   }
 }
@@ -100,9 +111,10 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('X-Signature-Ed25519');
     const timestamp = request.headers.get('X-Signature-Timestamp');
 
-    // 서명 검증 (프로덕션에서 필수)
-    if (process.env.NODE_ENV === 'production' && signature && timestamp) {
+    // 서명 검증 (Discord에서 서명을 보내면 항상 검증)
+    if (signature && timestamp) {
       if (!verifyDiscordSignature(bodyText, signature, timestamp)) {
+        console.error('[Discord Bot] Signature verification failed');
         return NextResponse.json(
           { error: 'Invalid signature' },
           { status: 401 }
@@ -116,7 +128,12 @@ export async function POST(request: NextRequest) {
 
     // PING 응답 (Discord 필수)
     if (interaction.type === 1) {
-      return NextResponse.json({ type: 1 });
+      console.log('[Discord Bot] Sending PING response');
+      return NextResponse.json({ type: 1 }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
     }
 
     let response: DiscordResponse;
@@ -148,11 +165,22 @@ export async function POST(request: NextRequest) {
       response = createDefaultResponse();
     }
 
-    return NextResponse.json(response);
+    console.log('[Discord Bot] Sending response:', JSON.stringify(response, null, 2));
+    return NextResponse.json(response, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
 
   } catch (error) {
     console.error('[Discord Bot] Error:', error);
-    return NextResponse.json(createErrorResponse());
+    const errorResponse = createErrorResponse();
+    console.log('[Discord Bot] Sending error response:', JSON.stringify(errorResponse, null, 2));
+    return NextResponse.json(errorResponse, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
   }
 }
 
