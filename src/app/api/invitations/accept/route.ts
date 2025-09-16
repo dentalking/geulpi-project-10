@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
 import { handleApiError, AuthError } from '@/lib/api-errors';
 
 export async function POST(request: Request) {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     if (!userId) {
       const accessToken = cookieStore.get('access_token')?.value;
       if (accessToken) {
-        const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+        const { data: { user } } = await supabase.auth.getUser(accessToken);
         userId = user?.id || null;
       }
     }
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     // Get the invitation
-    const { data: invitation, error: invitationError } = await supabaseAdmin
+    const { data: invitation, error: invitationError } = await supabase
       .from('friend_invitations')
       .select('*')
       .eq('invitation_code', invitationCode)
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
     if (new Date() > expiryDate) {
       // Mark as expired
-      await supabaseAdmin
+      await supabase
         .from('friend_invitations')
         .update({ status: 'expired' })
         .eq('invitation_code', invitationCode);
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user email to verify invitation
-    const { data: currentUser } = await supabaseAdmin
+    const { data: currentUser } = await supabase
       .from('users')
       .select('email')
       .eq('id', userId)
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     }
 
     // Check if users are already friends
-    const { data: existingFriend } = await supabaseAdmin
+    const { data: existingFriend } = await supabase
       .from('friends')
       .select('id, status')
       .or(`and(user_id.eq.${invitation.inviter_id},friend_id.eq.${userId}),and(user_id.eq.${userId},friend_id.eq.${invitation.inviter_id})`)
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
     if (existingFriend) {
       // Mark invitation as accepted even if already friends
-      await supabaseAdmin
+      await supabase
         .from('friend_invitations')
         .update({ status: 'accepted' })
         .eq('invitation_code', invitationCode);
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     }
 
     // Create the friendship
-    const { data: friendship, error: friendError } = await supabaseAdmin
+    const { data: friendship, error: friendError } = await supabase
       .from('friends')
       .insert({
         user_id: invitation.inviter_id,
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
     }
 
     // Mark invitation as accepted
-    await supabaseAdmin
+    await supabase
       .from('friend_invitations')
       .update({ status: 'accepted' })
       .eq('invitation_code', invitationCode);

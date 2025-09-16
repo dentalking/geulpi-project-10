@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-const supabaseAdmin = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 export async function GET(request: NextRequest) {
   try {
     // Test 1: Check if table exists
-    const { data: tables, error: tableError } = await supabaseAdmin
+    const { data: tables, error: tableError } = await supabase
       .from('user_profiles')
       .select('*')
       .limit(1);
@@ -72,10 +72,10 @@ export async function GET(request: NextRequest) {
     const accessToken = cookieStore.get('access_token')?.value;
     
     if (accessToken) {
-      const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+      const { data: { user } } = await supabase.auth.getUser(accessToken);
       
       if (user) {
-        const { data: profile, error: profileError } = await supabaseAdmin
+        const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
           .eq('user_id', user.id)
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
         if (profileError && profileError.code === 'PGRST116') {
           // No profile exists, create one
-          const { data: newProfile, error: createError } = await supabaseAdmin
+          const { data: newProfile, error: createError } = await supabase
             .from('user_profiles')
             .insert({
               user_id: user.id,

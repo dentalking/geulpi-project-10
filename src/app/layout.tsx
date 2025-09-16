@@ -44,20 +44,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html suppressHydrationWarning>
+    <html lang="ko" suppressHydrationWarning>
       <head>
       </head>
       <body suppressHydrationWarning>
-        <ErrorBoundary>
-          <ThemeProvider>
-            <KeyboardShortcutsProvider>
-              <ToastProvider>
-                {children}
-                <KeyboardShortcutsModal />
-              </ToastProvider>
-            </KeyboardShortcutsProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
+        <ThemeProvider>
+          <KeyboardShortcutsProvider>
+            <ToastProvider>
+              {children}
+              <KeyboardShortcutsModal />
+            </ToastProvider>
+          </KeyboardShortcutsProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

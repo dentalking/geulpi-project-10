@@ -3,7 +3,7 @@ import { twoFactorAuth } from '@/lib/auth/two-factor-auth';
 import { rateLimit } from '@/lib/auth/rate-limit';
 import { sessionManager } from '@/lib/auth/session-manager';
 import { cookies } from 'next/headers';
-import { getPending2FALogin, removePending2FALogin } from '../../email-login/route';
+import { pending2FAStore } from '@/lib/auth/pending-2fa-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get pending login data
-    const pendingLogin = getPending2FALogin(pendingToken);
+    const pendingLogin = await pending2FAStore.get(pendingToken);
     if (!pendingLogin) {
       return NextResponse.json(
         { success: false, error: 'Verification session expired or invalid' },
@@ -57,16 +57,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if session is expired (10 minutes)
-    const now = Date.now();
-    const EXPIRY = 10 * 60 * 1000; // 10 minutes
-    if (now - pendingLogin.timestamp > EXPIRY) {
-      removePending2FALogin(pendingToken);
-      return NextResponse.json(
-        { success: false, error: 'Verification session expired' },
-        { status: 400 }
-      );
-    }
+    // Expiry is already checked in pending2FAStore.get()
 
     let verification;
 
@@ -104,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Remove pending login token
-    removePending2FALogin(pendingToken);
+    await pending2FAStore.remove(pendingToken);
 
     // Create session (successful 2FA verification)
     const { session, tokens } = await sessionManager.createSession(

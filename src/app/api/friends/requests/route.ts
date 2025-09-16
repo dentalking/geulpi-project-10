@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-const supabaseAdmin = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
     
     if (authError || !user) {
       return NextResponse.json(
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 받은 친구 요청 조회 (자신이 friend_id인 경우)
-    const { data: requests, error } = await supabaseAdmin
+    const { data: requests, error } = await supabase
       .from('friends')
       .select(`
         id,

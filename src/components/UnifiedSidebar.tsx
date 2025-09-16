@@ -576,8 +576,8 @@ export function UnifiedHeader({
           </div>
           
           <div className="flex items-center gap-2">
-            {/* AI Overlay Toggle Button - Desktop Only */}
-            {!isMobile && onAddEvent && (
+            {/* AI Overlay Toggle Button */}
+            {onAddEvent && (
               <button
                 onClick={onAddEvent}
                 className="p-2 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800"

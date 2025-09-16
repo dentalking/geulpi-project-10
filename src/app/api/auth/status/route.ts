@@ -1,13 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getCalendarClient, refreshAccessToken } from '@/lib/google-auth';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
+  const authHeader = request.headers.get('authorization');
+
+  // Get tokens from cookies or headers
   const accessToken = cookieStore.get('access_token')?.value;
   const refreshToken = cookieStore.get('refresh_token')?.value;
-  const authToken = cookieStore.get('auth-token')?.value;
+
+  // Check for JWT token in Authorization header or cookies
+  let authToken: string | null = null;
+  if (authHeader?.startsWith('auth-token ')) {
+    authToken = authHeader.substring(11);
+  } else {
+    authToken = cookieStore.get('auth-token')?.value || null;
+  }
 
   // Check email auth token first
   if (authToken) {

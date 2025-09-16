@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
-import { EmailService } from '@/services/email/EmailService';
+import { supabaseEmailService } from '@/services/email/SupabaseEmailService';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -219,8 +219,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (friendUser?.email) {
-        const emailService = new EmailService();
-        await emailService.sendMeetingProposal({
+        await supabaseEmailService.sendMeetingProposal({
           to: friendUser.email,
           proposerName: proposerUser?.name || proposerUser?.email || 'Friend',
           meetingTitle: `${proposerUser?.name || 'Friend'}님과의 약속`,
@@ -389,8 +388,7 @@ export async function PATCH(request: NextRequest) {
           .single();
 
         if (proposerUser?.email) {
-          const emailService = new EmailService();
-          await emailService.sendMeetingAccepted({
+          await supabaseEmailService.sendMeetingAccepted({
             to: proposerUser.email,
             accepterName: userId,
             meetingTitle: proposedEvent.title || '약속',

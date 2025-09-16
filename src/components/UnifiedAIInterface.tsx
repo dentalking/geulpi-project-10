@@ -2,9 +2,9 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Mic, 
-  ArrowUp, 
+import {
+  Mic,
+  ArrowUp,
   Camera,
   Plus,
   RotateCcw,
@@ -13,7 +13,12 @@ import {
   ChevronUp,
   ChevronDown,
   User,
-  Bot
+  Bot,
+  Calendar,
+  Clock,
+  MapPin,
+  Check,
+  X
 } from 'lucide-react';
 import { useToastContext } from '@/providers/ToastProvider';
 import Image from 'next/image';
@@ -29,8 +34,19 @@ interface Message {
   };
 }
 
+interface ExtractedEvent {
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  description?: string;
+  duration?: number;
+  selected?: boolean;
+}
+
 interface UnifiedAIInterfaceProps {
   onSubmit?: (text: string, imageData?: string) => Promise<{ message?: string; action?: any; success?: boolean } | void>;
+  onEventsExtracted?: (events: ExtractedEvent[]) => void;
   className?: string;
   autoFocus?: boolean;
   isProcessing?: boolean;
@@ -42,10 +58,11 @@ interface UnifiedAIInterfaceProps {
 }
 
 
-export function UnifiedAIInterface({ 
-  onSubmit, 
-  className = '', 
-  autoFocus = false, 
+export function UnifiedAIInterface({
+  onSubmit,
+  onEventsExtracted,
+  className = '',
+  autoFocus = false,
   isProcessing = false,
   locale = 'ko',
   sessionId = `session-${Date.now()}`,
@@ -63,6 +80,9 @@ export function UnifiedAIInterface({
   const [isTyping, setIsTyping] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [extractedEvents, setExtractedEvents] = useState<ExtractedEvent[]>([]);
+  const [showEventSelector, setShowEventSelector] = useState(false);
+  const [attachedImage, setAttachedImage] = useState<{ data: string; preview: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -206,32 +226,59 @@ export function UnifiedAIInterface({
 
   const handleSubmit = useCallback(async (text?: string) => {
     const query = text || inputValue;
-    if (!query.trim() || isProcessing) return;
-    
+
+    // Check if we have text or image to send
+    if (!query.trim() && !attachedImage) return;
+    if (isProcessing) return;
+
     // Show chat history immediately when user sends a message
     setShowChatHistory(true);
-    
-    // Don't add user message locally - let AIOverlayDashboard handle all message storage
+
+    // Clear the input
     setInputValue('');
     setShowSuggestions(false);
     setIsImportant(false);
-    
+
     // Show typing indicator
     setIsTyping(true);
-    
+
     // Determine if this is a CRUD operation
-    const isCrudOperation = 
+    const isCrudOperation =
       query.includes('추가') || query.includes('생성') ||
       query.includes('수정') || query.includes('변경') ||
       query.includes('삭제') || query.includes('제거') ||
       query.includes('add') || query.includes('create') ||
       query.includes('update') || query.includes('edit') ||
       query.includes('delete') || query.includes('remove');
-    
+
     if (onSubmit) {
       try {
-        const response = await onSubmit(query);
-        
+        let response;
+
+        // If there's an attached image, send it with the message
+        if (attachedImage) {
+          const message = query || (locale === 'ko'
+            ? '이 이미지에서 일정을 찾아줘'
+            : 'Find schedule in this image');
+
+          response = await onSubmit(message, attachedImage.data);
+
+          // Clear the attached image after sending
+          setAttachedImage(null);
+
+          // Check if response contains multiple events
+          if (response && response.action && response.action.type === 'create_multiple') {
+            const events = response.action.data.events.map((e: any) => ({
+              ...e,
+              selected: true // Pre-select all by default
+            }));
+            setExtractedEvents(events);
+            setShowEventSelector(true);
+          }
+        } else {
+          response = await onSubmit(query);
+        }
+
         // Process the response - don't store locally, let AIOverlayDashboard handle it
         setTimeout(() => {
           setIsTyping(false);
@@ -242,7 +289,7 @@ export function UnifiedAIInterface({
         // Error messages will be handled by AIOverlayDashboard
       }
     }
-  }, [inputValue, isProcessing, onSubmit, locale, messages.length]);
+  }, [inputValue, isProcessing, onSubmit, locale, messages.length, attachedImage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -304,18 +351,213 @@ export function UnifiedAIInterface({
     setShowChatHistory(false);
   };
 
+  const handleEventSelection = (index: number) => {
+    setExtractedEvents(prev => prev.map((event, i) =>
+      i === index ? { ...event, selected: !event.selected } : event
+    ));
+  };
+
+  const handleConfirmEvents = async () => {
+    const selectedEvents = extractedEvents.filter(e => e.selected);
+    if (selectedEvents.length === 0) {
+      toast.warning(
+        locale === 'ko'
+          ? '등록할 일정을 선택해주세요'
+          : 'Please select events to register'
+      );
+      return;
+    }
+
+    // Submit selected events as a structured command
+    if (onSubmit) {
+      // Create a structured message for each event
+      const eventsDetails = selectedEvents.map(e => {
+        let details = `제목: ${e.title}`;
+        details += `, 날짜: ${e.date}`;
+        if (e.time) details += `, 시간: ${e.time}`;
+        if (e.location) details += `, 장소: ${e.location}`;
+        if (e.description) details += `, 설명: ${e.description}`;
+        return details;
+      });
+
+      const message = locale === 'ko'
+        ? `다음 ${selectedEvents.length}개의 일정을 등록해주세요:\n${eventsDetails.map((d, i) => `${i + 1}. ${d}`).join('\n')}`
+        : `Please register the following ${selectedEvents.length} events:\n${eventsDetails.map((d, i) => `${i + 1}. ${d}`).join('\n')}`;
+
+      toast.info(
+        locale === 'ko'
+          ? `${selectedEvents.length}개의 일정을 등록 중입니다...`
+          : `Registering ${selectedEvents.length} events...`
+      );
+
+      await onSubmit(message);
+      setShowEventSelector(false);
+      setExtractedEvents([]);
+    }
+  };
+
+  const handleCancelEvents = () => {
+    setShowEventSelector(false);
+    setExtractedEvents([]);
+    toast.info(
+      locale === 'ko'
+        ? '일정 등록이 취소되었습니다'
+        : 'Event registration cancelled'
+    );
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+
+      // Check if the item is an image
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault(); // Prevent default paste behavior for images
+
+        const file = item.getAsFile();
+        if (file) {
+          // Convert to base64 and store in state
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+
+            // Create a smaller preview URL
+            setAttachedImage({
+              data: base64,
+              preview: base64 // Same as data for now, could be optimized
+            });
+
+            // Show a toast notification that image is attached
+            toast.success(
+              locale === 'ko'
+                ? '이미지가 첨부되었습니다'
+                : 'Image attached'
+            );
+          };
+          reader.readAsDataURL(file);
+        }
+        break; // Only process the first image
+      }
+    }
+  };
+
   return (
-    <motion.div 
-      className={`relative w-full ${className}`}
-      animate={{
-        y: showChatHistory && messages.length > 0 ? 150 : 0
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 260,
-        damping: 20
-      }}
-    >
+    <>
+      {/* Event Selector Modal */}
+      <AnimatePresence>
+        {showEventSelector && extractedEvents.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold">
+                  {locale === 'ko' ? '추출된 일정 확인' : 'Extracted Events'}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {locale === 'ko'
+                    ? '등록할 일정을 선택해주세요'
+                    : 'Select events to register'}
+                </p>
+              </div>
+
+              <div className="p-6 space-y-3 max-h-[50vh] overflow-y-auto">
+                {extractedEvents.map((event, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      event.selected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                    onClick={() => handleEventSelection(index)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        event.selected
+                          ? 'bg-primary border-primary'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}>
+                        {event.selected && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">{event.title}</h4>
+                        <div className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>{event.date}</span>
+                            {event.time && (
+                              <>
+                                <Clock className="w-4 h-4 ml-2" />
+                                <span>{event.time}</span>
+                              </>
+                            )}
+                          </div>
+                          {event.location && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4" />
+                              <span>{event.location}</span>
+                            </div>
+                          )}
+                          {event.description && (
+                            <p className="mt-2 text-gray-500">{event.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                <button
+                  onClick={handleCancelEvents}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                >
+                  {locale === 'ko' ? '취소' : 'Cancel'}
+                </button>
+                <button
+                  onClick={handleConfirmEvents}
+                  className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  {locale === 'ko'
+                    ? `선택한 ${extractedEvents.filter(e => e.selected).length}개 등록`
+                    : `Register ${extractedEvents.filter(e => e.selected).length} selected`}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        className={`relative w-full ${className}`}
+        animate={{
+          y: showChatHistory && messages.length > 0 ? 150 : 0
+        }}
+        transition={{
+          type: "spring",
+          stiffness: 260,
+          damping: 20
+        }}
+      >
       {/* Chat History Dropdown/Dropup */}
       <AnimatePresence>
         {showChatHistory && messages.length > 0 && (
@@ -388,16 +630,16 @@ export function UnifiedAIInterface({
                       </div>
                       <div className={`px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4 rounded-lg sm:rounded-xl md:rounded-2xl ${
                         message.role === 'user'
-                          ? 'bg-primary text-white'
-                          : 'bg-gray-100 dark:bg-gray-800'
+                          ? 'bg-primary text-primary-foreground dark:text-white'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
                       }`}>
                         <div className="text-xs sm:text-sm md:text-base lg:text-base leading-relaxed whitespace-pre-wrap break-words">
                           {message.content}
                         </div>
-                        {message.action && (
+                        {/* Hide action type display - it's already explained in the message content */}
+                        {message.action && message.action.status === 'completed' && (
                           <div className="mt-1 sm:mt-2 text-xs sm:text-xs md:text-sm opacity-70">
-                            {message.action.status === 'completed' && '✓ '}
-                            {message.action.type}
+                            ✓ {locale === 'ko' ? '완료됨' : 'Completed'}
                           </div>
                         )}
                       </div>
@@ -452,6 +694,48 @@ export function UnifiedAIInterface({
           damping: 25
         }}
       >
+        {/* Image Preview */}
+        <AnimatePresence>
+          {attachedImage && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="px-2 sm:px-3 md:px-4 lg:px-5 py-2 border-b border-border/20 overflow-hidden"
+            >
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="relative inline-block group"
+              >
+                <img
+                  src={attachedImage.preview}
+                  alt="Attached"
+                  className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-lg shadow-sm"
+                />
+                <button
+                  onClick={() => {
+                    setAttachedImage(null);
+                    toast.info(
+                      locale === 'ko'
+                        ? '이미지가 제거되었습니다'
+                        : 'Image removed'
+                    );
+                  }}
+                  className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent text-white text-xs px-2 py-1 rounded-b-lg">
+                  {locale === 'ko' ? '이미지' : 'Image'}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="flex items-center gap-2 sm:gap-3 md:gap-4 px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2 md:py-3 lg:py-4">
           <input
             ref={inputRef}
@@ -470,7 +754,8 @@ export function UnifiedAIInterface({
               setTimeout(() => setShowSuggestions(false), 200);
             }}
             onKeyDown={handleKeyDown}
-            placeholder={isImportant 
+            onPaste={handlePaste}
+            placeholder={isImportant
               ? (locale === 'ko' ? "⭐ 중요한 일정을 입력하세요" : "⭐ Enter important event")
               : (locale === 'ko' ? "무엇이든 물어보세요" : "Ask me anything")}
             className="flex-1 bg-transparent outline-none text-sm sm:text-base md:text-lg lg:text-xl placeholder:text-muted-foreground/60 py-1 sm:py-2"
@@ -541,11 +826,14 @@ export function UnifiedAIInterface({
             
             <motion.button
               whileTap={{ scale: 0.9 }}
-              className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-md sm:rounded-lg md:rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+              className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-md sm:rounded-lg md:rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center relative"
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
             >
-              <Camera className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5" />
+              <Camera className={`h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 ${attachedImage ? 'text-primary' : ''}`} />
+              {attachedImage && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
+              )}
             </motion.button>
             
             <motion.button
@@ -562,9 +850,9 @@ export function UnifiedAIInterface({
             <motion.button
               whileTap={{ scale: 0.9 }}
               className={`h-7 sm:h-8 md:h-9 lg:h-10 px-2 sm:px-3 md:px-4 rounded-md sm:rounded-lg md:rounded-lg ml-1 sm:ml-2 transition-all flex items-center justify-center ${
-                isProcessing 
+                isProcessing
                   ? "bg-red-500 hover:bg-red-600 text-white shadow-md"
-                  : !inputValue.trim() 
+                  : !inputValue.trim() && !attachedImage
                     ? "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600"
                     : "bg-primary hover:bg-primary/90 text-white shadow-md"
               }`}
@@ -573,7 +861,7 @@ export function UnifiedAIInterface({
                   handleSubmit();
                 }
               }}
-              disabled={!inputValue.trim() && !isProcessing}
+              disabled={(!inputValue.trim() && !attachedImage) || isProcessing}
             >
               {isProcessing ? (
                 <Square className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5" />
@@ -648,21 +936,35 @@ export function UnifiedAIInterface({
         className="hidden"
         onChange={async (e) => {
           const file = e.target.files?.[0];
-          if (file && onSubmit) {
+          if (file) {
             const reader = new FileReader();
-            reader.onloadend = async () => {
+            reader.onloadend = () => {
               const base64 = reader.result as string;
-              const message = locale === 'ko' 
-                ? '이 이미지에서 일정을 찾아줘' 
-                : 'Find schedule in this image';
-              
-              await onSubmit(message, base64);
+
+              // Store the image in state
+              setAttachedImage({
+                data: base64,
+                preview: base64
+              });
+
+              // Show a toast notification that image is attached
+              toast.success(
+                locale === 'ko'
+                  ? '이미지가 첨부되었습니다'
+                  : 'Image attached'
+              );
             };
             reader.readAsDataURL(file);
+
+            // Clear the file input so the same file can be selected again
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
           }
         }}
       />
 
-    </motion.div>
+      </motion.div>
+    </>
   );
 }

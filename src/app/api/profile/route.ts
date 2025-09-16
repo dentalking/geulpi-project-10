@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { EnhancedErrorLogger } from '@/lib/enhanced-error-handler';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 
-const supabaseAdmin = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -11,37 +12,72 @@ const supabaseAdmin = createClient(
 // GET: 사용자 프로필 조회
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('access_token')?.value;
-    
-    if (!accessToken) {
+    const cookieStore = await cookies();
+    const authHeader = request.headers.get('authorization');
+    let userId: string | null = null;
+
+    // 1. JWT 이메일 인증 트랙 확인
+    let authToken: string | null = null;
+    if (authHeader?.startsWith('auth-token ')) {
+      authToken = authHeader.substring(11);
+    } else {
+      authToken = cookieStore.get('auth-token')?.value || null;
+    }
+
+    console.log('Profile API GET: authHeader present:', !!authHeader);
+    console.log('Profile API GET: authToken present:', !!authToken);
+
+    if (authToken) {
+      try {
+        console.log('Profile API GET: Verifying JWT token...');
+        const user = await verifyToken(authToken);
+        if (user) {
+          console.log('Profile API GET: JWT verification successful, userId:', user.id);
+          userId = user.id;
+        } else {
+          console.log('Profile API GET: JWT verification returned null user');
+        }
+      } catch (error) {
+        console.error('Profile API GET: JWT auth verification failed:', error);
+      }
+    } else {
+      console.log('Profile API GET: No auth token found in header or cookies');
+    }
+
+    // 2. Google OAuth 트랙 확인 (기존 시스템 보존)
+    if (!userId) {
+      const accessToken = cookieStore.get('access_token')?.value;
+      if (accessToken) {
+        try {
+          const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+          if (!authError && user) {
+            userId = user.id;
+          }
+        } catch (error) {
+          console.error('Google OAuth verification failed:', error);
+        }
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid token' },
-        { status: 401 }
-      );
-    }
-
     // 프로필 조회
-    const { data: profile, error } = await supabaseAdmin
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116: no rows returned
       return EnhancedErrorLogger.createApiErrorResponse(
         error,
-        { 
-          userId: user.id, 
+        {
+          userId: userId,
           action: 'fetch_profile',
           endpoint: '/api/profile',
           userAgent: request.headers.get('user-agent') || undefined
@@ -52,11 +88,11 @@ export async function GET(request: NextRequest) {
 
     // 프로필이 없으면 기본 프로필 생성
     if (!profile) {
-      const { data: newProfile, error: createError } = await supabaseAdmin
+      const { data: newProfile, error: createError } = await supabase
         .from('user_profiles')
         .insert({
-          user_id: user.id,
-          full_name: user.user_metadata?.name || '',
+          user_id: userId,
+          full_name: '', // Email auth users don't have user_metadata from Google
         })
         .select()
         .single();
@@ -92,21 +128,47 @@ export async function GET(request: NextRequest) {
 // PUT: 사용자 프로필 업데이트
 export async function PUT(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('access_token')?.value;
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const cookieStore = await cookies();
+    const authHeader = request.headers.get('authorization');
+    let userId: string | null = null;
+
+    // 1. JWT 이메일 인증 트랙 확인
+    let authToken: string | null = null;
+    if (authHeader?.startsWith('auth-token ')) {
+      authToken = authHeader.substring(11);
+    } else {
+      authToken = cookieStore.get('auth-token')?.value || null;
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    
-    if (authError || !user) {
+    if (authToken) {
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        console.error('JWT auth verification failed:', error);
+      }
+    }
+
+    // 2. Google OAuth 트랙 확인 (기존 시스템 보존)
+    if (!userId) {
+      const accessToken = cookieStore.get('access_token')?.value;
+      if (accessToken) {
+        try {
+          const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+          if (!authError && user) {
+            userId = user.id;
+          }
+        } catch (error) {
+          console.error('Google OAuth verification failed:', error);
+        }
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -117,13 +179,13 @@ export async function PUT(request: NextRequest) {
     const { user_id, id, created_at, ...updateData } = body;
 
     // 프로필 업데이트
-    const { data: profile, error } = await supabaseAdmin
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .update({
         ...updateData,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -152,21 +214,47 @@ export async function PUT(request: NextRequest) {
 // PATCH: 부분 업데이트 (특정 필드만)
 export async function PATCH(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('access_token')?.value;
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const cookieStore = await cookies();
+    const authHeader = request.headers.get('authorization');
+    let userId: string | null = null;
+
+    // 1. JWT 이메일 인증 트랙 확인
+    let authToken: string | null = null;
+    if (authHeader?.startsWith('auth-token ')) {
+      authToken = authHeader.substring(11);
+    } else {
+      authToken = cookieStore.get('auth-token')?.value || null;
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    
-    if (authError || !user) {
+    if (authToken) {
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        console.error('JWT auth verification failed:', error);
+      }
+    }
+
+    // 2. Google OAuth 트랙 확인 (기존 시스템 보존)
+    if (!userId) {
+      const accessToken = cookieStore.get('access_token')?.value;
+      if (accessToken) {
+        try {
+          const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+          if (!authError && user) {
+            userId = user.id;
+          }
+        } catch (error) {
+          console.error('Google OAuth verification failed:', error);
+        }
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'Invalid token' },
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -201,13 +289,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 프로필 업데이트
-    const { data: profile, error } = await supabaseAdmin
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .update({
         [field]: value,
         updated_at: new Date().toISOString()
       })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single();
 

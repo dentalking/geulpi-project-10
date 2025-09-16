@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 import { handleApiError, AuthError } from '@/lib/api-errors';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 import { getCalendarClient } from '@/lib/google-auth';
-import { 
-  withRetry, 
-  createErrorResponse, 
-  validateRequired, 
+import {
+  withRetry,
+  createErrorResponse,
+  validateRequired,
   validateDateRange,
   calendarApiBreaker,
   AppError,
@@ -19,18 +19,17 @@ import {
 export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get('access_token')?.value;
-    const refreshToken = cookieStore.get('refresh_token')?.value;
-    const authToken = cookieStore.get('auth-token')?.value;
-    
-    if (!accessToken && !authToken) {
-      return handleApiError(new AuthError());
-    }
-
-    const supabase = supabaseAdmin;
+    const authHeader = request.headers.get('authorization');
     let userId: string | null = null;
 
-    // Check for email auth first
+    // 1. JWT 이메일 인증 트랙 확인
+    let authToken: string | null = null;
+    if (authHeader?.startsWith('auth-token ')) {
+      authToken = authHeader.substring(11);
+    } else {
+      authToken = cookieStore.get('auth-token')?.value || null;
+    }
+
     if (authToken) {
       try {
         const user = await verifyToken(authToken);
@@ -38,26 +37,34 @@ export async function GET(request: Request) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('Email auth verification failed:', error);
+        console.error('JWT auth verification failed:', error);
       }
     }
 
-    // Get user ID from Supabase session if not from email auth
-    if (!userId && accessToken) {
-      // For Google OAuth users, extract user ID from the access token
-      try {
-        const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        });
+    // 2. Google OAuth 트랙 확인 (기존 시스템 보존)
+    let accessToken: string | null = null;
+    let isGoogleUser = false;
 
-        if (response.ok) {
-          const googleUser = await response.json();
-          userId = googleUser.id; // This will be the Google user ID
+    if (!userId) {
+      accessToken = cookieStore.get('access_token')?.value || cookieStore.get('google_access_token')?.value || null;
+      const refreshToken = cookieStore.get('refresh_token')?.value || cookieStore.get('google_refresh_token')?.value || null;
+
+      if (accessToken) {
+        try {
+          const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+
+          if (response.ok) {
+            const googleUser = await response.json();
+            userId = googleUser.id; // Google numeric ID
+            isGoogleUser = true;
+          }
+        } catch (error) {
+          console.error('Google OAuth verification failed:', error);
         }
-      } catch (error) {
-        console.error('Failed to get user from access token', error);
       }
     }
 
@@ -69,8 +76,55 @@ export async function GET(request: Request) {
     const maxResults = parseInt(searchParams.get('maxResults') || '50');
     const timeMin = searchParams.get('timeMin');
     const timeMax = searchParams.get('timeMax');
-    
-    // Build query for Supabase
+
+    // Google OAuth 사용자는 Google Calendar API에서 직접 가져오기
+    if (isGoogleUser && accessToken) {
+      try {
+        const calendar = getCalendarClient(accessToken);
+
+        // Google Calendar API 호출
+        const calendarResponse = await calendar.events.list({
+          calendarId: 'primary',
+          maxResults: maxResults,
+          singleEvents: true,
+          orderBy: 'startTime',
+          timeMin: timeMin || new Date().toISOString(),
+          timeMax: timeMax || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90일
+        });
+
+        const events = calendarResponse.data.items || [];
+
+        // Google Calendar 이벤트 형식 그대로 반환
+        const transformedEvents = events.map((event: any) => ({
+          id: event.id,
+          summary: event.summary,
+          description: event.description,
+          location: event.location,
+          start: event.start,
+          end: event.end,
+          attendees: event.attendees || [],
+          colorId: event.colorId,
+          status: event.status || 'confirmed',
+          created: event.created,
+          updated: event.updated,
+          source: 'google',
+          googleEventId: event.id
+        }));
+
+        console.log(`[Google Calendar] Fetched ${transformedEvents.length} events for user ${userId}`);
+
+        return NextResponse.json({
+          success: true,
+          events: transformedEvents,
+          total: transformedEvents.length
+        });
+      } catch (error) {
+        console.error('Failed to fetch from Google Calendar:', error);
+        // Google Calendar 실패 시 DB로 폴백
+      }
+    }
+
+    // 이메일 인증 사용자는 Supabase DB에서 조회
     let query = supabase
       .from('calendar_events')
       .select('*')
@@ -110,7 +164,7 @@ export async function GET(request: Request) {
         dateTime: event.end_time,
         timeZone: 'Asia/Seoul'
       },
-      attendees: event.attendees ? JSON.parse(event.attendees) : [],
+      attendees: event.attendees || [],
       colorId: event.color_id,
       status: event.status || 'confirmed',
       created: event.created_at,
@@ -131,9 +185,54 @@ export async function GET(request: Request) {
 
 // POST: 새 이벤트 생성
 export async function POST(request: Request) {
-  const accessToken = cookies().get('access_token')?.value;
-  
-  if (!accessToken) {
+  const cookieStore = await cookies();
+  const authHeader = request.headers.get('authorization');
+  let userId: string | null = null;
+  let isGoogleUser = false;
+
+  // 1. JWT 이메일 인증 트랙 확인
+  let authToken: string | null = null;
+  if (authHeader?.startsWith('auth-token ')) {
+    authToken = authHeader.substring(11);
+  } else {
+    authToken = cookieStore.get('auth-token')?.value || null;
+  }
+
+  if (authToken) {
+    try {
+      const user = await verifyToken(authToken);
+      if (user) {
+        userId = user.id;
+      }
+    } catch (error) {
+      console.error('JWT auth verification failed:', error);
+    }
+  }
+
+  // 2. Google OAuth 트랙 확인
+  let accessToken: string | null = null;
+  if (!userId) {
+    accessToken = cookieStore.get('access_token')?.value || null;
+    if (accessToken) {
+      try {
+        const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        if (response.ok) {
+          const googleUser = await response.json();
+          userId = googleUser.id;
+          isGoogleUser = true;
+        }
+      } catch (error) {
+        console.error('Google OAuth verification failed:', error);
+      }
+    }
+  }
+
+  if (!userId) {
     return createErrorResponse(
       new AppError(ErrorCode.UNAUTHORIZED, '로그인이 필요합니다.', 401)
     );
@@ -175,8 +274,72 @@ export async function POST(request: Request) {
       );
     }
 
-    const calendar = getCalendarClient(accessToken);
-    
+    // Email auth users store events in database
+    if (!isGoogleUser) {
+      const { data: newEvent, error: dbError } = await supabase
+        .from('calendar_events')
+        .insert({
+          user_id: userId,
+          summary,
+          description,
+          location,
+          start_time: startDateTime,
+          end_time: endDateTime,
+          attendees: attendees, // JSONB column - pass array directly
+          source: 'local',
+          status: 'confirmed',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('Error creating event in database:', {
+          error: dbError,
+          message: dbError.message,
+          details: dbError.details,
+          hint: dbError.hint,
+          code: dbError.code,
+          data: {
+            userId,
+            summary,
+            attendees,
+            startDateTime,
+            endDateTime
+          }
+        });
+        return createErrorResponse(
+          new AppError(ErrorCode.INTERNAL_ERROR, '이벤트 생성에 실패했습니다.', 500)
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        event: {
+          id: newEvent.id,
+          summary: newEvent.summary,
+          description: newEvent.description,
+          location: newEvent.location,
+          start: {
+            dateTime: newEvent.start_time,
+            timeZone: 'Asia/Seoul'
+          },
+          end: {
+            dateTime: newEvent.end_time,
+            timeZone: 'Asia/Seoul'
+          },
+          attendees: newEvent.attendees || [],
+          status: newEvent.status,
+          source: newEvent.source
+        },
+        message: `이벤트 "${summary}"가 생성되었습니다.`
+      });
+    }
+
+    // Google OAuth users use Google Calendar API
+    const calendar = getCalendarClient(accessToken!);
+
     // 이벤트 생성 요청 구성
     const event = {
       summary,
@@ -205,10 +368,10 @@ export async function POST(request: Request) {
         {
           maxAttempts: 3,
           onRetry: (attempt, error) => {
-            logError(error, { 
-              operation: 'event_create', 
+            logError(error, {
+              operation: 'event_create',
               attempt,
-              eventSummary: summary 
+              eventSummary: summary
             });
           }
         }
@@ -231,8 +394,9 @@ export async function POST(request: Request) {
 
 // PUT: 이벤트 업데이트
 export async function PUT(request: Request) {
-  const accessToken = cookies().get('access_token')?.value;
-  
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
+
   if (!accessToken) {
     return handleApiError(new AuthError());
   }
@@ -298,8 +462,9 @@ export async function PUT(request: Request) {
 
 // DELETE: 이벤트 삭제
 export async function DELETE(request: Request) {
-  const accessToken = cookies().get('access_token')?.value;
-  
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
+
   if (!accessToken) {
     return handleApiError(new AuthError());
   }

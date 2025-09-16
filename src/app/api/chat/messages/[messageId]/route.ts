@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 
 interface RouteParams {
   params: {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     console.log('Fetching message:', messageId);
 
-    const { data: message, error } = await supabaseAdmin
+    const { data: message, error } = await supabase
       .from('chat_messages')
       .select('*')
       .eq('id', messageId)
@@ -76,7 +76,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (data !== undefined) updateData.data = data;
     if (metadata !== undefined) updateData.metadata = metadata;
 
-    const { data: message, error } = await supabaseAdmin
+    const { data: message, error } = await supabase
       .from('chat_messages')
       .update(updateData)
       .eq('id', messageId)
@@ -123,7 +123,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     console.log('Deleting message:', messageId);
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('chat_messages')
       .delete()
       .eq('id', messageId);

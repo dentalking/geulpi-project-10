@@ -6,6 +6,7 @@ import { BackgroundCalendarLayer } from './BackgroundCalendarLayer';
 import { UnifiedAIInterface } from './UnifiedAIInterface';
 import { UnifiedHeader, UnifiedSidebar } from './UnifiedSidebar';
 import { SearchModal } from './SearchModal';
+import { EventsArtifactPanel } from './EventsArtifactPanel';
 import { CalendarEvent } from '@/types';
 import { useToastContext } from '@/providers/ToastProvider';
 import { useRouter } from 'next/navigation';
@@ -68,11 +69,49 @@ function AIOverlayDashboardComponent({
   const [showSearch, setShowSearch] = useState(false);
   const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
+  const [isArtifactOpen, setIsArtifactOpen] = useState(false);
+  const [artifactEvents, setArtifactEvents] = useState<CalendarEvent[]>([]);
+  const [artifactTitle, setArtifactTitle] = useState<string>('');
+  const [artifactQuery, setArtifactQuery] = useState<string>(''); // Store query to re-fetch
   const { toast } = useToastContext();
 
   useEffect(() => {
     setCurrentHighlight(highlightedEventId ?? null);
   }, [highlightedEventId]);
+
+  // Update artifact panel when events change if it's open
+  useEffect(() => {
+    if (isArtifactOpen && artifactQuery) {
+      // Filter current events based on the artifact query
+      let filteredEvents = events;
+
+      if (artifactQuery.includes('오늘') || artifactQuery.includes('today')) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        filteredEvents = events.filter(event => {
+          const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
+          return eventDate >= today && eventDate < tomorrow;
+        });
+      } else if (artifactQuery.includes('이번주') || artifactQuery.includes('this week')) {
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+
+        filteredEvents = events.filter(event => {
+          const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
+          return eventDate >= weekStart && eventDate < weekEnd;
+        });
+      }
+
+      setArtifactEvents(filteredEvents);
+    }
+  }, [events, isArtifactOpen, artifactQuery]);
 
   // 채팅 세션 초기화 및 활성 세션 변경 감지
   useEffect(() => {
@@ -340,6 +379,13 @@ function AIOverlayDashboardComponent({
       const data = await response.json();
       const responseData = data.data || data;
 
+      // 디버깅: AI 응답 확인
+      console.log('[AIOverlayDashboard] AI Response:', {
+        action: responseData.action,
+        events: responseData.events,
+        message: responseData.message
+      });
+
       // AI 응답을 chatStorage에 저장
       if (currentChatSession && responseData.message) {
         try {
@@ -406,7 +452,13 @@ function AIOverlayDashboardComponent({
           }
 
           setIsProcessing(false);
-          return { success: true, message: responseData.message };
+          return { success: true, message: responseData.message, action: responseData.action };
+        }
+
+        // Handle multiple events creation
+        if (actionType === 'create_multiple') {
+          setIsProcessing(false);
+          return { success: true, message: responseData.message, action: responseData.action };
         }
 
         // Handle different action types
@@ -426,62 +478,176 @@ function AIOverlayDashboardComponent({
             setHighlightedEventIds([]);
             // Keep medium focus, don't auto-hide
           }, 5000);
-        } else if (actionType === 'update' || actionType === 'delete') {
+        } else if (actionType === 'update') {
           // Don't show toast - message will appear in chat
-          
-          // Refresh events for update/delete
+
+          // Refresh events for update
           onEventCreated();
-          
+
           // Keep medium focus after action
           setTimeout(() => {
             // Keep medium focus
           }, 3000);
+        } else if (actionType === 'delete') {
+          // Process delete action - actually delete the events
+          const deleteData = responseData.action.data;
+
+          if (deleteData) {
+            // Handle both single eventId and multiple eventIds
+            const eventIdsToDelete = deleteData.eventIds || (deleteData.eventId ? [deleteData.eventId] : []);
+
+            if (eventIdsToDelete.length > 0) {
+              console.log('[AIOverlayDashboard] Deleting events:', eventIdsToDelete);
+
+              // Delete each event
+              const deletePromises = eventIdsToDelete.map(async (eventId: string) => {
+                try {
+                  const response = await fetch(`/api/calendar/events/${eventId}`, {
+                    method: 'DELETE',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                  });
+
+                  if (!response.ok) {
+                    console.error(`Failed to delete event ${eventId}:`, await response.text());
+                    return false;
+                  }
+
+                  const result = await response.json();
+                  console.log(`Event ${eventId} deleted:`, result);
+                  return true;
+                } catch (error) {
+                  console.error(`Error deleting event ${eventId}:`, error);
+                  return false;
+                }
+              });
+
+              // Wait for all deletions to complete
+              const results = await Promise.all(deletePromises);
+              const successCount = results.filter(r => r).length;
+
+              console.log(`[AIOverlayDashboard] Deleted ${successCount}/${eventIdsToDelete.length} events`);
+
+              // Show success feedback if any events were deleted
+              if (successCount > 0) {
+                // Refresh events to update the UI
+                onEventCreated();
+
+                // Optional: Show a subtle visual feedback
+                if (successCount < eventIdsToDelete.length) {
+                  console.warn(`Some events failed to delete: ${eventIdsToDelete.length - successCount} failed`);
+                }
+              }
+            } else {
+              console.warn('[AIOverlayDashboard] No event IDs provided for deletion');
+            }
+          }
+
+          // Keep medium focus after action
+          setTimeout(() => {
+            // Keep medium focus
+          }, 3000);
+        } else if (actionType === 'friend_action') {
+          // Handle friend actions
+          console.log('[AIOverlayDashboard] Processing friend action:', responseData.action);
+
+          const friendAction = responseData.action.data;
+          if (!friendAction) {
+            console.error('No friend action data provided');
+            return { success: false, message: 'Friend action data not provided' };
+          }
+
+          // Call the appropriate friend API based on the action
+          if (friendAction.action === 'add' && friendAction.email) {
+            // Add friend
+            const friendResponse = await fetch('/api/friends/request', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ email: friendAction.email }),
+            });
+
+            const friendData = await friendResponse.json();
+            console.log('[AIOverlayDashboard] Friend request result:', friendData);
+
+          } else if (friendAction.action === 'list') {
+            // Get friend list
+            const friendResponse = await fetch('/api/friends', {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            const friendData = await friendResponse.json();
+            console.log('[AIOverlayDashboard] Friend list:', friendData);
+          }
         } else if (actionType === 'list' || actionType === 'search') {
           // Keep medium focus for search results
-          
-          // Handle date navigation for weekly/monthly queries
-          if (responseData.events && responseData.events.length > 0) {
-            // For weekly queries, navigate to the start of the week
-            const isWeeklyQuery = text.includes('이번주') || text.includes('this week') || 
-                                 text.includes('다음주') || text.includes('next week');
-            
-            if (isWeeklyQuery) {
-              // Navigate to the start of the relevant week
-              const now = new Date();
-              const weekStart = new Date(now);
-              weekStart.setDate(now.getDate() - now.getDay()); // Go to Sunday
-              
-              if (text.includes('다음주') || text.includes('next week')) {
-                weekStart.setDate(weekStart.getDate() + 7);
-              }
-              
-              onDateChange(weekStart);
-            } else {
-              // For other queries, use first event's date
-              const firstEvent = responseData.events[0];
-              const eventDate = new Date(firstEvent.start?.dateTime || firstEvent.start?.date || '');
-              
-              if (!isNaN(eventDate.getTime())) {
-                onDateChange(eventDate);
-              }
+
+          // Open the artifact panel with events - even if empty
+          // Set artifact data and open panel
+          setArtifactEvents(responseData.events || []);
+
+          // Set appropriate title based on query
+          let panelTitle = locale === 'ko' ? '일정 검색 결과' : 'Search Results';
+            if (text.includes('오늘') || text.includes('today')) {
+              panelTitle = locale === 'ko' ? '오늘의 일정' : "Today's Events";
+            } else if (text.includes('이번주') || text.includes('this week')) {
+              panelTitle = locale === 'ko' ? '이번 주 일정' : 'This Week';
+            } else if (text.includes('다음주') || text.includes('next week')) {
+              panelTitle = locale === 'ko' ? '다음 주 일정' : 'Next Week';
+            } else if (text.includes('이번달') || text.includes('this month')) {
+              panelTitle = locale === 'ko' ? '이번 달 일정' : 'This Month';
             }
-            
-            // Highlight all found events
+
+          setArtifactTitle(panelTitle);
+          setArtifactQuery(text); // Store the query for real-time updates
+          setIsArtifactOpen(true);
+
+          // For weekly queries, navigate to the start of the week
+          const isWeeklyQuery = text.includes('이번주') || text.includes('this week') ||
+                               text.includes('다음주') || text.includes('next week');
+
+          if (isWeeklyQuery) {
+            // Navigate to the start of the relevant week
+            const now = new Date();
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay()); // Go to Sunday
+
+            if (text.includes('다음주') || text.includes('next week')) {
+              weekStart.setDate(weekStart.getDate() + 7);
+            }
+
+            onDateChange(weekStart);
+          } else if (responseData.events && responseData.events.length > 0) {
+            // For other queries, use first event's date if available
+            const firstEvent = responseData.events[0];
+            const eventDate = new Date(firstEvent.start?.dateTime || firstEvent.start?.date || '');
+
+            if (!isNaN(eventDate.getTime())) {
+              onDateChange(eventDate);
+            }
+          }
+
+          // Highlight all found events if any
+          if (responseData.events && responseData.events.length > 0) {
             const eventIds = responseData.events
               .filter((e: any) => e.id)
               .map((e: any) => e.id);
-            
+
             if (eventIds.length > 0) {
               setHighlightedEventIds(eventIds);
               setCurrentHighlight(eventIds[0]);
             }
-            
+
             // Don't show toast - results will appear in chat
           } else {
             // No events found - show message
             // Don't show toast - message will appear in chat
           }
-          
           // Keep calendar visible longer for user to see results
           setTimeout(() => {
             setCurrentHighlight(null);
@@ -738,6 +904,61 @@ function AIOverlayDashboardComponent({
             locale === 'ko' ? '일정 선택됨' : 'Event Selected',
             event.summary || (locale === 'ko' ? '제목 없음' : 'Untitled')
           );
+        }}
+      />
+
+      {/* Events Artifact Panel */}
+      <EventsArtifactPanel
+        isOpen={isArtifactOpen}
+        onClose={() => setIsArtifactOpen(false)}
+        events={artifactEvents}
+        title={artifactTitle}
+        locale={locale}
+        onEventEdit={(eventId) => {
+          // Close panel and send edit command to chat
+          setIsArtifactOpen(false);
+          const event = artifactEvents.find(e => e.id === eventId);
+          if (event) {
+            const message = locale === 'ko'
+              ? `"${event.summary}" 일정을 수정하고 싶어요`
+              : `I want to edit the "${event.summary}" event`;
+            // This would trigger the chat to handle the edit
+            toast.info(locale === 'ko' ? '채팅에서 일정 수정을 진행하세요' : 'Edit the event through chat');
+          }
+        }}
+        onEventDelete={async (eventId) => {
+          // Send delete request
+          try {
+            const response = await fetch(`/api/calendar/events/${eventId}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (response.ok) {
+              // Remove from artifact events
+              setArtifactEvents(prev => prev.filter(e => e.id !== eventId));
+              // Refresh main events
+              onEventCreated();
+              toast.success(
+                locale === 'ko' ? '일정이 삭제되었습니다' : 'Event deleted successfully'
+              );
+            } else {
+              toast.error(
+                locale === 'ko' ? '일정 삭제에 실패했습니다' : 'Failed to delete event'
+              );
+            }
+          } catch (error) {
+            console.error('Error deleting event:', error);
+            toast.error(
+              locale === 'ko' ? '일정 삭제 중 오류가 발생했습니다' : 'Error occurred while deleting event'
+            );
+          }
+        }}
+        onRefresh={() => {
+          // Refresh events
+          onEventCreated();
         }}
       />
     </div>

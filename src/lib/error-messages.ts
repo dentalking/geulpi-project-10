@@ -28,6 +28,13 @@ export const getUserFriendlyErrorMessage = (error: any, locale: string = 'ko'): 
       'IMAGE_PROCESSING_ERROR': '이미지를 처리할 수 없어요. 다른 이미지를 시도해주세요.',
       'INVALID_IMAGE': '올바른 이미지 파일이 아니에요.',
       
+      // 친구 관련
+      'ALREADY_FRIENDS': '이미 친구입니다.',
+      'FRIEND_REQUEST_PENDING': '이미 친구 요청이 진행 중입니다.',
+      'FRIEND_NOT_FOUND': '친구를 찾을 수 없습니다.',
+      'AUTHENTICATION_REQUIRED': '인증이 필요합니다.',
+      'FRIEND_REQUEST_FAILED': '친구 요청을 보낼 수 없습니다.',
+
       // 기본
       'default': '일시적인 문제가 발생했어요. 잠시 후 다시 시도해주세요.'
     },
@@ -56,6 +63,13 @@ export const getUserFriendlyErrorMessage = (error: any, locale: string = 'ko'): 
       'IMAGE_PROCESSING_ERROR': 'Could not process the image. Please try another one.',
       'INVALID_IMAGE': 'Invalid image file.',
       
+      // Friends
+      'ALREADY_FRIENDS': 'You are already friends.',
+      'FRIEND_REQUEST_PENDING': 'Friend request is already pending.',
+      'FRIEND_NOT_FOUND': 'Friend not found.',
+      'AUTHENTICATION_REQUIRED': 'Authentication required.',
+      'FRIEND_REQUEST_FAILED': 'Failed to send friend request.',
+
       // Default
       'default': 'Something went wrong. Please try again later.'
     }

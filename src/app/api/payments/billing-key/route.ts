@@ -2,6 +2,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { issueBillingKey } from '@/lib/toss-payments';
 import { verifyToken } from '@/lib/auth/supabase-auth';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// GET billing key info
+export async function GET(request: NextRequest) {
+  try {
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
+    const billingKey = cookieStore.get('billing_key')?.value;
+    const customerKey = cookieStore.get('customer_key')?.value;
+
+    if (!authToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      hasBillingKey: !!billingKey,
+      customerKey: customerKey || null
+    });
+  } catch (error: any) {
+    console.error('Get billing key error:', error);
+    return NextResponse.json(
+      { success: false, message: 'Failed to fetch billing information' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

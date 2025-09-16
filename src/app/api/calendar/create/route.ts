@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 import { GoogleCalendarService } from '@/services/google/GoogleCalendarService';
 import { handleApiError, AuthError } from '@/lib/api-errors';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
+import { getUserTimezone } from '@/lib/timezone';
+import { setRLSContext } from '@/lib/auth/set-rls-context';
 
 export async function POST(request: Request) {
     try {
@@ -21,10 +23,10 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
-        const supabase = supabaseAdmin;
         let userId: string | null = null;
         let googleEventId: string | null = null;
         let source: 'local' | 'google' = 'local';
+        let userTimezone: string = 'Asia/Seoul'; // Default fallback
 
         // Check for email auth first
         if (authToken) {
@@ -32,10 +34,23 @@ export async function POST(request: Request) {
                 const user = await verifyToken(authToken);
                 if (user) {
                     userId = user.id;
+                    // Set user timezone for email auth users
+                    userTimezone = await getUserTimezoneByUserId(userId);
                 }
             } catch (error) {
                 console.error('Email auth verification failed:', error);
             }
+        }
+
+        // Get user timezone for calendar events
+        async function getUserTimezoneByUserId(userId: string): Promise<string> {
+            const { data: userProfile } = await supabase
+                .from('user_profiles')
+                .select('timezone')
+                .eq('user_id', userId)
+                .single();
+
+            return getUserTimezone(userProfile || undefined);
         }
 
         // If Google tokens are available, use Google Calendar
@@ -49,11 +64,11 @@ export async function POST(request: Request) {
                     location: body.location,
                     start: {
                         dateTime: body.startTime,
-                        timeZone: 'Asia/Seoul'
+                        timeZone: userTimezone
                     },
                     end: {
                         dateTime: body.endTime,
-                        timeZone: 'Asia/Seoul'
+                        timeZone: userTimezone
                     },
                     attendees: body.attendees?.map((email: string) => ({ email })) || []
                 });
@@ -73,6 +88,11 @@ export async function POST(request: Request) {
                         if (response.ok) {
                             const googleUser = await response.json();
                             userId = googleUser.id; // This will be the Google user ID
+
+                            // Set user timezone
+                            if (userId) {
+                                userTimezone = await getUserTimezoneByUserId(userId);
+                            }
                         }
                     } catch (error) {
                         console.error('Failed to get user from access token', error);
@@ -89,6 +109,9 @@ export async function POST(request: Request) {
             return handleApiError(new AuthError());
         }
 
+        // Set RLS context for the current user
+        await setRLSContext(userId);
+
         // Save event to Supabase database
         const eventData = {
             user_id: userId,
@@ -98,11 +121,11 @@ export async function POST(request: Request) {
             location: body.location || null,
             start_time: body.startTime,
             end_time: body.endTime,
-            attendees: body.attendees ? JSON.stringify(body.attendees.map((email: string) => ({ email }))) : null,
+            attendees: body.attendees ? body.attendees.map((email: string) => ({ email })) : null,
             source: source,
-            all_day: false,
+            is_all_day: false,  // 수정: all_day -> is_all_day
             color_id: body.colorId || null,
-            reminders: body.reminders ? JSON.stringify(body.reminders) : null,
+            reminders: body.reminders || null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
@@ -114,10 +137,13 @@ export async function POST(request: Request) {
             .single();
 
         if (saveError) {
-            console.error('Error saving event to database:', saveError);
+            console.error('Error saving event to database:', JSON.stringify(saveError, null, 2));
+            console.error('Event data:', JSON.stringify(eventData, null, 2));
+            console.error('RLS context userId:', userId);
             return NextResponse.json({
                 success: false,
-                error: 'Failed to save event to database'
+                error: 'Failed to save event to database',
+                details: saveError.message
             }, { status: 500 });
         }
 

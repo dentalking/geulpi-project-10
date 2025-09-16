@@ -1,10 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
-import { GoogleCalendarService } from '@/services/google/GoogleCalendarService';
-import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
-import { logger } from '@/lib/logger';
-import { supabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
+import { getCalendarClient } from '@/lib/google-auth';
+import { getUserTimezone } from '@/lib/timezone';
+
+// Helper to get user ID from request
+async function getUserIdFromRequest(request: NextRequest): Promise<string | null> {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get('auth-token')?.value;
+
+  if (!authToken) {
+    return null;
+  }
+
+  try {
+    const user = await verifyToken(authToken);
+    return user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to get user timezone from profile
+async function getUserTimezoneFromProfile(userId: string): Promise<string> {
+  const { data: userProfile } = await supabase
+    .from('user_profiles')
+    .select('timezone')
+    .eq('user_id', userId)
+    .single();
+
+  return getUserTimezone(userProfile || undefined);
+}
+
+// Helper to check if ID is a Google Calendar ID
+function isGoogleCalendarId(id: string): boolean {
+  // UUID format: 8-4-4-4-12 hexadecimal digits
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return !uuidRegex.test(id);
+}
 
 // DELETE endpoint for deleting an event
 export async function DELETE(
@@ -12,89 +46,94 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const cookieStore = await cookies();
-    const authToken = cookieStore.get('auth-token')?.value;
-    const accessToken = cookieStore.get('access_token')?.value;
+    const userId = await getUserIdFromRequest(request);
 
-    logger.info('DELETE request received', {
-      hasAuthToken: !!authToken,
-      hasAccessToken: !!accessToken,
-      eventId: params.id
-    });
-
-    if (!authToken && !accessToken) {
-      logger.error('No authentication tokens found');
-      throw new ApiError(
-        401,
-        ErrorCodes.UNAUTHENTICATED,
-        'Authentication required to delete events'
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
     const eventId = params.id;
-    
+
     if (!eventId) {
-      throw new ApiError(
-        400,
-        ErrorCodes.MISSING_FIELD,
-        'Event ID is required'
+      return NextResponse.json(
+        { success: false, error: 'Event ID is required' },
+        { status: 400 }
       );
     }
 
-    logger.info('Deleting calendar event', { eventId });
+    // Check if this is a Google Calendar event
+    if (isGoogleCalendarId(eventId)) {
+      // Get user's auth type
+      const { data: userData } = await supabase
+        .from('users')
+        .select('auth_type')
+        .eq('id', userId)
+        .single();
 
-    const supabase = supabaseAdmin;
-    const refreshToken = cookieStore.get('refresh_token')?.value;
-    let userId: string | null = null;
+      if (userData?.auth_type === 'google_oauth') {
+        // Delete from Google Calendar
+        const cookieStore = await cookies();
+        const accessToken = cookieStore.get('google_access_token')?.value;
+        const refreshToken = cookieStore.get('google_refresh_token')?.value;
 
-    // Check for email auth first
-    if (authToken) {
-      try {
-        const user = await verifyToken(authToken);
-        if (user) {
-          userId = user.id;
+        if (!accessToken) {
+          return NextResponse.json(
+            { success: false, error: 'Google authentication required' },
+            { status: 401 }
+          );
         }
-      } catch (error) {
-        logger.error('Email auth verification failed', error);
-      }
-    }
 
-    // Get user ID from Supabase session if not from email auth
-    if (!userId && accessToken) {
-      // For Google OAuth users, extract user ID from the access token
-      // The access token from Google contains the Google user ID
-      logger.info('Attempting to get user ID from access token');
+        try {
+          const calendar = getCalendarClient(accessToken, refreshToken);
+          await calendar.events.delete({
+            calendarId: 'primary',
+            eventId: eventId,
+          });
 
-      // Try to get user info from Google OAuth
-      try {
-        const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
+          console.log('Successfully deleted Google Calendar event:', eventId);
+
+          return NextResponse.json({
+            success: true,
+            message: 'Event deleted from Google Calendar',
+            deletedId: eventId
+          });
+        } catch (error: any) {
+          console.error('Error deleting from Google Calendar:', error);
+
+          // If event not found or already deleted, return success (it's already gone)
+          const errorMessage = error.message?.toLowerCase() || '';
+          const statusCode = error.code || error.response?.status;
+
+          if (statusCode === 404 ||
+              statusCode === 410 ||
+              errorMessage.includes('not found') ||
+              errorMessage.includes('resource has been deleted') ||
+              errorMessage.includes('deleted')) {
+            console.log('Event already deleted or not found, treating as success:', eventId);
+            return NextResponse.json({
+              success: true,
+              message: 'Event deleted from Google Calendar',
+              deletedId: eventId
+            });
           }
-        });
 
-        if (response.ok) {
-          const googleUser = await response.json();
-          userId = googleUser.id; // This will be the Google user ID
-          logger.info('Got Google user ID', { userId });
-        } else {
-          logger.error('Failed to get Google user info', { status: response.status });
+          return NextResponse.json(
+            { success: false, error: 'Failed to delete event from Google Calendar' },
+            { status: 500 }
+          );
         }
-      } catch (error) {
-        logger.error('Failed to get user from access token', error);
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Cannot delete Google Calendar events without Google OAuth' },
+          { status: 403 }
+        );
       }
     }
 
-    if (!userId) {
-      throw new ApiError(
-        401,
-        ErrorCodes.UNAUTHENTICATED,
-        'Authentication required to delete events'
-      );
-    }
-
-    // Get the existing event from Supabase
-    // For Google OAuth users, we need to handle the case where user_id might be null
+    // For local database events
     const { data: existingEvent, error: fetchError } = await supabase
       .from('calendar_events')
       .select('*')
@@ -102,75 +141,45 @@ export async function DELETE(
       .single();
 
     if (fetchError || !existingEvent) {
-      throw new ApiError(
-        404,
-        ErrorCodes.NOT_FOUND,
-        'Event not found'
+      return NextResponse.json(
+        { success: false, error: 'Event not found' },
+        { status: 404 }
       );
     }
 
-    // Check if user has permission to delete/update this event
-    // Since user_id is now TEXT, we can directly compare Google OAuth IDs
-    // Allow if user_id is null (legacy events) or matches the request user ID
-    logger.info('Event ownership check', {
-      eventUserId: existingEvent.user_id,
-      requestUserId: userId,
-      isNull: existingEvent.user_id === null,
-      isOwner: existingEvent.user_id === userId || existingEvent.user_id === null
-    });
-
-    // Verify ownership
-    if (existingEvent.user_id !== null && existingEvent.user_id !== userId) {
-      throw new ApiError(
-        403,
-        ErrorCodes.UNAUTHORIZED,
-        'You do not have permission to delete this event'
+    // Check if user has permission to delete this event
+    if (existingEvent.user_id !== userId) {
+      return NextResponse.json(
+        { success: false, error: 'You do not have permission to delete this event' },
+        { status: 403 }
       );
     }
 
-    // If this is a Google Calendar event, delete it from Google Calendar first
-    if (existingEvent.google_event_id && accessToken && refreshToken) {
-      try {
-        const googleCalendar = new GoogleCalendarService(accessToken, refreshToken);
-        await googleCalendar.deleteEvent(existingEvent.google_event_id);
-        logger.info('Event deleted from Google Calendar', { googleEventId: existingEvent.google_event_id });
-      } catch (error) {
-        logger.error('Google Calendar delete failed:', error);
-        // Continue with Supabase deletion even if Google fails
-      }
-    }
-
-    // Delete event from Supabase database
-    // Since we've already verified ownership, we can delete by ID only
+    // Delete event from database
     const { error: deleteError } = await supabase
       .from('calendar_events')
       .delete()
       .eq('id', eventId);
 
     if (deleteError) {
-      logger.error('Error deleting event from database:', deleteError);
-      throw new ApiError(
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        'Failed to delete event from database'
+      console.error('Error deleting event from database:', deleteError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete event from database' },
+        { status: 500 }
       );
     }
 
-    logger.info('Event deleted successfully', { userId, eventId });
-    
-    return successResponse({
-      deleted: eventId,
-      message: 'Event deleted successfully'
+    return NextResponse.json({
+      success: true,
+      message: 'Event deleted successfully',
+      deletedId: eventId
     });
 
   } catch (error) {
-    if (error instanceof ApiError) {
-      return errorResponse(error);
-    }
-    
-    logger.error('Calendar delete error', error);
-    return errorResponse(
-      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to delete calendar event')
+    console.error('Calendar delete error', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete calendar event' },
+      { status: 500 }
     );
   }
 }
@@ -181,83 +190,114 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const cookieStore = await cookies();
-    const authToken = cookieStore.get('auth-token')?.value;
-    const accessToken = cookieStore.get('access_token')?.value;
+    const userId = await getUserIdFromRequest(request);
 
-    if (!authToken && !accessToken) {
-      throw new ApiError(
-        401,
-        ErrorCodes.UNAUTHENTICATED,
-        'Authentication required to update events'
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
     const eventId = params.id;
     const updates = await request.json();
-    
+
     if (!eventId) {
-      throw new ApiError(
-        400,
-        ErrorCodes.MISSING_FIELD,
-        'Event ID is required'
+      return NextResponse.json(
+        { success: false, error: 'Event ID is required' },
+        { status: 400 }
       );
     }
 
-    logger.info('Updating calendar event', { eventId });
+    // Check if this is a Google Calendar event
+    if (isGoogleCalendarId(eventId)) {
+      // Get user's auth type
+      const { data: userData } = await supabase
+        .from('users')
+        .select('auth_type')
+        .eq('id', userId)
+        .single();
 
-    const supabase = supabaseAdmin;
-    const refreshToken = cookieStore.get('refresh_token')?.value;
-    let userId: string | null = null;
+      if (userData?.auth_type === 'google_oauth') {
+        // Update in Google Calendar
+        const cookieStore = await cookies();
+        const accessToken = cookieStore.get('google_access_token')?.value;
+        const refreshToken = cookieStore.get('google_refresh_token')?.value;
 
-    // Check for email auth first
-    if (authToken) {
-      try {
-        const user = await verifyToken(authToken);
-        if (user) {
-          userId = user.id;
+        if (!accessToken) {
+          return NextResponse.json(
+            { success: false, error: 'Google authentication required' },
+            { status: 401 }
+          );
         }
-      } catch (error) {
-        logger.error('Email auth verification failed', error);
-      }
-    }
 
-    // Get user ID from Supabase session if not from email auth
-    if (!userId && accessToken) {
-      // For Google OAuth users, extract user ID from the access token
-      // The access token from Google contains the Google user ID
-      logger.info('Attempting to get user ID from access token');
+        try {
+          const calendar = getCalendarClient(accessToken, refreshToken);
 
-      // Try to get user info from Google OAuth
-      try {
-        const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
+          // First get the existing event to merge updates
+          const { data: existingEvent } = await calendar.events.get({
+            calendarId: 'primary',
+            eventId: eventId,
+          });
+
+          // Prepare update data for Google Calendar
+          const eventUpdate: any = {
+            summary: updates.title || updates.summary || existingEvent.summary,
+            description: updates.description !== undefined ? updates.description : existingEvent.description,
+            location: updates.location !== undefined ? updates.location : existingEvent.location,
+          };
+
+          // Handle date/time updates
+          if (updates.startTime || updates.endTime) {
+            const userTimezone = await getUserTimezoneFromProfile(userId);
+
+            eventUpdate.start = updates.startTime ? {
+              dateTime: updates.startTime,
+              timeZone: userTimezone
+            } : existingEvent.start;
+
+            eventUpdate.end = updates.endTime ? {
+              dateTime: updates.endTime,
+              timeZone: userTimezone
+            } : existingEvent.end;
           }
-        });
 
-        if (response.ok) {
-          const googleUser = await response.json();
-          userId = googleUser.id; // This will be the Google user ID
-          logger.info('Got Google user ID', { userId });
-        } else {
-          logger.error('Failed to get Google user info', { status: response.status });
+          const { data: updatedEvent } = await calendar.events.update({
+            calendarId: 'primary',
+            eventId: eventId,
+            requestBody: eventUpdate,
+          });
+
+          console.log('Successfully updated Google Calendar event:', eventId);
+
+          return NextResponse.json({
+            success: true,
+            event: {
+              id: updatedEvent.id,
+              summary: updatedEvent.summary,
+              description: updatedEvent.description,
+              location: updatedEvent.location,
+              start_time: updatedEvent.start?.dateTime || updatedEvent.start?.date,
+              end_time: updatedEvent.end?.dateTime || updatedEvent.end?.date,
+            },
+            message: 'Event updated in Google Calendar'
+          });
+        } catch (error: any) {
+          console.error('Error updating Google Calendar event:', error);
+          return NextResponse.json(
+            { success: false, error: 'Failed to update event in Google Calendar' },
+            { status: 500 }
+          );
         }
-      } catch (error) {
-        logger.error('Failed to get user from access token', error);
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Cannot update Google Calendar events without Google OAuth' },
+          { status: 403 }
+        );
       }
     }
 
-    if (!userId) {
-      throw new ApiError(
-        401,
-        ErrorCodes.UNAUTHENTICATED,
-        'Authentication required to update events'
-      );
-    }
-
-    // Get the existing event from Supabase
-    // For Google OAuth users, we need to handle the case where user_id might be null
+    // For local database events
     const { data: existingEvent, error: fetchError } = await supabase
       .from('calendar_events')
       .select('*')
@@ -265,80 +305,27 @@ export async function PUT(
       .single();
 
     if (fetchError || !existingEvent) {
-      throw new ApiError(
-        404,
-        ErrorCodes.NOT_FOUND,
-        'Event not found'
+      return NextResponse.json(
+        { success: false, error: 'Event not found' },
+        { status: 404 }
       );
     }
 
-    // Check if user has permission to delete/update this event
-    // Since user_id is now TEXT, we can directly compare Google OAuth IDs
-    // Allow if user_id is null (legacy events) or matches the request user ID
-    logger.info('Event ownership check', {
-      eventUserId: existingEvent.user_id,
-      requestUserId: userId,
-      isNull: existingEvent.user_id === null,
-      isOwner: existingEvent.user_id === userId || existingEvent.user_id === null
-    });
-
-    // Verify ownership
-    if (existingEvent.user_id !== null && existingEvent.user_id !== userId) {
-      throw new ApiError(
-        403,
-        ErrorCodes.UNAUTHORIZED,
-        'You do not have permission to update this event'
+    // Check if user has permission to update this event
+    if (existingEvent.user_id !== userId) {
+      return NextResponse.json(
+        { success: false, error: 'You do not have permission to update this event' },
+        { status: 403 }
       );
     }
 
-    // If this is a Google Calendar event, update it in Google Calendar first
-    if (existingEvent.google_event_id && accessToken && refreshToken) {
-      try {
-        const googleCalendar = new GoogleCalendarService(accessToken, refreshToken);
-        
-        const googleUpdates = {
-          summary: updates.title || updates.summary,
-          description: updates.description,
-          location: updates.location,
-          start: updates.startTime ? {
-            dateTime: updates.startTime,
-            timeZone: 'Asia/Seoul'
-          } : undefined,
-          end: updates.endTime ? {
-            dateTime: updates.endTime,
-            timeZone: 'Asia/Seoul'
-          } : undefined,
-          attendees: updates.attendees?.map((email: string) => ({ email }))
-        };
-
-        // Remove undefined fields
-        Object.keys(googleUpdates).forEach(key => {
-          if ((googleUpdates as any)[key] === undefined) {
-            delete (googleUpdates as any)[key];
-          }
-        });
-
-        await googleCalendar.updateEvent(
-          existingEvent.google_event_id,
-          googleUpdates
-        );
-        logger.info('Event updated in Google Calendar', { googleEventId: existingEvent.google_event_id });
-      } catch (error) {
-        logger.error('Google Calendar update failed:', error);
-        // Continue with Supabase update even if Google fails
-      }
-    }
-
-    // Update event in Supabase database
+    // Update event in database
     const updateData = {
       summary: updates.title || updates.summary || existingEvent.summary,
       description: updates.description !== undefined ? updates.description : existingEvent.description,
       location: updates.location !== undefined ? updates.location : existingEvent.location,
       start_time: updates.startTime || existingEvent.start_time,
       end_time: updates.endTime || existingEvent.end_time,
-      attendees: updates.attendees ? JSON.stringify(updates.attendees.map((email: string) => ({ email }))) : existingEvent.attendees,
-      color_id: updates.colorId !== undefined ? updates.colorId : existingEvent.color_id,
-      reminders: updates.reminders ? JSON.stringify(updates.reminders) : existingEvent.reminders,
       updated_at: new Date().toISOString()
     };
 
@@ -350,29 +337,24 @@ export async function PUT(
       .single();
 
     if (updateError) {
-      logger.error('Error updating event in database:', updateError);
-      throw new ApiError(
-        500,
-        ErrorCodes.INTERNAL_ERROR,
-        'Failed to update event in database'
+      console.error('Error updating event in database:', updateError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to update event in database' },
+        { status: 500 }
       );
     }
 
-    logger.info('Event updated successfully', { userId, eventId });
-    
-    return successResponse({
+    return NextResponse.json({
+      success: true,
       event: updatedEvent,
       message: 'Event updated successfully'
     });
 
   } catch (error) {
-    if (error instanceof ApiError) {
-      return errorResponse(error);
-    }
-    
-    logger.error('Calendar update error', error);
-    return errorResponse(
-      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to update calendar event')
+    console.error('Calendar update error', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update calendar event' },
+      { status: 500 }
     );
   }
 }

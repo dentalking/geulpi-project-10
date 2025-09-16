@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Create Supabase client for server-side operations
-const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
+import { check2FAEnabled } from './two-factor-auth';
+import { pending2FAStore } from './pending-2fa-store';
+import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -15,21 +11,23 @@ export interface User {
   id: string;
   email: string;
   name: string | null;
+  auth_type: 'standard' | 'google_oauth';
 }
 
 export async function registerUser(email: string, password: string, name?: string): Promise<User> {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Insert user into Supabase users table
+    // Insert user into Supabase users table with standard auth type
     const { data, error } = await supabase
       .from('users')
       .insert({
         email,
         password: hashedPassword,
-        name: name || email.split('@')[0]
+        name: name || email.split('@')[0],
+        auth_type: 'standard'
       })
-      .select('id, email, name')
+      .select('id, email, name, auth_type')
       .single();
     
     if (error) {
@@ -46,38 +44,61 @@ export async function registerUser(email: string, password: string, name?: strin
   }
 }
 
-export async function loginUser(email: string, password: string): Promise<{ user: User; token: string }> {
+export async function loginUser(email: string, password: string, rememberMe: boolean = false): Promise<{ user?: User; token?: string; requires2FA?: boolean; pendingToken?: string }> {
   try {
-    // Get user from Supabase
+    // Get user from Supabase (only standard auth users)
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, password, name')
+      .select('id, email, password, name, auth_type')
       .eq('email', email)
+      .eq('auth_type', 'standard')
       .single();
-    
+
     if (error || !user) {
       throw new Error('Invalid email or password');
     }
-    
+
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    
+
     if (!isPasswordValid) {
       throw new Error('Invalid email or password');
     }
-    
-    // Generate JWT token
+
+    // Check if 2FA is enabled
+    const has2FA = await check2FAEnabled(user.id);
+
+    if (has2FA) {
+      // Generate pending token for 2FA verification
+      const pendingToken = uuidv4();
+
+      // Store pending login info
+      await pending2FAStore.set(pendingToken, {
+        userId: user.id,
+        email: user.email,
+        rememberMe,
+        timestamp: Date.now()
+      });
+
+      return {
+        requires2FA: true,
+        pendingToken
+      };
+    }
+
+    // Generate JWT token if no 2FA
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: rememberMe ? '30d' : '7d' }
     );
-    
+
     return {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        auth_type: user.auth_type
       },
       token
     };
@@ -93,7 +114,7 @@ export async function verifyToken(token: string): Promise<User | null> {
     
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, created_at')
+      .select('id, email, name, auth_type, created_at')
       .eq('id', decoded.userId)
       .single();
     
@@ -113,7 +134,7 @@ export async function updateUserProfile(userId: string, updates: { name?: string
       .from('users')
       .update(updates)
       .eq('id', userId)
-      .select('id, email, name, created_at')
+      .select('id, email, name, auth_type, created_at')
       .single();
     
     if (error) {

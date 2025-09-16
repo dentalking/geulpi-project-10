@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
-import { supabaseAdmin } from '@/lib/supabase';
-import { handleApiError, AuthError } from '@/lib/api-errors';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
 
 export async function POST(request: Request) {
     try {
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
 
         let userId: string | null = null;
 
-        // Check for email auth
+        // Check for supabase auth token
         if (authToken) {
             try {
                 const user = await verifyToken(authToken);
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                console.error('Supabase auth verification failed:', error);
             }
         }
 
@@ -43,17 +42,20 @@ export async function POST(request: Request) {
             const cookieStore = await cookies();
             const accessToken = cookieStore.get('access_token')?.value;
             if (accessToken) {
-                const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+                const { data: { user } } = await supabase.auth.getUser(accessToken);
                 userId = user?.id || null;
             }
         }
 
         if (!userId) {
-            return handleApiError(new AuthError());
+            return NextResponse.json({
+                success: false,
+                error: 'Authentication required'
+            }, { status: 401 });
         }
 
         // Get the friend request
-        const { data: friendRequest, error: fetchError } = await supabaseAdmin
+        const { data: friendRequest, error: fetchError } = await supabase
             .from('friends')
             .select(`
                 id, 
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
 
         if (action === 'accept') {
             // Update the friend request status to accepted
-            const { error: updateError } = await supabaseAdmin
+            const { error: updateError } = await supabase
                 .from('friends')
                 .update({ 
                     status: 'accepted',
@@ -93,7 +95,7 @@ export async function POST(request: Request) {
             }
 
             // Create reciprocal friendship (both directions)
-            const { error: reciprocalError } = await supabaseAdmin
+            const { error: reciprocalError } = await supabase
                 .from('friends')
                 .insert({
                     user_id: userId,
@@ -115,7 +117,7 @@ export async function POST(request: Request) {
             });
         } else {
             // Decline the friend request by deleting it
-            const { error: deleteError } = await supabaseAdmin
+            const { error: deleteError } = await supabase
                 .from('friends')
                 .delete()
                 .eq('id', friendRequestId);
@@ -136,6 +138,10 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {
-        return handleApiError(error);
+        console.error('Error in POST /api/friends/respond:', error);
+        return NextResponse.json({
+            success: false,
+            error: 'Internal server error'
+        }, { status: 500 });
     }
 }

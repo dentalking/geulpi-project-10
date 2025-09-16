@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -12,7 +12,7 @@ export async function GET() {
 
     // chat_sessions 테이블 확인
     try {
-      const { data: sessions, error: sessionsError, count } = await supabaseAdmin
+      const { data: sessions, error: sessionsError, count } = await supabase
         .from('chat_sessions')
         .select('*', { count: 'exact', head: true });
 
@@ -28,7 +28,7 @@ export async function GET() {
 
     // chat_messages 테이블 확인
     try {
-      const { data: messages, error: messagesError, count } = await supabaseAdmin
+      const { data: messages, error: messagesError, count } = await supabase
         .from('chat_messages')
         .select('*', { count: 'exact', head: true });
 

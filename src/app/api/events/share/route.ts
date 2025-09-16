@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
 import { handleApiError, AuthError } from '@/lib/api-errors';
 
 // POST: 이벤트를 친구들과 공유
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
             const cookieStore = await cookies();
             const accessToken = cookieStore.get('access_token')?.value;
             if (accessToken) {
-                const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+                const { data: { user } } = await supabase.auth.getUser(accessToken);
                 userId = user?.id || null;
             }
         }
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         }
 
         // 이벤트가 사용자의 소유인지 확인
-        const { data: event, error: eventError } = await supabaseAdmin
+        const { data: event, error: eventError } = await supabase
             .from('calendar_events')
             .select('id, user_id, summary, shared_with')
             .eq('id', eventId)
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         }
 
         // 친구들이 실제로 친구인지 확인
-        const { data: friendships, error: friendError } = await supabaseAdmin
+        const { data: friendships, error: friendError } = await supabase
             .from('friends')
             .select('friend_id, user_id')
             .or(
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
         const newSharedWith = [...new Set([...currentSharedWith, ...friendIds])];
 
         // 이벤트의 shared_with 필드 업데이트
-        const { error: updateError } = await supabaseAdmin
+        const { error: updateError } = await supabase
             .from('calendar_events')
             .update({
                 shared_with: newSharedWith,
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
         }
 
         // 친구 정보 가져오기
-        const { data: friends, error: friendsError } = await supabaseAdmin
+        const { data: friends, error: friendsError } = await supabase
             .from('users')
             .select('id, email, name')
             .in('id', friendIds);
@@ -166,7 +166,7 @@ export async function DELETE(request: Request) {
             const cookieStore = await cookies();
             const accessToken = cookieStore.get('access_token')?.value;
             if (accessToken) {
-                const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+                const { data: { user } } = await supabase.auth.getUser(accessToken);
                 userId = user?.id || null;
             }
         }
@@ -176,7 +176,7 @@ export async function DELETE(request: Request) {
         }
 
         // 이벤트가 사용자의 소유인지 확인
-        const { data: event, error: eventError } = await supabaseAdmin
+        const { data: event, error: eventError } = await supabase
             .from('calendar_events')
             .select('id, user_id, summary, shared_with')
             .eq('id', eventId)
@@ -195,7 +195,7 @@ export async function DELETE(request: Request) {
         const newSharedWith = currentSharedWith.filter((id: string) => !friendIds.includes(id));
 
         // 이벤트의 shared_with 필드 업데이트
-        const { error: updateError } = await supabaseAdmin
+        const { error: updateError } = await supabase
             .from('calendar_events')
             .update({
                 shared_with: newSharedWith

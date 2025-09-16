@@ -8,60 +8,229 @@ generator client {
 datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Two-Factor Authentication fields
-  twoFactorSecret      String?   // TOTP secret (encrypted)
-  twoFactorEnabled     Boolean   @default(false)
-  twoFactorBackupCodes String?   // JSON array of backup codes (encrypted)
-  twoFactorEnabledAt   DateTime? // When 2FA was enabled
-  twoFactorVerifiedAt  DateTime? // Last successful 2FA verification
+  id                    String   @id @default(uuid()) @map("id")
+  email                 String   @unique
+  password              String?  // Nullable for OAuth users
+  name                  String?
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  authType              String   @default("standard") @map("auth_type")
+  googleUserId          String?  @unique @map("google_user_id")
+  googleAccessToken     String?  @map("google_access_token")
+  googleRefreshToken    String?  @map("google_refresh_token")
+  googleCalendarEnabled Boolean  @default(false) @map("google_calendar_enabled")
 
   // Relations
-  events      Event[]
-  searchLogs  SearchLog[]
+  profile         UserProfile?
+  calendarEvents  CalendarEvent[]
+  chatSessions    ChatSession[]
+  friendGroups    FriendGroup[]
+  friendsAsUser   Friend[] @relation("UserFriends")
+  friendsAsFriend Friend[] @relation("FriendOf")
+  invitationsSent FriendInvitation[]
+  calendarSharingOwner   CalendarSharing[] @relation("CalendarOwner")
+  calendarSharingWith    CalendarSharing[] @relation("CalendarSharedWith")
 
+  @@map("users")
   @@index([email])
 }
 
-model Event {
-  id          String   @id @default(cuid())
-  userId      String
-  title       String
-  description String?
-  location    String?
-  start       DateTime
-  end         DateTime?
-  allDay      Boolean  @default(false)
-  color       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([start])
-  @@index([title])
+model UserProfile {
+  id                  String    @id @default(uuid())
+  userId              String    @unique @map("user_id")
+  fullName            String?   @map("full_name")
+  nickname            String?
+  dateOfBirth         DateTime? @map("date_of_birth") @db.Date
+  occupation          String?
+  bio                 String?
+  homeAddress         String?   @map("home_address")
+  homeLatitude        Decimal?  @map("home_latitude")
+  homeLongitude       Decimal?  @map("home_longitude")
+  workAddress         String?   @map("work_address")
+  workLatitude        Decimal?  @map("work_latitude")
+  workLongitude       Decimal?  @map("work_longitude")
+  workStartTime       DateTime? @map("work_start_time") @db.Time()
+  workEndTime         DateTime? @map("work_end_time") @db.Time()
+  workingDays         Json?     @map("working_days") @default("[\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]")
+  preferredLanguage   String?   @map("preferred_language") @default("ko") @db.VarChar(10)
+  timezone            String?   @default("Asia/Seoul") @db.VarChar(50)
+  wakeUpTime          DateTime? @map("wake_up_time") @db.Time()
+  sleepTime           DateTime? @map("sleep_time") @db.Time()
+  lifeContext         Json?     @map("life_context") @default("{}")
+  interests           String[]
+  goals               String[]
+  importantDates      Json?     @map("important_dates") @default("[]")
+  familyMembers       Json?     @map("family_members") @default("[]")
+  emergencyContact    Json?     @map("emergency_contact") @default("{}")
+  allergies           String[]
+  dietaryPreferences  String[]  @map("dietary_preferences")
+  exerciseRoutine     String?   @map("exercise_routine")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
 }
 
-model SearchLog {
-  id           String   @id @default(cuid())
-  userId       String
-  query        String
-  resultsCount Int      @default(0)
-  timestamp    DateTime @default(now())
-  
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+model CalendarEvent {
+  id                String    @id @default(uuid())
+  userId            String?   @map("user_id")
+  googleEventId     String?   @unique @map("google_event_id")
+  summary           String
+  description       String?
+  location          String?
+  startTime         DateTime  @map("start_time")
+  endTime           DateTime  @map("end_time")
+  isAllDay          Boolean?  @default(false) @map("is_all_day")
+  timezone          String?   @default("Asia/Seoul") @db.VarChar(50)
+  attendees         Json?     @default("[]")
+  organizer         Json?     @default("{}")
+  creator           Json?     @default("{}")
+  reminders         Json?     @default("{}")
+  recurrence        Json?
+  recurringEventId  String?   @map("recurring_event_id") @db.Uuid
+  status            String?   @default("confirmed") @db.VarChar(20)
+  visibility        String?   @default("default") @db.VarChar(20)
+  transparency      String?   @default("opaque") @db.VarChar(20)
+  colorId           String?   @map("color_id") @db.VarChar(20)
+  category          String?   @db.VarChar(50)
+  tags              String[]
+  sharedWith        String[]  @map("shared_with")
+  sharePermission   String?   @default("view") @map("share_permission") @db.VarChar(10)
+  source            String?   @default("local") @db.VarChar(20)
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  metadata          Json?     @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  googleUserId      String?   @map("google_user_id")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_events")
   @@index([userId])
-  @@index([timestamp])
-  @@index([query])
+  @@index([startTime])
+  @@index([summary])
+}
+
+model ChatSession {
+  id        String    @id @default(uuid())
+  userId    String?   @map("user_id")
+  title     String    @default("새 채팅")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  isActive  Boolean?  @default(false) @map("is_active")
+  metadata  Json?     @default("{}")
+
+  user     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@map("chat_sessions")
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  sessionId   String   @map("session_id") @db.Uuid
+  role        String
+  content     String
+  messageType String   @default("text") @map("message_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+  data        Json?    @default("{}")
+  metadata    Json?    @default("{}")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+  @@index([sessionId])
+}
+
+model Friend {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  friendId          String    @map("friend_id")
+  status            String    @default("pending") @db.VarChar(20)
+  relationshipType  String?   @map("relationship_type") @db.VarChar(50)
+  nickname          String?   @db.VarChar(100)
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  acceptedAt        DateTime? @map("accepted_at")
+  meetingFrequency  Int?      @default(0) @map("meeting_frequency")
+  lastMeetingDate   DateTime? @map("last_meeting_date") @db.Date
+  commonLocations   Json?     @map("common_locations")
+  commonEventTypes  Json?     @map("common_event_types")
+
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@map("friends")
+  @@index([userId])
+  @@index([friendId])
+}
+
+model FriendGroup {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  groupName   String   @map("group_name") @db.VarChar(100)
+  groupColor  String?  @map("group_color") @db.VarChar(20)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members FriendGroupMember[]
+
+  @@map("friend_groups")
+  @@index([userId])
+}
+
+model FriendGroupMember {
+  groupId  String   @map("group_id") @db.Uuid
+  friendId String   @map("friend_id")
+  addedAt  DateTime @default(now()) @map("added_at")
+
+  group FriendGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, friendId])
+  @@map("friend_group_members")
+}
+
+model FriendInvitation {
+  id            String    @id @default(uuid())
+  inviterId     String    @map("inviter_id")
+  inviteeEmail  String    @map("invitee_email") @db.VarChar(255)
+  invitationCode String   @unique @map("invitation_code") @db.VarChar(100)
+  message       String?
+  status        String?   @default("pending") @db.VarChar(20)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  expiresAt     DateTime  @default(dbgenerated("(now() + '7 days'::interval)")) @map("expires_at")
+  acceptedAt    DateTime? @map("accepted_at")
+
+  inviter User @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@map("friend_invitations")
+  @@index([inviterId])
+  @@index([invitationCode])
+}
+
+model CalendarSharing {
+  id               String   @id @default(uuid())
+  ownerId          String   @map("owner_id")
+  sharedWithId     String   @map("shared_with_id")
+  permissionLevel  String?  @default("view") @map("permission_level") @db.VarChar(20)
+  shareAllEvents   Boolean? @default(false) @map("share_all_events")
+  sharedCategories Json?    @map("shared_categories")
+  hideDetails      Boolean? @default(false) @map("hide_details")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  owner      User @relation("CalendarOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  sharedWith User @relation("CalendarSharedWith", fields: [sharedWithId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_sharing")
+  @@index([ownerId])
+  @@index([sharedWithId])
 }

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/middleware/rateLimiter';
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     logger.info('Fetching messages for session', { sessionId, limit, offset, order });
 
-    const { data: messages, error } = await supabaseAdmin
+    const { data: messages, error } = await supabase
       .from('chat_messages')
       .select('*')
       .eq('session_id', sessionId)
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 세션이 존재하는지 확인
-    const { data: session, error: sessionError } = await supabaseAdmin
+    const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
       .select('id')
       .eq('id', sessionId)
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     }
 
     // UUID는 데이터베이스에서 자동 생성
-    const { data: message, error } = await supabaseAdmin
+    const { data: message, error } = await supabase
       .from('chat_messages')
       .insert({
         session_id: sessionId,

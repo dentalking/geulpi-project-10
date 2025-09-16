@@ -7,20 +7,45 @@ import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
 import { createClient } from '@supabase/supabase-js';
 import { getUserFriendlyErrorMessage, getErrorSuggestions } from '@/lib/error-messages';
-import { checkDuplicateEvent, recentEventCache, getDuplicateWarningMessage } from '@/lib/duplicate-detector';
+import { checkDuplicateEvent, checkDuplicateEventWithCache, recentEventCache, getDuplicateWarningMessage } from '@/lib/duplicate-detector';
 import { generateSmartSuggestions } from '@/lib/smart-suggestions';
 import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
+import { getUserTimezone, getStartOfDay } from '@/lib/timezone';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/middleware/rateLimiter';
+import { withAILimit, withEventLock, withDebounce } from '@/lib/concurrency-manager';
 import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
 import type { CalendarEvent } from '@/types';
 
 const chatService = new ChatCalendarService();
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Using unified supabase client from @/lib/db
+
+// Helper function to calculate end time
+function calculateEndTime(date: string, time: string, durationMinutes: number): string {
+  const [hour, minute] = time.split(':');
+  const startHour = parseInt(hour);
+  const startMinute = parseInt(minute);
+
+  let endHour = startHour + Math.floor(durationMinutes / 60);
+  let endMinute = startMinute + (durationMinutes % 60);
+
+  if (endMinute >= 60) {
+    endHour += 1;
+    endMinute -= 60;
+  }
+
+  let endDate = date;
+  if (endHour >= 24) {
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    endDate = nextDay.toISOString().split('T')[0];
+    endHour = endHour % 24;
+  }
+
+  return `${endDate}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
+}
 
 export async function POST(request: NextRequest) {
   let body: any;
@@ -31,25 +56,34 @@ export async function POST(request: NextRequest) {
     const rateLimitResponse = await checkRateLimit(request, 'ai');
     if (rateLimitResponse) return rateLimitResponse;
     body = await request.json();
-    const { message, type = 'text', imageData, mimeType, sessionId, timezone = 'Asia/Seoul', lastExtractedEvent } = body;
+    const { message, type = 'text', imageData, mimeType, sessionId, timezone: requestTimezone, lastExtractedEvent } = body;
     locale = body.locale || 'ko';
 
-    logger.info('AI Chat API request received', { 
-      messageLength: message?.length, 
-      type, 
+    logger.info('AI Chat API request received', {
+      messageLength: message?.length,
+      type,
       hasImage: !!imageData,
       imageDataLength: imageData?.length,
       mimeType,
       sessionId,
       locale,
-      timezone
+      timezone: requestTimezone
     });
 
     // Get auth tokens
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('access_token')?.value;
-    const refreshToken = cookieStore.get('refresh_token')?.value;
-    const authToken = cookieStore.get('auth-token')?.value;
+    const cookieStore = await cookies();
+    const authHeader = request.headers.get('authorization');
+    // Check for Google OAuth tokens with correct cookie names
+    const accessToken = cookieStore.get('google_access_token')?.value || cookieStore.get('access_token')?.value;
+    const refreshToken = cookieStore.get('google_refresh_token')?.value || cookieStore.get('refresh_token')?.value;
+
+    // Check for auth token in Authorization header or cookies
+    let authToken: string | null = null;
+    if (authHeader?.startsWith('auth-token ')) {
+      authToken = authHeader.substring(11);
+    } else {
+      authToken = cookieStore.get('auth-token')?.value || null;
+    }
     
     // Debug logging for production
     if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
@@ -81,16 +115,23 @@ export async function POST(request: NextRequest) {
     // For email auth users, we won't have Google Calendar access
     // So we'll provide limited functionality
     let calendar: any = null;
-    if (!isEmailAuth) {
-      if (!accessToken) {
-        logger.warn('No access token found in cookies');
-        throw new ApiError(
-          401,
-          ErrorCodes.UNAUTHENTICATED,
-          getUserFriendlyErrorMessage({ code: 'UNAUTHENTICATED' }, locale)
-        );
-      }
+
+    // Check for Google OAuth first (prefer Google OAuth over email auth when both exist)
+    if (accessToken) {
+      // Google OAuth user with access token
       calendar = getCalendarClient(accessToken, refreshToken);
+      logger.info('Google OAuth user detected with calendar access');
+    } else if (!isEmailAuth && !emailUser) {
+      // No authentication at all
+      logger.warn('No access token found in cookies and no email auth');
+      throw new ApiError(
+        401,
+        ErrorCodes.UNAUTHENTICATED,
+        getUserFriendlyErrorMessage({ code: 'UNAUTHENTICATED' }, locale)
+      );
+    } else {
+      // Email auth user without Google Calendar access
+      logger.info('Email auth user without Google Calendar access');
     }
 
     // Get user profile for context
@@ -126,7 +167,7 @@ export async function POST(request: NextRequest) {
         
         if (userId) {
           // Try to get profile from our database using Google ID or email
-          const { data: profile } = await supabaseAdmin
+          const { data: profile } = await supabase
             .from('user_profiles')
             .select('*')
             .or(`user_id.eq.${userId},email.eq.${userEmail}`)
@@ -152,14 +193,17 @@ export async function POST(request: NextRequest) {
         logger.info('Email auth user - no Google Calendar access');
         return [];
       }
-      
+
       try {
         const now = new Date();
+        // Start from the beginning of today to include past events
+        const startOfToday = getStartOfDay(now);
+
         const response = await calendar.events.list({
           calendarId: 'primary',
-          timeMin: now.toISOString(),
+          timeMin: startOfToday.toISOString(), // Include today's past events
           timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-          maxResults: 50,
+          maxResults: 100, // Increase to get more events
           singleEvents: true,
           orderBy: 'startTime'
         });
@@ -173,6 +217,7 @@ export async function POST(request: NextRequest) {
     let chatResponse: ChatResponse;
     let currentEvents: CalendarEvent[] = [];
     let userProfile: any = null;
+    let userTimezone: string;
     
     // Process based on type - start processing immediately
     if (type === 'image' && imageData) {
@@ -185,11 +230,17 @@ export async function POST(request: NextRequest) {
       chatResponse = imageResponse;
       currentEvents = events;
       userProfile = profile;
+
+      // Determine user's timezone (priority: request > profile > browser > default)
+      userTimezone = requestTimezone || getUserTimezone(userProfile);
     } else {
       // For text processing, we need events context first (but still fetch in parallel)
       const [events, profile] = await Promise.all([eventsPromise, profilePromise]);
       currentEvents = events;
       userProfile = profile;
+
+      // Determine user's timezone (priority: request > profile > browser > default)
+      userTimezone = requestTimezone || getUserTimezone(userProfile);
 
       // Check for friend-related commands first
       const friendService = new FriendAIService(locale);
@@ -209,7 +260,7 @@ export async function POST(request: NextRequest) {
           } else if (userProfile?.userEmail) {
             // For Google OAuth users, look up their Supabase user ID by email
             logger.info('Looking up user by email for friend request', { email: userProfile.userEmail });
-            const { data: currentUser } = await supabaseAdmin
+            const { data: currentUser } = await supabase
               .from('users')
               .select('id')
               .eq('email', userProfile.userEmail)
@@ -258,7 +309,7 @@ export async function POST(request: NextRequest) {
 
               // Check if friend user exists
               logger.info('Checking if friend user exists', { friendEmail });
-              const { data: friendUsers, error: friendUserError } = await supabaseAdmin
+              const { data: friendUsers, error: friendUserError } = await supabase
                 .from('users')
                 .select('id, email, name')
                 .eq('email', friendEmail);
@@ -280,7 +331,7 @@ export async function POST(request: NextRequest) {
                 const invitationCode = Math.random().toString(36).substring(2, 15) +
                                      Math.random().toString(36).substring(2, 15);
 
-                const { data: invitation, error: inviteError } = await supabaseAdmin
+                const { data: invitation, error: inviteError } = await supabase
                   .from('friend_invitations')
                   .insert({
                     inviter_id: userId,
@@ -337,7 +388,7 @@ export async function POST(request: NextRequest) {
               } else {
                 // Check if already friends
                 logger.info('Checking existing friend relationship', { userId, friendId: friendUser.id });
-                const { data: existingFriends, error: existingError } = await supabaseAdmin
+                const { data: existingFriends, error: existingError } = await supabase
                   .from('friends')
                   .select('id, status')
                   .or(`and(user_id.eq.${userId},friend_id.eq.${friendUser.id}),and(user_id.eq.${friendUser.id},friend_id.eq.${userId})`);
@@ -365,7 +416,7 @@ export async function POST(request: NextRequest) {
                     userId,
                     friendId: friendUser.id
                   });
-                  const { data: friendRequests, error: requestError } = await supabaseAdmin
+                  const { data: friendRequests, error: requestError } = await supabase
                     .from('friends')
                     .insert({
                       user_id: userId,
@@ -446,23 +497,99 @@ export async function POST(request: NextRequest) {
               const meetingTime = friendAction.data?.time || '14:00';
               const meetingDate = friendAction.data?.date;
 
-              // Create a calendar event with friend
-              chatResponse = await chatService.processMessage(
-                `${friendName}와 미팅 ${meetingDate || '오늘'} ${meetingTime}`,
-                currentEvents,
-                {
-                  sessionId,
-                  timezone,
-                  locale,
-                  userProfile
+              // 친구 찾기
+              const meetingFriendsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/friends`, {
+                headers: {
+                  'Authorization': request.headers.get('authorization') || '',
+                  'Cookie': request.headers.get('cookie') || ''
                 }
+              });
+
+              const meetingFriendsData = await meetingFriendsRes.json();
+              const friend = meetingFriendsData.friends?.find((f: any) =>
+                f.name?.toLowerCase().includes(friendName.toLowerCase()) ||
+                f.email?.toLowerCase().includes(friendName.toLowerCase()) ||
+                f.nickname?.toLowerCase().includes(friendName.toLowerCase())
               );
 
-              // Override the response message
-              chatResponse.message = friendService.generateResponse(friendAction, {
-                success: true,
-                friendName
+              if (!friend) {
+                chatResponse = {
+                  message: locale === 'ko'
+                    ? `${friendName}님을 친구 목록에서 찾을 수 없습니다. 먼저 친구 추가를 해주세요.`
+                    : `Could not find ${friendName} in your friends list. Please add them as a friend first.`,
+                  suggestions: locale === 'ko'
+                    ? ['친구 목록 보기', `${friendName} 친구 추가하기`]
+                    : ['Show friends list', `Add ${friendName} as friend`]
+                };
+                return successResponse(chatResponse);
+              }
+
+              // 자동 약속 잡기 API 호출
+              const schedulingPayload: any = {
+                friendId: friend.friendId || friend.id,
+                title: `${friendName}님과의 미팅`,
+                duration: 60,
+                autoSelect: !meetingDate && !meetingTime, // 시간이 명시되지 않으면 자동 선택
+                meetingType: 'coffee'
+              };
+
+              // 시간이 명시된 경우
+              if (meetingDate && meetingTime) {
+                const dateStr = meetingDate === '내일'
+                  ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                  : meetingDate === '오늘'
+                  ? new Date().toISOString().split('T')[0]
+                  : meetingDate;
+
+                schedulingPayload.dateTime = `${dateStr}T${meetingTime}:00`;
+                schedulingPayload.autoSelect = false;
+              }
+
+              const scheduleRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/friends/schedule-meeting`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': request.headers.get('authorization') || '',
+                  'Cookie': request.headers.get('cookie') || ''
+                },
+                body: JSON.stringify(schedulingPayload)
               });
+
+              const scheduleResult = await scheduleRes.json();
+
+              if (scheduleResult.success) {
+                chatResponse = {
+                  message: locale === 'ko'
+                    ? `${friendName}님과의 약속 제안을 전송했습니다.\n📅 일시: ${new Date(scheduleResult.proposal.dateTime).toLocaleString('ko-KR')}\n📍 장소: ${scheduleResult.proposal.location}`
+                    : `Meeting proposal sent to ${friendName}.\n📅 Time: ${new Date(scheduleResult.proposal.dateTime).toLocaleString()}\n📍 Location: ${scheduleResult.proposal.location}`,
+                  action: {
+                    type: 'create',
+                    data: {
+                      proposalId: scheduleResult.proposal.id,
+                      friendName: friendName
+                    }
+                  },
+                  suggestions: locale === 'ko'
+                    ? ['일정 확인하기', '다른 시간 제안하기', '친구 목록 보기']
+                    : ['Check schedule', 'Suggest another time', 'Show friends']
+                };
+
+                // 추천 장소가 있으면 표시
+                if (scheduleResult.proposal.suggestedLocations?.length > 0) {
+                  chatResponse.message += locale === 'ko'
+                    ? `\n\n💡 추천 장소:\n${scheduleResult.proposal.suggestedLocations.map((loc: string) => `• ${loc}`).join('\n')}`
+                    : `\n\n💡 Suggested locations:\n${scheduleResult.proposal.suggestedLocations.map((loc: string) => `• ${loc}`).join('\n')}`;
+                }
+              } else {
+                chatResponse = {
+                  message: locale === 'ko'
+                    ? `${friendName}님과의 약속 잡기에 실패했습니다: ${scheduleResult.error}`
+                    : `Failed to schedule meeting with ${friendName}: ${scheduleResult.error}`,
+                  suggestions: locale === 'ko'
+                    ? ['다른 시간 시도하기', '친구 목록 보기']
+                    : ['Try another time', 'Show friends']
+                };
+              }
 
               return successResponse(chatResponse);
 
@@ -518,12 +645,14 @@ export async function POST(request: NextRequest) {
         };
       } else {
         // Process text message normally with user profile
-        chatResponse = await chatService.processMessage(message, currentEvents, {
-          sessionId: sessionId,
-          timezone: timezone,
-          locale: locale,
-          lastExtractedEvent: lastExtractedEvent,
-          userProfile: userProfile
+        chatResponse = await withAILimit(async () => {
+          return await chatService.processMessage(message, currentEvents, {
+            sessionId: sessionId,
+            timezone: userTimezone,
+            locale: locale,
+            lastExtractedEvent: lastExtractedEvent,
+            userProfile: userProfile
+          });
         });
       }
     }
@@ -535,6 +664,109 @@ export async function POST(request: NextRequest) {
         const { type: actionType, data } = chatResponse.action;
         
         switch (actionType) {
+          case 'create_multiple':
+            // Handle multiple events creation (from image extraction)
+            if (data.events && Array.isArray(data.events)) {
+              logger.info('Creating multiple events', { count: data.events.length });
+              let createdCount = 0;
+              let failedCount = 0;
+              const createdEventIds: string[] = [];
+
+              for (const eventData of data.events) {
+                if (eventData.title && eventData.date && eventData.time) {
+                  try {
+                    // Check for duplicates
+                    const duplicateCheck = await checkDuplicateEventWithCache(eventData, currentEvents, sessionId);
+
+                    if (duplicateCheck.isDuplicate) {
+                      logger.info('Skipping duplicate event', { title: eventData.title });
+                      continue;
+                    }
+
+                    // Create event using the same logic as single event creation
+                    const [hour, minute] = eventData.time.split(':');
+                    const startHour = parseInt(hour);
+                    const startMinute = parseInt(minute);
+                    const durationMinutes = eventData.duration || 60;
+
+                    let endHour = startHour + Math.floor(durationMinutes / 60);
+                    let endMinute = startMinute + (durationMinutes % 60);
+
+                    if (endMinute >= 60) {
+                      endHour += 1;
+                      endMinute -= 60;
+                    }
+
+                    let endDate = eventData.date;
+                    if (endHour >= 24) {
+                      const nextDay = new Date(eventData.date);
+                      nextDay.setDate(nextDay.getDate() + 1);
+                      endDate = nextDay.toISOString().split('T')[0];
+                      endHour = endHour % 24;
+                    }
+
+                    const startDateTimeString = `${eventData.date}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
+                    const endDateTimeString = `${endDate}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
+
+                    const event = {
+                      summary: eventData.title,
+                      description: eventData.description || '',
+                      location: eventData.location,
+                      start: {
+                        dateTime: startDateTimeString,
+                        timeZone: userTimezone,
+                      },
+                      end: {
+                        dateTime: endDateTimeString,
+                        timeZone: userTimezone,
+                      }
+                    };
+
+                    const result = await calendar.events.insert({
+                      calendarId: 'primary',
+                      requestBody: event,
+                    });
+
+                    logger.info('Event created from multiple', {
+                      eventId: result.data.id,
+                      title: result.data.summary
+                    });
+
+                    if (result.data.id) {
+                      createdEventIds.push(result.data.id);
+                    }
+
+                    // Add to recent events cache
+                    await recentEventCache.addEvent(sessionId, eventData);
+
+                    createdCount++;
+                  } catch (error) {
+                    logger.error('Failed to create event from multiple', { error, eventData });
+                    failedCount++;
+                  }
+                }
+              }
+
+              // Update response message
+              if (createdCount > 0) {
+                chatResponse.message += locale === 'ko'
+                  ? `\n✅ ${createdCount}개의 일정이 캘린더에 등록되었습니다.`
+                  : `\n✅ ${createdCount} event(s) have been added to your calendar.`;
+
+                // Store the first created event ID for highlighting
+                if (createdEventIds.length > 0) {
+                  chatResponse.createdEventId = createdEventIds[0];
+                }
+              }
+
+              if (failedCount > 0) {
+                chatResponse.message += locale === 'ko'
+                  ? `\n⚠️ ${failedCount}개의 일정 등록에 실패했습니다.`
+                  : `\n⚠️ Failed to create ${failedCount} event(s).`;
+              }
+            }
+            break;
+
           case 'create':
             logger.debug('Create action data', {
               hasTitle: !!data.title,
@@ -544,8 +776,8 @@ export async function POST(request: NextRequest) {
             });
             // Create event with duplicate check
             if (data.title && data.date && data.time) {
-              // Check for duplicates
-              const duplicateCheck = checkDuplicateEvent(data, currentEvents);
+              // Check for duplicates including recent cache
+              const duplicateCheck = await checkDuplicateEventWithCache(data, currentEvents, sessionId);
               
               if (duplicateCheck.isDuplicate && !data.forceCreate) {
                 // Return warning instead of creating
@@ -599,18 +831,18 @@ export async function POST(request: NextRequest) {
                 location: data.location,
                 start: {
                   dateTime: startDateTimeString,
-                  timeZone: timezone,
+                  timeZone: userTimezone,
                 },
                 end: {
                   dateTime: endDateTimeString,
-                  timeZone: timezone,
+                  timeZone: userTimezone,
                 },
                 attendees: data.attendees?.map((email: string) => ({ email }))
               };
               
               logger.info('Attempting to create calendar event', {
                 eventSummary: event.summary,
-                timezone,
+                timezone: userTimezone,
                 locale,
                 isPastDate: new Date(data.date) < new Date(new Date().toDateString()),
                 parsedDate: data.date,
@@ -628,7 +860,7 @@ export async function POST(request: NextRequest) {
               });
               
               // Add to recent events cache
-              recentEventCache.addEvent(sessionId, data);
+              await recentEventCache.addEvent(sessionId, data);
               
               // Store the created event ID for highlighting
               if (result.data.id) {
@@ -686,11 +918,11 @@ export async function POST(request: NextRequest) {
                 
                 updates.start = {
                   dateTime: startDateTimeString,
-                  timeZone: timezone,
+                  timeZone: userTimezone,
                 };
                 updates.end = {
                   dateTime: endDateTimeString,
-                  timeZone: timezone,
+                  timeZone: userTimezone,
                 };
               }
               
@@ -711,15 +943,43 @@ export async function POST(request: NextRequest) {
             break;
 
           case 'delete':
-            // Delete event
-            if (data.eventId) {
-              await calendar.events.delete({
-                calendarId: 'primary',
-                eventId: data.eventId
-              });
-              
-              logger.info('Event deleted', { eventId: data.eventId });
-              chatResponse.message += '\n✅ 일정이 삭제되었습니다.';
+            // Delete event(s) - handle both single eventId and multiple eventIds
+            const eventIdsToDelete = data.eventIds || (data.eventId ? [data.eventId] : []);
+
+            if (eventIdsToDelete.length > 0) {
+              let deletedCount = 0;
+              let failedCount = 0;
+
+              for (const eventId of eventIdsToDelete) {
+                try {
+                  await calendar.events.delete({
+                    calendarId: 'primary',
+                    eventId: eventId
+                  });
+                  deletedCount++;
+                  logger.info('Event deleted', { eventId });
+                } catch (error) {
+                  failedCount++;
+                  logger.error('Failed to delete event', { eventId, error });
+                }
+              }
+
+              if (deletedCount > 0) {
+                chatResponse.message += locale === 'ko'
+                  ? `\n✅ ${deletedCount}개의 일정이 삭제되었습니다.`
+                  : `\n✅ ${deletedCount} event(s) deleted successfully.`;
+              }
+
+              if (failedCount > 0) {
+                chatResponse.message += locale === 'ko'
+                  ? `\n⚠️ ${failedCount}개의 일정 삭제에 실패했습니다.`
+                  : `\n⚠️ Failed to delete ${failedCount} event(s).`;
+              }
+            } else {
+              logger.warn('No event IDs provided for deletion');
+              chatResponse.message += locale === 'ko'
+                ? '\n⚠️ 삭제할 일정이 지정되지 않았습니다.'
+                : '\n⚠️ No events specified for deletion.';
             }
             break;
 
@@ -766,13 +1026,123 @@ export async function POST(request: NextRequest) {
         chatResponse.suggestions = getErrorSuggestions(actionError, locale);
       }
     } else if (chatResponse.action && !calendar) {
-      // Email auth user trying to use calendar features
-      chatResponse.message += locale === 'ko'
-        ? '\n⚠️ 캘린더 기능을 사용하려면 Google 계정으로 로그인해주세요.'
-        : '\n⚠️ Please sign in with Google to use calendar features.';
-      chatResponse.suggestions = locale === 'ko'
-        ? ['Google로 로그인하기', 'AI 채팅 계속하기', '도움말 보기']
-        : ['Sign in with Google', 'Continue AI chat', 'Get help'];
+      // Email auth user - create events using /api/calendar/create endpoint
+      if (isEmailAuth && emailUser) {
+        try {
+          const { type: actionType, data } = chatResponse.action;
+
+          if (actionType === 'create' && data.title && data.date && data.time) {
+            // Single event creation for email auth users
+            const eventPayload = {
+              title: data.title,
+              description: data.description || '',
+              location: data.location || '',
+              startTime: `${data.date}T${data.time}:00`,
+              endTime: calculateEndTime(data.date, data.time, data.duration || 60),
+              isAllDay: false
+            };
+
+            const createResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/calendar/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `auth-token ${authToken}`,
+                'Cookie': request.headers.get('Cookie') || ''
+              },
+              body: JSON.stringify(eventPayload)
+            });
+
+            const createResult = await createResponse.json();
+
+            if (createResult.success) {
+              chatResponse.message += locale === 'ko'
+                ? '\n✅ 캘린더에 일정이 등록되었습니다.'
+                : '\n✅ Event has been added to your calendar.';
+
+              if (createResult.event?.id) {
+                chatResponse.createdEventId = createResult.event.id;
+              }
+            } else {
+              chatResponse.message += locale === 'ko'
+                ? '\n⚠️ 일정 등록에 실패했습니다.'
+                : '\n⚠️ Failed to create event.';
+            }
+          } else if (actionType === 'create_multiple' && data.events && Array.isArray(data.events)) {
+            // Multiple events creation for email auth users
+            let createdCount = 0;
+            let failedCount = 0;
+
+            for (const eventData of data.events) {
+              if (eventData.title && eventData.date && eventData.time) {
+                try {
+                  const eventPayload = {
+                    title: eventData.title,
+                    description: eventData.description || '',
+                    location: eventData.location || '',
+                    startTime: `${eventData.date}T${eventData.time}:00`,
+                    endTime: calculateEndTime(eventData.date, eventData.time, eventData.duration || 60),
+                    isAllDay: false
+                  };
+
+                  const createResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/calendar/create`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `auth-token ${authToken}`,
+                      'Cookie': request.headers.get('Cookie') || ''
+                    },
+                    body: JSON.stringify(eventPayload)
+                  });
+
+                  const createResult = await createResponse.json();
+
+                  if (createResult.success) {
+                    createdCount++;
+                    if (createdCount === 1 && createResult.event?.id) {
+                      chatResponse.createdEventId = createResult.event.id;
+                    }
+                  } else {
+                    failedCount++;
+                  }
+                } catch (error) {
+                  logger.error('Failed to create event for email auth user', { error, eventData });
+                  failedCount++;
+                }
+              }
+            }
+
+            if (createdCount > 0) {
+              chatResponse.message += locale === 'ko'
+                ? `\n✅ ${createdCount}개의 일정이 캘린더에 등록되었습니다.`
+                : `\n✅ ${createdCount} event(s) have been added to your calendar.`;
+            }
+
+            if (failedCount > 0) {
+              chatResponse.message += locale === 'ko'
+                ? `\n⚠️ ${failedCount}개의 일정 등록에 실패했습니다.`
+                : `\n⚠️ Failed to create ${failedCount} event(s).`;
+            }
+          } else {
+            // Other actions not supported for email auth
+            chatResponse.message += locale === 'ko'
+              ? '\n⚠️ 이 기능을 사용하려면 Google 계정으로 로그인해주세요.'
+              : '\n⚠️ Please sign in with Google to use this feature.';
+          }
+        } catch (error) {
+          logger.error('Failed to execute action for email auth user', { error });
+          chatResponse.message += locale === 'ko'
+            ? '\n⚠️ 작업 실행 중 오류가 발생했습니다.'
+            : '\n⚠️ Error occurred while executing the action.';
+        }
+      } else {
+        // Not authenticated
+        chatResponse.message += locale === 'ko'
+          ? '\n⚠️ 캘린더 기능을 사용하려면 Google 계정으로 로그인해주세요.'
+          : '\n⚠️ Please sign in with Google to use calendar features.';
+        chatResponse.suggestions = locale === 'ko'
+          ? ['Google로 로그인하기', 'AI 채팅 계속하기', '도움말 보기']
+          : ['Sign in with Google', 'Continue AI chat', 'Get help'];
+      }
     }
 
     // Generate smart suggestions if not already provided
@@ -782,7 +1152,7 @@ export async function POST(request: NextRequest) {
         recentEvents: currentEvents,
         lastAction: chatResponse.action?.type,
         locale: locale,
-        timezone: timezone,
+        timezone: userTimezone,
         upcomingEvents: currentEvents.filter(e => {
           const eventTime = new Date(e.start?.dateTime || e.start?.date || '');
           return eventTime > new Date();

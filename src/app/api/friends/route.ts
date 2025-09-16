@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { getUserFriendlyErrorMessage } from '@/lib/error-messages';
 
-const supabaseAdmin = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -10,63 +11,75 @@ const supabaseAdmin = createClient(
 // GET: 친구 목록 조회
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const authToken = cookieStore.get('auth-token')?.value;
-    const accessToken = cookieStore.get('access_token')?.value;
-    
+    const cookieStore = await cookies();
+    const authHeader = request.headers.get('authorization');
     let userId: string | null = null;
-    
-    // Check email auth first
+
+    // 1. JWT 이메일 인증 트랙 확인
+    let authToken: string | null = null;
+    if (authHeader?.startsWith('auth-token ')) {
+      authToken = authHeader.substring(11);
+    } else {
+      authToken = cookieStore.get('auth-token')?.value || null;
+    }
+
     if (authToken) {
-      const { verifyToken } = await import('@/lib/auth/email-auth');
       try {
+        const { verifyToken } = await import('@/lib/auth/supabase-auth');
         const user = await verifyToken(authToken);
         if (user) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('Failed to verify email auth token:', error);
+        console.error('JWT auth verification failed:', error);
       }
     }
-    
-    // Fall back to Google OAuth
-    if (!userId && accessToken) {
-      try {
-        // Get user info from Google API
-        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        });
 
-        if (userInfoResponse.ok) {
-          const userInfo = await userInfoResponse.json();
-
-          // Find user in database by email
-          const { data: dbUser } = await supabaseAdmin
-            .from('users')
-            .select('id')
-            .eq('email', userInfo.email)
-            .single();
-
-          if (dbUser) {
-            userId = dbUser.id;
-          }
-        }
-      } catch (error) {
-        console.error('Failed to verify Google OAuth token:', error);
-      }
-    }
-    
+    // 2. Google OAuth 트랙 확인 (기존 시스템 보존)
     if (!userId) {
+      const accessToken = cookieStore.get('access_token')?.value;
+      if (accessToken) {
+        try {
+          const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+
+          if (response.ok) {
+            const userInfo = await response.json();
+            // Find user in database by email
+            const { data: dbUser } = await supabase
+              .from('users')
+              .select('id')
+              .eq('email', userInfo.email)
+              .single();
+
+            if (dbUser) {
+              userId = dbUser.id;
+            }
+          }
+        } catch (error) {
+          console.error('Google OAuth verification failed:', error);
+        }
+      }
+    }
+
+    if (!userId) {
+      // Get locale from request headers
+      const locale = request.headers.get('accept-language')?.includes('en') ? 'en' : 'ko';
+
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        {
+          error: getUserFriendlyErrorMessage({ code: 'AUTHENTICATION_REQUIRED' }, locale),
+          code: 'AUTH_ERROR'
+        },
         { status: 401 }
       );
     }
 
     // 친구 목록 조회 (양방향 관계 모두 조회)
-    const { data: friendships, error } = await supabaseAdmin
+    const { data: friendships, error } = await supabase
       .from('friends')
       .select(`
         id,
@@ -149,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Check email auth first
     if (authToken) {
-      const { verifyToken } = await import('@/lib/auth/email-auth');
+      const { verifyToken } = await import('@/lib/auth/supabase-auth');
       try {
         const user = await verifyToken(authToken);
         if (user) {
@@ -162,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     // Fall back to Google OAuth
     if (!userId && accessToken) {
-      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
       if (!authError && user) {
         userId = user.id;
       }
@@ -186,7 +199,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 친구 사용자 찾기
-    const { data: friendUser, error: findError } = await supabaseAdmin
+    const { data: friendUser, error: findError } = await supabase
       .from('users')
       .select('id, email, name')
       .eq('email', friendEmail)
@@ -209,7 +222,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 이미 친구인지 확인
-    const { data: existingFriend } = await supabaseAdmin
+    const { data: existingFriend } = await supabase
       .from('friends')
       .select('id, status')
       .or(`and(user_id.eq.${userId},friend_id.eq.${friendUser.id}),and(user_id.eq.${friendUser.id},friend_id.eq.${userId})`)
@@ -228,7 +241,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 친구 요청 생성
-    const { data: newFriend, error: createError } = await supabaseAdmin
+    const { data: newFriend, error: createError } = await supabase
       .from('friends')
       .insert({
         user_id: userId,
@@ -281,7 +294,7 @@ export async function PATCH(request: NextRequest) {
 
     // Check email auth first
     if (authToken) {
-      const { verifyToken } = await import('@/lib/auth/email-auth');
+      const { verifyToken } = await import('@/lib/auth/supabase-auth');
       try {
         const user = await verifyToken(authToken);
         if (user) {
@@ -294,7 +307,7 @@ export async function PATCH(request: NextRequest) {
 
     // Fall back to Google OAuth
     if (!userId && accessToken) {
-      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
       if (!authError && user) {
         userId = user.id;
       }
@@ -318,7 +331,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 친구 요청 찾기 (자신이 friend_id인 경우만)
-    const { data: friendship, error: findError } = await supabaseAdmin
+    const { data: friendship, error: findError } = await supabase
       .from('friends')
       .select('*')
       .eq('id', friendshipId)
@@ -335,7 +348,7 @@ export async function PATCH(request: NextRequest) {
 
     if (action === 'accept') {
       // 친구 요청 수락
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabase
         .from('friends')
         .update({
           status: 'accepted',
@@ -358,7 +371,7 @@ export async function PATCH(request: NextRequest) {
 
     } else if (action === 'reject') {
       // 친구 요청 거절 (삭제)
-      const { error: deleteError } = await supabaseAdmin
+      const { error: deleteError } = await supabase
         .from('friends')
         .delete()
         .eq('id', friendshipId);

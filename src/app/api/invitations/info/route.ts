@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     }
 
     // Get invitation details
-    const { data: invitation, error } = await supabaseAdmin
+    const { data: invitation, error } = await supabase
       .from('friend_invitations')
       .select(`
         id,
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 
     if (new Date() > expiryDate) {
       // Mark as expired
-      await supabaseAdmin
+      await supabase
         .from('friend_invitations')
         .update({ status: 'expired' })
         .eq('invitation_code', code);

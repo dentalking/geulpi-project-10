@@ -1,0 +1,365 @@
+/**
+ * Prisma를 사용하는 Calendar Events API 예제
+ * 기존 Supabase 직접 호출에서 Prisma ORM으로 점진적 전환 예제
+ */
+
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { handleApiError, AuthError } from '@/lib/api-errors';
+import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+// GET: 이벤트 목록 조회 (Prisma 버전)
+export async function GET(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
+
+    if (!authToken) {
+      return handleApiError(new AuthError());
+    }
+
+    const user = await verifyToken(authToken);
+    if (!user) {
+      return handleApiError(new AuthError());
+    }
+
+    const { searchParams } = new URL(request.url);
+    const maxResults = parseInt(searchParams.get('maxResults') || '50');
+    const timeMin = searchParams.get('timeMin');
+    const timeMax = searchParams.get('timeMax');
+
+    // Prisma 쿼리 빌드
+    const where: Prisma.CalendarEventWhereInput = {
+      userId: user.id,
+    };
+
+    if (timeMin) {
+      where.startTime = {
+        ...where.startTime as any,
+        gte: new Date(timeMin),
+      };
+    }
+
+    if (timeMax) {
+      where.endTime = {
+        ...where.endTime as any,
+        lte: new Date(timeMax),
+      };
+    }
+
+    // Prisma를 사용한 데이터 조회
+    const events = await prisma.calendarEvent.findMany({
+      where,
+      orderBy: {
+        startTime: 'asc',
+      },
+      take: maxResults,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // 응답 형식 변환
+    const formattedEvents = events.map(event => ({
+      id: event.id,
+      summary: event.summary,
+      description: event.description,
+      location: event.location,
+      start: {
+        dateTime: event.startTime.toISOString(),
+        timeZone: event.timezone || 'Asia/Seoul',
+      },
+      end: {
+        dateTime: event.endTime.toISOString(),
+        timeZone: event.timezone || 'Asia/Seoul',
+      },
+      isAllDay: event.isAllDay,
+      attendees: event.attendees,
+      organizer: event.organizer,
+      creator: event.creator,
+      reminders: event.reminders,
+      recurrence: event.recurrence,
+      status: event.status,
+      colorId: event.colorId,
+      tags: event.tags,
+      sharedWith: event.sharedWith,
+      metadata: event.metadata,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        events: formattedEvents,
+        totalCount: events.length,
+      },
+    });
+
+  } catch (error) {
+    console.error('Calendar events fetch error:', error);
+
+    // Prisma 에러 처리
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return NextResponse.json({
+          success: false,
+          error: 'Unique constraint violation',
+        }, { status: 409 });
+      }
+      if (error.code === 'P2025') {
+        return NextResponse.json({
+          success: false,
+          error: 'Record not found',
+        }, { status: 404 });
+      }
+    }
+
+    return handleApiError(error as Error);
+  }
+}
+
+// POST: 새 이벤트 생성 (Prisma 버전)
+export async function POST(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
+
+    if (!authToken) {
+      return handleApiError(new AuthError());
+    }
+
+    const user = await verifyToken(authToken);
+    if (!user) {
+      return handleApiError(new AuthError());
+    }
+
+    const body = await request.json();
+    const {
+      summary,
+      description,
+      location,
+      startTime,
+      endTime,
+      isAllDay,
+      timezone,
+      attendees,
+      reminders,
+      recurrence,
+      colorId,
+      tags,
+    } = body;
+
+    // 트랜잭션을 사용한 이벤트 생성
+    const event = await prisma.$transaction(async (tx) => {
+      // 1. 이벤트 생성
+      const newEvent = await tx.calendarEvent.create({
+        data: {
+          userId: user.id,
+          summary,
+          description,
+          location,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          isAllDay: isAllDay || false,
+          timezone: timezone || 'Asia/Seoul',
+          attendees: attendees || [],
+          reminders: reminders || {},
+          recurrence: recurrence || null,
+          colorId,
+          tags: tags || [],
+          status: 'confirmed',
+          source: 'local',
+          metadata: {},
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      // 2. 친구와 공유 설정이 있다면 처리
+      if (body.sharedWith && body.sharedWith.length > 0) {
+        await tx.calendarEvent.update({
+          where: { id: newEvent.id },
+          data: {
+            sharedWith: body.sharedWith,
+            sharePermission: body.sharePermission || 'view',
+          },
+        });
+      }
+
+      return newEvent;
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        event,
+        message: '일정이 성공적으로 생성되었습니다.',
+      },
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('Calendar event creation error:', error);
+
+    // Prisma 에러 처리
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return NextResponse.json({
+          success: false,
+          error: '중복된 일정이 존재합니다.',
+        }, { status: 409 });
+      }
+    }
+
+    return handleApiError(error as Error);
+  }
+}
+
+// PATCH: 이벤트 업데이트 (Prisma 버전)
+export async function PATCH(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
+
+    if (!authToken) {
+      return handleApiError(new AuthError());
+    }
+
+    const user = await verifyToken(authToken);
+    if (!user) {
+      return handleApiError(new AuthError());
+    }
+
+    const body = await request.json();
+    const { eventId, ...updateData } = body;
+
+    if (!eventId) {
+      return NextResponse.json({
+        success: false,
+        error: 'Event ID is required',
+      }, { status: 400 });
+    }
+
+    // 권한 확인 및 업데이트
+    const event = await prisma.calendarEvent.update({
+      where: {
+        id: eventId,
+        userId: user.id, // 본인 소유 이벤트만 수정 가능
+      },
+      data: {
+        ...updateData,
+        startTime: updateData.startTime ? new Date(updateData.startTime) : undefined,
+        endTime: updateData.endTime ? new Date(updateData.endTime) : undefined,
+        updatedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        event,
+        message: '일정이 성공적으로 업데이트되었습니다.',
+      },
+    });
+
+  } catch (error) {
+    console.error('Calendar event update error:', error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        return NextResponse.json({
+          success: false,
+          error: '일정을 찾을 수 없거나 권한이 없습니다.',
+        }, { status: 404 });
+      }
+    }
+
+    return handleApiError(error as Error);
+  }
+}
+
+// DELETE: 이벤트 삭제 (Prisma 버전)
+export async function DELETE(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
+
+    if (!authToken) {
+      return handleApiError(new AuthError());
+    }
+
+    const user = await verifyToken(authToken);
+    if (!user) {
+      return handleApiError(new AuthError());
+    }
+
+    const { searchParams } = new URL(request.url);
+    const eventId = searchParams.get('eventId');
+
+    if (!eventId) {
+      return NextResponse.json({
+        success: false,
+        error: 'Event ID is required',
+      }, { status: 400 });
+    }
+
+    // 소프트 삭제 또는 하드 삭제 선택 가능
+    const deletedEvent = await prisma.calendarEvent.delete({
+      where: {
+        id: eventId,
+        userId: user.id, // 본인 소유 이벤트만 삭제 가능
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        deletedEvent,
+        message: '일정이 성공적으로 삭제되었습니다.',
+      },
+    });
+
+  } catch (error) {
+    console.error('Calendar event deletion error:', error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        return NextResponse.json({
+          success: false,
+          error: '일정을 찾을 수 없거나 권한이 없습니다.',
+        }, { status: 404 });
+      }
+    }
+
+    return handleApiError(error as Error);
+  }
+}
+
+/**
+ * Prisma 사용의 장점:
+ * 1. 타입 안정성 - 컴파일 타임에 쿼리 오류 감지
+ * 2. 자동 완성 - IDE에서 필드명 자동 완성
+ * 3. 관계 쿼리 - include로 간편한 JOIN
+ * 4. 트랜잭션 - $transaction으로 안전한 다중 작업
+ * 5. 에러 처리 - 구조화된 에러 코드
+ *
+ * 마이그레이션 전략:
+ * 1. 새 엔드포인트를 /api/calendar/events-prisma로 생성
+ * 2. 테스트 후 기존 엔드포인트 교체
+ * 3. 점진적으로 다른 API들도 전환
+ */

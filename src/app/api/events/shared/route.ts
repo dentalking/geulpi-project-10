@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
 import { handleApiError, AuthError } from '@/lib/api-errors';
 
 // GET: 나와 공유된 이벤트들 조회
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
             const cookieStore = await cookies();
             const accessToken = cookieStore.get('access_token')?.value;
             if (accessToken) {
-                const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+                const { data: { user } } = await supabase.auth.getUser(accessToken);
                 userId = user?.id || null;
             }
         }
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
         const maxResults = parseInt(searchParams.get('maxResults') || '50');
 
         // 나와 공유된 이벤트들 조회 (다른 사람이 만든 이벤트 중 shared_with에 내가 포함된 것들)
-        let query = supabaseAdmin
+        let query = supabase
             .from('calendar_events')
             .select(`
                 id,
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
             const cookieStore = await cookies();
             const accessToken = cookieStore.get('access_token')?.value;
             if (accessToken) {
-                const { data: { user } } = await supabaseAdmin.auth.getUser(accessToken);
+                const { data: { user } } = await supabase.auth.getUser(accessToken);
                 userId = user?.id || null;
             }
         }
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
         }
 
         // 친구 관계 확인
-        const { data: friendship, error: friendError } = await supabaseAdmin
+        const { data: friendship, error: friendError } = await supabase
             .from('friends')
             .select('id')
             .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`)
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
         }
 
         // 기존 캘린더 공유 설정 확인
-        const { data: existingShare, error: checkError } = await supabaseAdmin
+        const { data: existingShare, error: checkError } = await supabase
             .from('calendar_sharing')
             .select('id')
             .eq('owner_id', userId)
@@ -206,7 +206,7 @@ export async function POST(request: Request) {
 
         if (existingShare) {
             // 기존 설정 업데이트
-            const { error: updateError } = await supabaseAdmin
+            const { error: updateError } = await supabase
                 .from('calendar_sharing')
                 .update({
                     permission_level: permissionLevel || 'view',
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
             });
         } else {
             // 새로운 공유 설정 생성
-            const { error: createError } = await supabaseAdmin
+            const { error: createError } = await supabase
                 .from('calendar_sharing')
                 .insert({
                     owner_id: userId,

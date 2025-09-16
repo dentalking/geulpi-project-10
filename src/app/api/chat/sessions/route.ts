@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/middleware/rateLimiter';
+import { setRLSContext } from '@/lib/auth/set-rls-context';
 
 // GET /api/chat/sessions - 모든 채팅 세션 가져오기 또는 특정 세션 가져오기
 export async function GET(request: NextRequest) {
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       logger.debug('Fetching specific session', { sessionId, userId });
       
-      let query = supabaseAdmin
+      let query = supabase
         .from('chat_sessions')
         .select(`
           *,
@@ -137,7 +138,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let query = supabaseAdmin
+    // Set RLS context for the user
+    await setRLSContext(userId);
+
+    let query = supabase
       .from('chat_sessions')
       .select(`
         *,
@@ -209,21 +213,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     let { title = '새 채팅', userId, metadata = {} } = body;
 
-    // 현재 로그인한 사용자의 ID 자동 추출 (Google OAuth 토큰에서)
+    // 현재 로그인한 사용자의 ID 자동 추출
     if (!userId) {
       try {
         const { cookies } = await import('next/headers');
         const cookieStore = cookies();
+        const authToken = cookieStore.get('auth-token')?.value;
         const accessToken = cookieStore.get('access_token')?.value;
-        
-        if (accessToken) {
+
+        // 먼저 email auth 확인
+        if (authToken) {
+          const { verifyToken } = await import('@/lib/auth/supabase-auth');
+          try {
+            const user = await verifyToken(authToken);
+            if (user) {
+              userId = user.id;
+              logger.debug('Auto-detected user ID from email auth for new session', { userId });
+            }
+          } catch (error) {
+            logger.error('Failed to verify email auth token', error);
+          }
+        }
+        // Google OAuth 확인
+        else if (accessToken) {
           // Google OAuth userinfo API 호출
           const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
               'Authorization': `Bearer ${accessToken}`
             }
           });
-          
+
           if (userInfoResponse.ok) {
             const userInfo = await userInfoResponse.json();
             userId = userInfo.id; // Google user ID 사용
@@ -231,14 +250,19 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (error) {
-        logger.error('Failed to get user ID from Google token', error);
+        logger.error('Failed to get user ID from token', error);
       }
     }
 
     logger.info('Creating new chat session', { title, userId });
 
+    // Set RLS context if userId exists
+    if (userId) {
+      await setRLSContext(userId);
+    }
+
     // UUID는 데이터베이스에서 자동 생성되므로 id를 지정하지 않음
-    const { data: session, error } = await supabaseAdmin
+    const { data: session, error } = await supabase
       .from('chat_sessions')
       .insert({
         user_id: userId || null,
@@ -300,7 +324,7 @@ export async function PUT(request: NextRequest) {
     if (metadata !== undefined) updateData.metadata = metadata;
     if (isActive !== undefined) updateData.is_active = isActive;
 
-    const { data: session, error } = await supabaseAdmin
+    const { data: session, error } = await supabase
       .from('chat_sessions')
       .update(updateData)
       .eq('id', sessionId)
@@ -378,7 +402,7 @@ export async function DELETE(request: NextRequest) {
     logger.info('Deleting chat session', { sessionId });
 
     // 세션이 존재하는지 확인
-    const { data: existingSession, error: checkError } = await supabaseAdmin
+    const { data: existingSession, error: checkError } = await supabase
       .from('chat_sessions')
       .select('id')
       .eq('id', sessionId)
@@ -389,7 +413,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // 세션 삭제 (CASCADE로 인해 메시지들도 자동 삭제)
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('chat_sessions')
       .delete()
       .eq('id', sessionId);

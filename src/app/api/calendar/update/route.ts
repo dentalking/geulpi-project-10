@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/email-auth';
+import { verifyToken } from '@/lib/auth/supabase-auth';
 import { GoogleCalendarService } from '@/services/google/GoogleCalendarService';
 import { handleApiError, AuthError } from '@/lib/api-errors';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 
 export async function PUT(request: Request) {
     try {
@@ -20,7 +20,6 @@ export async function PUT(request: Request) {
             }, { status: 400 });
         }
 
-        const supabase = supabaseAdmin;
         let userId: string | null = null;
 
         // Check for email auth first

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleMapsService } from '@/services/maps/GoogleMapsService';
-import { verifyToken } from '@/lib/auth/email-auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { supabase } from '@/lib/db';
 import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {

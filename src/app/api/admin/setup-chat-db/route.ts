@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`Executing query ${i + 1}/${queries.length}: ${query.substring(0, 50)}...`);
       
-      const { error } = await supabaseAdmin.rpc('execute_sql', {
+      const { error } = await supabase.rpc('execute_sql', {
         sql_query: query
       });
 
@@ -142,13 +142,13 @@ export async function POST(request: NextRequest) {
         
         // 대안: 직접 SQL 실행 시도
         try {
-          await supabaseAdmin.from('_').select().limit(0); // 연결 테스트
+          await supabase.from('_').select().limit(0); // 연결 테스트
           console.log('Trying direct SQL execution...');
           
           // RPC 함수가 없다면 직접 테이블 조작 시도
           if (query.includes('CREATE TABLE IF NOT EXISTS chat_sessions')) {
             // 테이블 존재 여부만 확인
-            const { error: testError } = await supabaseAdmin
+            const { error: testError } = await supabase
               .from('chat_sessions')
               .select('id')
               .limit(1);

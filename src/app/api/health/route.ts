@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/db';
 
 export async function GET() {
   const startTime = Date.now();
@@ -20,7 +20,7 @@ export async function GET() {
   // Database 연결 체크
   try {
     const dbStart = Date.now();
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from('chat_sessions')
       .select('count')
       .limit(1)
