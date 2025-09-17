@@ -69,6 +69,7 @@ function AIOverlayDashboardComponent({
   const [showSearch, setShowSearch] = useState(false);
   const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isArtifactOpen, setIsArtifactOpen] = useState(false);
   const [artifactEvents, setArtifactEvents] = useState<CalendarEvent[]>([]);
   const [artifactTitle, setArtifactTitle] = useState<string>('');
@@ -115,12 +116,18 @@ function AIOverlayDashboardComponent({
 
   // 채팅 세션 초기화 및 활성 세션 변경 감지
   useEffect(() => {
-    // Skip if already loading
-    if (isSessionLoading) return;
-
     const initializeChatSession = async () => {
+      // 초기 로딩은 매우 짧게만 표시 (1초)
+      if (isInitialLoad) {
+        setIsSessionLoading(true);
+        setIsInitialLoad(false);
+      }
 
-      setIsSessionLoading(true);
+      // 로딩 타임아웃 설정 (1초로 단축)
+      const timeoutId = setTimeout(() => {
+        setIsSessionLoading(false);
+        console.log('[AIOverlayDashboard] Loading timeout - showing default UI');
+      }, 1000);
       try {
         // 1. 먼저 활성 세션이 있는지 확인
         const activeSessionId = chatStorage.getActiveSessionId();
@@ -215,12 +222,13 @@ function AIOverlayDashboardComponent({
       } catch (error) {
         console.error('Failed to initialize chat session:', error);
       } finally {
+        clearTimeout(timeoutId);
         setIsSessionLoading(false);
       }
     };
 
     initializeChatSession();
-  }, [userId, isSessionLoading]); // locale 제거 - 언어 변경 시 세션 유지
+  }, [userId]); // isSessionLoading 제거 - 무한 루프 방지
   
   // 활성 세션 변경 감지 (폴링 방식)
   useEffect(() => {
@@ -235,7 +243,7 @@ function AIOverlayDashboardComponent({
       // 조건 수정: currentChatSession이 없거나 ID가 다른 경우 모두 처리
       if (activeSessionId && (!currentChatSession || activeSessionId !== currentChatSession.id)) {
         console.log('[AIOverlayDashboard] Session change detected! Loading session:', activeSessionId);
-        setIsSessionLoading(true);
+        // 폴링에서는 로딩 상태를 변경하지 않음 (초기 로드 시에만 표시)
         try {
           const newSession = await chatStorage.getSession(activeSessionId);
           if (newSession) {
@@ -246,8 +254,6 @@ function AIOverlayDashboardComponent({
           }
         } catch (error) {
           console.error('[AIOverlayDashboard] Failed to load session:', error);
-        } finally {
-          setIsSessionLoading(false);
         }
       }
     };
@@ -793,24 +799,22 @@ function AIOverlayDashboardComponent({
             transition={{ duration: 0.5 }}
           >
             <div className="text-center mb-8">
-              {isSessionLoading ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-8 h-8 border-3 border-gray-300 border-t-primary rounded-full animate-spin" />
-                  <p className="text-sm text-muted-foreground">
-                    {locale === 'ko' ? '채팅을 불러오는 중...' : 'Loading chat...'}
-                  </p>
+              <h1 className={`text-3xl font-bold mb-2 transition-opacity duration-300 ${isSessionLoading ? 'opacity-50' : 'opacity-100'}`}>
+                {locale === 'ko' ? '무엇을 도와드릴까요?' : 'How can I help you?'}
+              </h1>
+              <p className={`text-base text-muted-foreground transition-opacity duration-300 ${isSessionLoading ? 'opacity-50' : 'opacity-100'}`}>
+                {locale === 'ko'
+                  ? '일정을 자연스럽게 말씀해주세요'
+                  : 'Tell me about your schedule naturally'}
+              </p>
+              {isSessionLoading && (
+                <div className="flex justify-center mt-3">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <h1 className="text-3xl font-bold mb-2">
-                    {locale === 'ko' ? '무엇을 도와드릴까요?' : 'How can I help you?'}
-                  </h1>
-                  <p className="text-base text-muted-foreground">
-                    {locale === 'ko' 
-                      ? '일정을 자연스럽게 말씀해주세요' 
-                      : 'Tell me about your schedule naturally'}
-                  </p>
-                </>
               )}
             </div>
 
