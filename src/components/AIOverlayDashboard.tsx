@@ -256,7 +256,7 @@ function AIOverlayDashboardComponent({
     // 주기적 체크
     const interval = setInterval(checkActiveSessionChange, 500); // 더 빠른 반응을 위해 500ms
     return () => clearInterval(interval);
-  }, [currentChatSession]);
+  }, [currentChatSession?.id]); // Only re-run when session ID changes
 
   // Header and Sidebar event handlers - memoized for performance
   const handleMenuClick = useCallback(() => {

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { ChatCalendarService, type ChatResponse } from '@/services/ai/ChatCalendarService';
 import { FriendAIService } from '@/services/ai/FriendAIService';
-import { EmailService, emailService } from '@/services/email/EmailService';
+import SupabaseEmailService, { supabaseEmailService } from '@/services/email/SupabaseEmailService';
 import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
 import { createClient } from '@supabase/supabase-js';
@@ -355,9 +355,9 @@ export async function POST(request: NextRequest) {
                   try {
                     const inviterName = emailUser?.name || userProfile?.name || 'Geulpi 사용자';
                     const inviterEmail = emailUser?.email || userProfile?.userEmail || 'noreply@geulpi.com';
-                    const invitationUrl = EmailService.generateInvitationUrl(invitationCode);
+                    const invitationUrl = SupabaseEmailService.generateInvitationUrl(invitationCode);
 
-                    const emailSent = await emailService.sendFriendInvitation({
+                    const emailSent = await supabaseEmailService.sendFriendInvitation({
                       inviterName,
                       inviterEmail,
                       inviteeEmail: friendEmail,

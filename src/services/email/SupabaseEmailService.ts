@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
 import { EmailOptions, FriendInvitationData } from './EmailService';
 
 // Initialize Supabase client
@@ -10,7 +9,7 @@ const supabase = createClient(
 
 // Email service using Supabase Auth and Nodemailer
 export class SupabaseEmailService {
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: any | null = null;
   private fromEmail = process.env.FROM_EMAIL || 'support@geulpi.com';
 
   constructor() {
@@ -21,14 +20,27 @@ export class SupabaseEmailService {
    * Initialize Nodemailer transporter
    */
   private async initializeTransporter() {
+    // Import nodemailer using require to avoid webpack issues
+    const nodemailer = require('nodemailer');
+
     // Option 1: Use Gmail with App Password
     if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      console.log('[EmailService] Initializing Gmail transporter with user:', process.env.GMAIL_USER);
       this.transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
           user: process.env.GMAIL_USER,
           pass: process.env.GMAIL_APP_PASSWORD,
         },
+      });
+
+      // Verify transporter configuration
+      this.transporter.verify((error: any, success: boolean) => {
+        if (error) {
+          console.error('[EmailService] Gmail transporter verification failed:', error);
+        } else {
+          console.log('[EmailService] Gmail transporter is ready to send emails');
+        }
       });
     }
     // Option 2: Use custom SMTP
@@ -45,7 +57,11 @@ export class SupabaseEmailService {
     }
     // Option 3: Use Supabase's built-in email (for auth emails)
     else {
-      console.log('Using Supabase built-in email service');
+      console.log('[EmailService] No email transporter configured - Gmail env vars:', {
+        hasUser: !!process.env.GMAIL_USER,
+        hasPassword: !!process.env.GMAIL_APP_PASSWORD,
+        user: process.env.GMAIL_USER
+      });
     }
   }
 
@@ -101,9 +117,13 @@ export class SupabaseEmailService {
     try {
       // Fallback to Supabase if no transporter configured
       if (!this.transporter) {
-        console.log('No email transporter configured, using mock send');
-        console.log('Email would be sent to:', options.to);
-        console.log('Subject:', options.subject);
+        console.log('[EmailService] No email transporter configured, using mock send');
+        console.log('[EmailService] Email would be sent to:', options.to);
+        console.log('[EmailService] Subject:', options.subject);
+        console.log('[EmailService] Gmail env check:', {
+          hasUser: !!process.env.GMAIL_USER,
+          hasPassword: !!process.env.GMAIL_APP_PASSWORD
+        });
 
         // Store email in database for admin review
         await this.storeEmailInDatabase(options);
@@ -118,10 +138,10 @@ export class SupabaseEmailService {
         text: options.text,
       });
 
-      console.log('Email sent:', info.messageId);
+      console.log('[EmailService] Email sent successfully:', info.messageId);
       return true;
     } catch (error) {
-      console.error('Email send error:', error);
+      console.error('[EmailService] Email send error:', error);
 
       // Fallback: Store in database
       await this.storeEmailInDatabase(options);
@@ -146,12 +166,12 @@ export class SupabaseEmailService {
         });
 
       if (error) {
-        console.error('Failed to store email in queue:', error);
+        console.error('[EmailService] Failed to store email in queue:', error);
       } else {
-        console.log('Email queued for later delivery');
+        console.log('[EmailService] Email queued for later delivery');
       }
     } catch (error) {
-      console.error('Database error:', error);
+      console.error('[EmailService] Database error:', error);
     }
   }
 
@@ -352,6 +372,14 @@ ${data.message ? `메시지: "${data.message}"` : ''}
 
 글피 팀 드림
     `;
+  }
+
+  /**
+   * Generate invitation URL with code
+   */
+  static generateInvitationUrl(invitationCode: string, baseUrl?: string): string {
+    const domain = baseUrl || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    return `${domain}/register?invitation=${encodeURIComponent(invitationCode)}`;
   }
 
   /**

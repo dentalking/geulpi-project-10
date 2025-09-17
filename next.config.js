@@ -51,6 +51,7 @@ const nextConfig = {
   experimental: {
     // optimizeCss: true, // CSS 최적화 - critters 모듈 필요하므로 비활성화
     scrollRestoration: true, // 스크롤 위치 복원
+    serverComponentsExternalPackages: ['nodemailer'], // nodemailer를 webpack 번들링에서 제외
   },
   
   // Webpack 설정 (성능 최적화)
