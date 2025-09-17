@@ -115,8 +115,10 @@ function AIOverlayDashboardComponent({
 
   // 채팅 세션 초기화 및 활성 세션 변경 감지
   useEffect(() => {
+    // Skip if already loading
+    if (isSessionLoading) return;
+
     const initializeChatSession = async () => {
-      if (isSessionLoading) return;
 
       setIsSessionLoading(true);
       try {
@@ -218,7 +220,7 @@ function AIOverlayDashboardComponent({
     };
 
     initializeChatSession();
-  }, [userId, locale]); // sessionId 제거 - 더 이상 필요 없음
+  }, [userId, isSessionLoading]); // locale 제거 - 언어 변경 시 세션 유지
   
   // 활성 세션 변경 감지 (폴링 방식)
   useEffect(() => {

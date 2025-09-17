@@ -14,6 +14,7 @@ export default function LanguageSelector() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Check for saved language preference on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const savedLocale = localStorage.getItem('preferredLocale') as Locale;
     
