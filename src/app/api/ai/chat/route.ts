@@ -992,21 +992,28 @@ export async function POST(request: NextRequest) {
               singleEvents: true,
               orderBy: 'startTime'
             };
-            
-            if (data.query) {
+
+            // Only use text search for non-date queries
+            // Skip common date keywords that shouldn't be used for text search
+            const dateKeywords = ['오늘', '내일', '어제', '이번주', '다음주', '이번달', '다음달',
+                                'today', 'tomorrow', 'yesterday', 'this week', 'next week',
+                                'this month', 'next month'];
+
+            if (data.query && !dateKeywords.includes(data.query.toLowerCase().trim())) {
+              // Only add text search if it's not a date keyword
               searchParams.q = data.query;
             }
-            
+
             if (data.startDate) {
               searchParams.timeMin = new Date(data.startDate).toISOString();
             } else {
               searchParams.timeMin = new Date().toISOString();
             }
-            
+
             if (data.endDate) {
               searchParams.timeMax = new Date(data.endDate).toISOString();
             }
-            
+
             const searchResult = await calendar.events.list(searchParams);
             chatResponse.events = convertGoogleEventsToCalendarEvents(searchResult.data.items);
             break;
