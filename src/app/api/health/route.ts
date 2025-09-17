@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/db';
 
+// Cache for 60 seconds to reduce DB load
+export const revalidate = 60;
+
 export async function GET() {
   const startTime = Date.now();
   
@@ -72,5 +75,10 @@ export async function GET() {
   const statusCode = health.status === 'healthy' ? 200 : 
                      health.status === 'degraded' ? 200 : 503;
   
-  return NextResponse.json(health, { status: statusCode });
+  return NextResponse.json(health, {
+    status: statusCode,
+    headers: {
+      'Cache-Control': 's-maxage=60, stale-while-revalidate=300'
+    }
+  });
 }
