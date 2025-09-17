@@ -18,7 +18,10 @@ import {
   Clock,
   MapPin,
   Check,
-  X
+  X,
+  CalendarDays,
+  CheckCircle,
+  Sparkles
 } from 'lucide-react';
 import { useToastContext } from '@/providers/ToastProvider';
 import Image from 'next/image';
@@ -157,11 +160,56 @@ export function UnifiedAIInterface({
 
     fetchSuggestions();
     
-    // Refresh suggestions when messages change or every 5 minutes
-    const interval = setInterval(fetchSuggestions, 5 * 60 * 1000);
+    // Refresh suggestions when messages change or every 10 minutes (reduced frequency)
+    const interval = setInterval(fetchSuggestions, 10 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, [locale, sessionId, messages]);
+
+  // Helper function to get suggestion icon and category
+  const getSuggestionMeta = (suggestion: string) => {
+    const lowerSuggestion = suggestion.toLowerCase();
+    const isKorean = locale === 'ko';
+
+    // Check for time-related keywords
+    if (
+      lowerSuggestion.includes(isKorean ? '오늘' : 'today') ||
+      lowerSuggestion.includes(isKorean ? '내일' : 'tomorrow') ||
+      lowerSuggestion.includes(isKorean ? '어제' : 'yesterday')
+    ) {
+      return { icon: Clock, color: 'text-blue-500', category: 'time' };
+    }
+
+    // Check for calendar/schedule keywords
+    if (
+      lowerSuggestion.includes(isKorean ? '일정' : 'schedule') ||
+      lowerSuggestion.includes(isKorean ? '캘린더' : 'calendar') ||
+      lowerSuggestion.includes(isKorean ? '주' : 'week')
+    ) {
+      return { icon: CalendarDays, color: 'text-purple-500', category: 'calendar' };
+    }
+
+    // Check for add/create keywords
+    if (
+      lowerSuggestion.includes(isKorean ? '추가' : 'add') ||
+      lowerSuggestion.includes(isKorean ? '생성' : 'create') ||
+      lowerSuggestion.includes(isKorean ? '만들' : 'make')
+    ) {
+      return { icon: Plus, color: 'text-green-500', category: 'create' };
+    }
+
+    // Check for check/review keywords
+    if (
+      lowerSuggestion.includes(isKorean ? '확인' : 'check') ||
+      lowerSuggestion.includes(isKorean ? '검토' : 'review') ||
+      lowerSuggestion.includes(isKorean ? '보' : 'show')
+    ) {
+      return { icon: CheckCircle, color: 'text-indigo-500', category: 'check' };
+    }
+
+    // Default
+    return { icon: Sparkles, color: 'text-amber-500', category: 'suggestion' };
+  };
 
   const getFallbackSuggestions = () => {
     // If we have messages, provide context-aware fallbacks
@@ -187,20 +235,56 @@ export function UnifiedAIInterface({
       }
     }
     
-    // Default fallback suggestions
-    return locale === 'ko' ? [
-      "오늘 일정 보여줘",
-      "내일 오후 3시 회의 추가",
-      "이번주 일정 확인",
-      "다음주 계획 정리",
-      "중요한 일정 알려줘"
-    ] : [
-      "Show today's schedule",
-      "Add meeting tomorrow at 3pm",
-      "Check this week",
-      "Plan next week",
-      "Show important events"
-    ];
+    // Smart fallback suggestions based on time of day
+    const now = new Date();
+    const hour = now.getHours();
+
+    if (hour < 12) {
+      // Morning suggestions
+      return locale === 'ko' ? [
+        "오늘 일정 보여줘",
+        "오늘 중요한 일정 알려줘",
+        "이번 주 회의 일정 확인",
+        "오늘 해야 할 일 정리",
+        "내일 일정 미리보기"
+      ] : [
+        "Show today's schedule",
+        "What's important today?",
+        "Check this week's meetings",
+        "Today's tasks",
+        "Preview tomorrow"
+      ];
+    } else if (hour < 18) {
+      // Afternoon suggestions
+      return locale === 'ko' ? [
+        "오늘 남은 일정 확인",
+        "내일 일정 준비하기",
+        "이번 주 남은 회의",
+        "다음 일정까지 시간",
+        "오늘 일정 정리"
+      ] : [
+        "Check remaining schedule",
+        "Prepare for tomorrow",
+        "Remaining meetings this week",
+        "Time until next event",
+        "Wrap up today"
+      ];
+    } else {
+      // Evening suggestions
+      return locale === 'ko' ? [
+        "내일 일정 확인",
+        "이번 주 정리하기",
+        "다음 주 계획 세우기",
+        "중요한 일정 알림 설정",
+        "오늘 하루 요약"
+      ] : [
+        "Check tomorrow's schedule",
+        "Week summary",
+        "Plan next week",
+        "Set important reminders",
+        "Today's summary"
+      ];
+    }
   };
 
   const addMessage = (role: Message['role'], content: string, action?: Message['action']) => {
@@ -888,23 +972,58 @@ export function UnifiedAIInterface({
             className="absolute top-full mt-6 sm:mt-7 md:mt-8 w-full z-40"
           >
             <div className="flex flex-wrap gap-2 items-center justify-center">
-              {suggestions.slice(0, 3).map((suggestion, index) => (
-                <motion.button
-                  key={`${suggestion}-${index}`}
-                  initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/20 hover:border-primary/30 hover:bg-white/95 dark:hover:bg-black/95 px-3 py-1.5 rounded-full text-xs text-center transition-all duration-200 hover:scale-105 hover:shadow-md whitespace-nowrap max-w-[180px] truncate"
-                  onClick={() => {
-                    setInputValue(suggestion);
-                    setShowSuggestions(false);
-                    handleSubmit(suggestion);
-                  }}
-                  title={suggestion} // Full text on hover
-                >
-                  {suggestion}
-                </motion.button>
-              ))}
+              {suggestions.slice(0, 5).map((suggestion, index) => {
+                const { icon: Icon, color, category } = getSuggestionMeta(suggestion);
+                return (
+                  <motion.button
+                    key={`${suggestion}-${index}`}
+                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{
+                      delay: index * 0.05,
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 20
+                    }}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="group relative bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/20 hover:border-primary/30 hover:bg-white/95 dark:hover:bg-black/95 px-3 py-1.5 rounded-full text-xs transition-all duration-200 hover:shadow-lg whitespace-nowrap max-w-[200px] flex items-center gap-1.5 overflow-hidden"
+                    onClick={async () => {
+                      setInputValue(suggestion);
+                      setShowSuggestions(false);
+
+                      // Track suggestion usage for analytics
+                      try {
+                        fetch('/api/ai/suggestions/track', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            suggestion,
+                            category,
+                            locale,
+                            sessionId,
+                            timestamp: new Date().toISOString()
+                          })
+                        }).catch(err => console.error('Failed to track suggestion:', err));
+                      } catch (error) {
+                        // Silent fail - don't interrupt user flow
+                      }
+
+                      handleSubmit(suggestion);
+                      // Refresh suggestions after 2 seconds
+                      setTimeout(() => {
+                        setShowSuggestions(true);
+                      }, 2000);
+                    }}
+                    title={suggestion} // Full text on hover
+                  >
+                    <Icon className={`w-3 h-3 ${color} flex-shrink-0 transition-transform group-hover:rotate-12`} />
+                    <span className="truncate">{suggestion}</span>
+                    {/* Animated gradient overlay on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transform -translate-x-full group-hover:translate-x-full transition-all duration-700" />
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.div>
         )}

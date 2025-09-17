@@ -27,6 +27,10 @@ function extractConversationTopic(messages: any[]): string {
   return recentConversation;
 }
 
+// Simple in-memory cache for suggestions
+const suggestionCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
@@ -35,11 +39,26 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { locale = 'ko', sessionId = 'anonymous', recentMessages = [] } = body;
-    
-    logger.info('[AI Suggestions] Generating suggestions', { 
-      locale, 
+
+    // Create cache key based on locale, sessionId, and message context
+    const messageContext = recentMessages.slice(-2).map((m: any) => m.content).join('|');
+    const cacheKey = `${locale}-${sessionId}-${messageContext}`;
+
+    // Check cache first
+    const cached = suggestionCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      logger.info('[AI Suggestions] Returning cached suggestions', {
+        locale,
+        sessionId,
+        cacheAge: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+      });
+      return successResponse(cached.data);
+    }
+
+    logger.info('[AI Suggestions] Generating new suggestions', {
+      locale,
       sessionId,
-      hasRecentMessages: recentMessages.length > 0 
+      hasRecentMessages: recentMessages.length > 0
     });
 
     // Get user's calendar events
@@ -128,9 +147,25 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Enhanced context with user behavior patterns
+    const userBehavior = {
+      isFirstTimeToday: events.filter(e => {
+        const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
+        return eventDate.toDateString() === now.toDateString();
+      }).length === 0,
+      hasUpcomingEventSoon: events.some(e => {
+        const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
+        const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        return hoursUntilEvent > 0 && hoursUntilEvent < 2;
+      }),
+      isWeekend: currentDay === 0 || currentDay === 6,
+      isMondayMorning: currentDay === 1 && currentHour < 10,
+      isFridayAfternoon: currentDay === 5 && currentHour >= 14
+    };
+
     // Different prompts based on whether we have conversation context
     const hasConversation = contextData.conversationTopic && contextData.conversationTopic.length > 0;
-    
+
     const prompt = hasConversation ? `
 You are a smart assistant. Generate 5 follow-up questions or actions based on the ongoing conversation.
 
@@ -140,6 +175,7 @@ ${contextData.conversationTopic}
 Current Context:
 - Time: ${contextData.currentTime}
 - Language: ${locale === 'ko' ? 'Korean' : 'English'}
+- Has upcoming event in next 2 hours: ${userBehavior.hasUpcomingEventSoon}
 
 Based on the conversation above, generate 5 natural follow-up questions or actions the user might want to ask. Focus on:
 1. Clarifying questions about the last response
@@ -148,7 +184,7 @@ Based on the conversation above, generate 5 natural follow-up questions or actio
 4. Next logical steps
 5. Alternative perspectives or options
 
-${locale === 'ko' ? 
+${locale === 'ko' ?
 `For example, if the conversation is about "글로벌 팁스 모집", suggest:
 - "지원 자격 조건이 어떻게 되나요?"
 - "신청 마감일이 언제인가요?"
@@ -180,14 +216,21 @@ Current Context:
 - Common patterns: ${JSON.stringify(contextData.patterns)}
 - Language: ${locale === 'ko' ? 'Korean' : 'English'}
 
-Generate 5 natural language suggestions that the user might want to type. Consider:
-1. One suggestion about checking today's or this week's schedule
-2. One suggestion about adding a common type of event based on time of day
-3. One suggestion based on upcoming events (if any)
-4. One suggestion about planning for next week or month
-5. One creative/helpful suggestion based on the context
+User Behavior Patterns:
+- First time checking today: ${userBehavior.isFirstTimeToday}
+- Has event coming up soon (within 2 hours): ${userBehavior.hasUpcomingEventSoon}
+- Is weekend: ${userBehavior.isWeekend}
+- Monday morning planning time: ${userBehavior.isMondayMorning}
+- Friday afternoon wrap-up: ${userBehavior.isFridayAfternoon}
 
-${locale === 'ko' ? 
+Generate 5 smart, contextual suggestions based on the above patterns:
+${userBehavior.hasUpcomingEventSoon ? '- Include a suggestion about the upcoming event (preparation, location, attendees)' : ''}
+${userBehavior.isMondayMorning ? '- Include a weekly planning suggestion' : ''}
+${userBehavior.isFridayAfternoon ? '- Include a weekend planning or week review suggestion' : ''}
+${userBehavior.isFirstTimeToday ? '- Include a daily overview suggestion' : ''}
+${userBehavior.isWeekend ? '- Include relaxed/personal event suggestions' : '- Include work-related suggestions'}
+
+${locale === 'ko' ?
 `Format each suggestion in natural Korean like:
 - "오늘 일정 확인해줘"
 - "내일 오후 3시 회의 추가"
@@ -235,19 +278,36 @@ Return ONLY a JSON array of 5 suggestion strings, no other text:
         suggestions.push(getRandomFallbackSuggestion(locale));
       }
       
-      logger.info('[AI Suggestions] Generated suggestions', { 
+      logger.info('[AI Suggestions] Generated suggestions', {
         count: suggestions.length,
-        locale 
+        locale
       });
-      
-      return successResponse({
+
+      const responseData = {
         suggestions,
         context: {
           timeOfDay: contextData.timeOfDay,
           currentDay: contextData.currentDay,
           upcomingEventsCount: contextData.upcomingEvents.length
         }
+      };
+
+      // Store in cache
+      suggestionCache.set(cacheKey, {
+        data: responseData,
+        timestamp: Date.now()
       });
+
+      // Clean old cache entries (keep max 100 entries)
+      if (suggestionCache.size > 100) {
+        const entries = Array.from(suggestionCache.entries());
+        const oldestEntries = entries
+          .sort((a, b) => a[1].timestamp - b[1].timestamp)
+          .slice(0, 50);
+        oldestEntries.forEach(([key]) => suggestionCache.delete(key));
+      }
+
+      return successResponse(responseData);
       
     } catch (geminiError: any) {
       logger.error('[AI Suggestions] Gemini API error', {
