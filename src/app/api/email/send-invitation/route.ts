@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Try to send immediately using fallback method
     // For now, we'll rely on the email processor script
-    logger.debug('[Send Invitation] Email queued successfully:', data.id);
+    logger.debug('[Send Invitation] Email queued successfully', { value: data.id });
 
     return NextResponse.json({
       success: true,

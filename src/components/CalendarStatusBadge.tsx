@@ -24,7 +24,7 @@ export function CalendarStatusBadge({
 
     // 오늘 일정 필터링
     const todayEvents = events.filter(event => {
-      const eventDate = new Date(event.start_time);
+      const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate >= todayStart && eventDate <= todayEnd;
     });
 
@@ -37,7 +37,7 @@ export function CalendarStatusBadge({
     weekEnd.setHours(23, 59, 59, 999);
 
     const thisWeekEvents = events.filter(event => {
-      const eventDate = new Date(event.start_time);
+      const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate >= weekStart && eventDate <= weekEnd;
     });
 
@@ -46,7 +46,7 @@ export function CalendarStatusBadge({
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const thisMonthEvents = events.filter(event => {
-      const eventDate = new Date(event.start_time);
+      const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate >= monthStart && eventDate <= monthEnd;
     });
 

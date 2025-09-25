@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       response = createDefaultResponse();
     }
 
-    logger.debug('[Discord Bot] Sending response:', JSON.stringify(response, null, 2));
+    logger.debug('[Discord Bot] Sending response', { value: JSON.stringify(response, null, 2) });
     return NextResponse.json(response, {
       headers: {
         'Content-Type': 'application/json'
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('[Discord Bot] Error:', error);
     const errorResponse = createErrorResponse();
-    logger.debug('[Discord Bot] Sending error response:', JSON.stringify(errorResponse, null, 2));
+    logger.debug('[Discord Bot] Sending error response', { value: JSON.stringify(errorResponse, null, 2) });
     return NextResponse.json(errorResponse, {
       headers: {
         'Content-Type': 'application/json'

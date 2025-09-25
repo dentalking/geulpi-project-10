@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const { image, mimeType, sessionId, autoCreate = false } = body;
 
     if (!image || !mimeType) {
-      logger.debug('Missing required fields:', { image: !!image, mimeType: !!mimeType });
+      logger.debug('Missing required fields', { value: { image: !!image, mimeType: !!mimeType } });
       return NextResponse.json(
         { success: false, error: 'Image and mimeType are required' },
         { status: 400 }
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     // Process image to extract event data
     const eventData = await geminiService.parseEventFromImage(image, mimeType);
-    logger.debug('Extracted event data:', eventData);
+    logger.debug('Extracted event data', { value: eventData });
 
     // If autoCreate is true, create the event in Google Calendar
     let createdEvent: any = null;
@@ -62,14 +62,14 @@ export async function POST(request: NextRequest) {
             }
           };
           
-          logger.debug('Creating calendar event:', event);
+          logger.debug('Creating calendar event', { value: event });
           const result = await calendar.events.insert({
             calendarId: 'primary',
             requestBody: event,
           });
           
           createdEvent = result.data;
-          logger.debug('Event created successfully:', createdEvent.id);
+          logger.debug('Event created successfully', { value: createdEvent.id });
         } catch (calendarError) {
           logger.error('Failed to create calendar event:', calendarError);
           // Don't fail the entire request if calendar creation fails

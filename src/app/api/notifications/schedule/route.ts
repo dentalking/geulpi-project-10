@@ -53,7 +53,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
   if (isAfter(eventTime, now)) {
     // 1. Reminder notification
     if (prefs.reminder_enabled) {
-        const reminderTime = addMinutes(eventTime, -prefs.reminder_minutes);
+        const reminderTime = addMinutes(eventTime, -(prefs.reminder_minutes || 15));
         if (isAfter(reminderTime, now)) {
           notifications.push({
             user_id: user.id,
@@ -84,7 +84,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
     // 2. Travel notification (if location exists)
     if (prefs.travel_enabled && event.location) {
-        const travelTime = addMinutes(eventTime, -prefs.travel_buffer_minutes);
+        const travelTime = addMinutes(eventTime, -(prefs.travel_buffer_minutes || 30));
         if (isAfter(travelTime, now)) {
           notifications.push({
             user_id: user.id,
@@ -120,7 +120,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
                        event.attendees?.length > 1;
 
     if (prefs.preparation_enabled && isMeeting) {
-        const prepTime = addMinutes(eventTime, -prefs.preparation_minutes);
+        const prepTime = addMinutes(eventTime, -(prefs.preparation_minutes || 10));
         if (isAfter(prepTime, now)) {
           notifications.push({
             user_id: user.id,

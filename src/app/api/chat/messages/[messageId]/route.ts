@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { messageId } = params;
 
-    logger.debug('Fetching message:', messageId);
+    logger.debug('Fetching message', { value: messageId });
 
     const { data: message, error } = await supabase
       .from('chat_messages')
@@ -68,7 +68,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }, { status: 400 });
     }
 
-    logger.debug('Updating message:', messageId);
+    logger.debug('Updating message', { value: messageId });
 
     // 업데이트할 필드들만 포함
     const updateData: any = {};
@@ -122,7 +122,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { messageId } = params;
 
-    logger.debug('Deleting message:', messageId);
+    logger.debug('Deleting message', { value: messageId });
 
     const { error } = await supabase
       .from('chat_messages')

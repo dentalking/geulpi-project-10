@@ -254,10 +254,10 @@ export function handleApiError(error: any): NextResponse<ApiErrorResponse> {
 /**
  * Wrap async API handlers with error handling
  */
-export function withErrorHandling<T extends any[], R>(
-  handler: (...args: T) => Promise<NextResponse<R>>
+export function withErrorHandling<T extends any[]>(
+  handler: (...args: T) => Promise<NextResponse<any>>
 ) {
-  return async (...args: T): Promise<NextResponse<ApiResponse>> => {
+  return async (...args: T): Promise<NextResponse<any>> => {
     try {
       return await handler(...args);
     } catch (error) {

@@ -28,17 +28,17 @@ export function EventCounterWidget({ events, locale }: EventCounterWidgetProps) 
 
     // Filter events by date range
     const todayEvents = events.filter(event => {
-      const eventDate = new Date(event.start_time);
+      const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate >= todayStart && eventDate <= todayEnd;
     });
 
     const thisWeekEvents = events.filter(event => {
-      const eventDate = new Date(event.start_time);
+      const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate >= weekStart && eventDate <= weekEnd;
     });
 
     const thisMonthEvents = events.filter(event => {
-      const eventDate = new Date(event.start_time);
+      const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
       return eventDate >= monthStart && eventDate <= monthEnd;
     });
 

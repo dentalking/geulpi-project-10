@@ -86,7 +86,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
     // Dual-track syncing based on auth_type
     if (userData?.auth_type === 'google_oauth') {
       // Google OAuth users: Fetch from Google Calendar API
-      logger.debug('Fetching events from Google Calendar for OAuth user:', userId);
+      logger.debug('Fetching events from Google Calendar for OAuth user', { value: userId });
 
       // Use centralized token management
       const tokenResult = await getValidGoogleTokens();
@@ -149,7 +149,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
         }
 
         source = 'google';
-        logger.debug('Successfully fetched Google Calendar events:', calendarEvents.length);
+        logger.debug('Successfully fetched Google Calendar events', { value: calendarEvents.length });
 
       } catch (error) {
         logger.error('Error fetching Google Calendar events:', error);
@@ -161,7 +161,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
 
     } else {
       // Standard email auth users: Fetch from Supabase database
-      logger.debug('Fetching events from database for standard user:', userId);
+      logger.debug('Fetching events from database for standard user', { value: userId });
 
       const { data: events, error } = await supabase
         .from('calendar_events')

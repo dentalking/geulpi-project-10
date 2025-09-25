@@ -26,15 +26,15 @@ export async function GET(request: NextRequest) {
       authToken = cookieStore.get('auth-token')?.value || null;
     }
 
-    logger.debug('Profile API GET: authHeader present:', !!authHeader);
-    logger.debug('Profile API GET: authToken present:', !!authToken);
+    logger.debug('Profile API GET: authHeader present', { value: !!authHeader });
+    logger.debug('Profile API GET: authToken present', { value: !!authToken });
 
     if (authToken) {
       try {
         logger.debug('Profile API GET: Verifying JWT token...');
         const user = await verifyToken(authToken);
         if (user) {
-          logger.debug('Profile API GET: JWT verification successful, userId:', user.id);
+          logger.debug('Profile API GET: JWT verification successful, userId', { value: user.id });
           userId = user.id;
         } else {
           logger.debug('Profile API GET: JWT verification returned null user');

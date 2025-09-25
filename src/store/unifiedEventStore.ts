@@ -75,7 +75,7 @@ interface UnifiedEventActions {
   // === 아티팩트 패널 ===
   openArtifactPanel: (events?: CalendarEvent[], query?: string) => void;
   closeArtifactPanel: () => void;
-  setArtifactEvents: (events: CalendarEvent[]) => void;
+  setArtifactEvents: (events: CalendarEvent[] | ((prev: CalendarEvent[]) => CalendarEvent[])) => void;
   setArtifactQuery: (query: string | null) => void;
   setArtifactMode: (mode: ArtifactMode) => void;
   setFocusedEvent: (event: CalendarEvent | null) => void;
@@ -310,7 +310,11 @@ export const useUnifiedEventStore = create<UnifiedEventStore>()(
           }),
 
           setArtifactEvents: (events) => set((state) => {
-            state.artifactEvents = events;
+            if (typeof events === 'function') {
+              state.artifactEvents = events(state.artifactEvents);
+            } else {
+              state.artifactEvents = events;
+            }
           }),
 
           setArtifactQuery: (query) => set((state) => {

@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
         if (currentUser) {
           // sendFriendRequest 메소드가 존재하지 않으므로 주석 처리
           // TODO: 친구 요청 이메일 기능 구현 필요
-          logger.debug('Friend request email would be sent to:', targetUser.email);
+          logger.debug('Friend request email would be sent to', { value: targetUser.email });
         }
       } catch (emailError) {
         logger.error('Failed to send friend request email:', emailError);

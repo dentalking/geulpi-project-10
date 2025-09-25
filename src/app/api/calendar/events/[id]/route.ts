@@ -94,7 +94,7 @@ export async function DELETE(
             eventId: eventId,
           });
 
-          logger.debug('Successfully deleted Google Calendar event:', eventId);
+          logger.debug('Successfully deleted Google Calendar event', { eventId });
 
           return NextResponse.json({
             success: true,
@@ -113,7 +113,7 @@ export async function DELETE(
               errorMessage.includes('not found') ||
               errorMessage.includes('resource has been deleted') ||
               errorMessage.includes('deleted')) {
-            logger.debug('Event already deleted or not found, treating as success:', eventId);
+            logger.debug('Event already deleted or not found, treating as success', { eventId });
             return NextResponse.json({
               success: true,
               message: 'Event deleted from Google Calendar',
@@ -269,7 +269,7 @@ export async function PUT(
             requestBody: eventUpdate,
           });
 
-          logger.debug('Successfully updated Google Calendar event:', eventId);
+          logger.debug('Successfully updated Google Calendar event', { eventId });
 
           return NextResponse.json({
             success: true,

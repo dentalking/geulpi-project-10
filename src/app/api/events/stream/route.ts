@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
                   // 이미 닫힌 연결
                 }
                 clients.delete(id);
-                logger.info('[SSE] Removed inactive client:', id);
+                logger.info('[SSE] Removed inactive client', { clientId: id });
               }
             }
 
