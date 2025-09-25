@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('Email auth verification failed:', error);
+        logger.error('Email auth verification failed:', error);
       }
     }
 
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
       .single();
 
     if (friendError) {
-      console.error('Error creating friendship:', friendError);
+      logger.error('Error creating friendship:', friendError);
       return NextResponse.json({
         success: false,
         error: 'Failed to create friendship'
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error('Error accepting invitation:', error);
+    logger.error('Error accepting invitation:', error);
     return handleApiError(error);
   }
 }

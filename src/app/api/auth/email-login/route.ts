@@ -1,61 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loginUser } from '@/lib/auth/supabase-auth';
-import { cookies } from 'next/headers';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
+import { apiSuccess, ApiErrors, validateBody, withErrorHandling } from '@/lib/api-utils';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { email, password, rememberMe } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const body = await request.json();
+  const { email, password, rememberMe } = body;
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
-
-    // Login user and check 2FA
-    const result = await loginUser(email, password, rememberMe);
-
-    // If 2FA is required, return pending token
-    if (result.requires2FA) {
-      return NextResponse.json({
-        success: false,
-        requires2FA: true,
-        pendingToken: result.pendingToken,
-        message: 'Please enter your 2FA code to complete login'
-      });
-    }
-
-    // Set auth token in cookie if login successful
-    if (result.token) {
-      const cookieStore = await cookies();
-      cookieStore.set('auth-token', result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: rememberMe ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60,
-        path: '/'
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      user: result.user,
-      token: result.token
-    });
-  } catch (error: any) {
-    if (error.message === 'Invalid email or password') {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-
-    console.error('Email login error:', error);
-    return NextResponse.json(
-      { error: 'Failed to login' },
-      { status: 500 }
-    );
+  // Validate required fields
+  const validation = validateBody(body, ['email', 'password']);
+  if (!validation.valid) {
+    return ApiErrors.validationError(validation.errors);
   }
-}
+
+  logger.debug('Email login attempt', { email });
+
+  // Login user and check 2FA
+  const result = await loginUser(email, password, rememberMe);
+
+  // If 2FA is required, return pending token
+  if (result.requires2FA) {
+    logger.info('2FA required for login', { email });
+    return apiSuccess({
+      requires2FA: true,
+      pendingToken: result.pendingToken
+    }, 'Please enter your 2FA code to complete login');
+  }
+
+  // Create response with auth token in cookie if login successful
+  const response = apiSuccess({
+    user: result.user,
+    token: result.token
+  }, 'Login successful');
+
+  if (result.token) {
+    const isProduction = env.isProduction();
+    response.cookies.set('auth-token', result.token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: rememberMe ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60,
+      path: '/'
+    });
+  }
+
+  logger.info('Email login successful', { userId: result.user?.id, email });
+  return response;
+})

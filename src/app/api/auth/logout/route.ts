@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { cookies } from 'next/headers';
 import { sessionManager } from '@/lib/auth/session-manager';
 
@@ -20,5 +22,5 @@ export async function GET() {
   cookieStore.delete('refresh-token'); 
   cookieStore.delete('session-id');
   
-  return NextResponse.redirect(new URL('/', process.env.NEXTAUTH_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/', env.get('NEXTAUTH_URL') || 'http://localhost:3000'));
 }

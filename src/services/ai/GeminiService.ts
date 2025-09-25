@@ -22,8 +22,8 @@ export class GeminiService {
   /**
    * 텍스트에서 일정 정보 추출
    */
-  async parseEventFromText(text: string): Promise<EventData> {
-    const parsedDateTime = parseKoreanDateTime(text);
+  async parseEventFromText(text: string, timezone: string = 'Asia/Seoul'): Promise<EventData> {
+    const parsedDateTime = parseKoreanDateTime(text, timezone);
 
     const prompt = `
       다음 텍스트에서 일정 정보를 추출해주세요.

@@ -95,7 +95,7 @@ export default function LoginPage() {
         setShowSecurityWarning(false);
         setTimeout(() => {
           router.push(`/${locale}/dashboard`);
-        }, 1000);
+        }, 1500);
       } else if (response.ok && data.requires2FA) {
         // 2FA required - redirect to verification page
         router.push(`/${locale}/verify-2fa?token=${data.pendingToken}`);

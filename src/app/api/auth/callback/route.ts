@@ -4,18 +4,20 @@ import { findOrCreateOAuthUser } from '@/lib/auth/oauth-handler';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import { google } from 'googleapis';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
+import { withErrorHandling } from '@/lib/api-utils';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-export async function GET(request: Request) {
+export const GET = withErrorHandling(async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.json({ error: 'No code provided' }, { status: 400 });
+    logger.warn('OAuth callback called without code parameter');
+    return NextResponse.redirect(new URL('/en/login?error=no_code', request.url));
   }
 
-  try {
+  const JWT_SECRET = env.get('JWT_SECRET') || env.get('NEXTAUTH_SECRET') || 'your-secret-key-change-in-production';
     // Exchange code for tokens
     const tokens = await getTokenFromCode(code);
 
@@ -37,6 +39,8 @@ export async function GET(request: Request) {
       userInfo.name || userInfo.email.split('@')[0]
     );
 
+    logger.info('OAuth user authenticated', { userId: user.id, email: user.email });
+
     // Generate JWT token for our app
     const appToken = jwt.sign(
       { userId: user.id, email: user.email },
@@ -44,9 +48,11 @@ export async function GET(request: Request) {
       { expiresIn: '7d' }
     );
 
+    logger.debug('JWT token generated for user', { userId: user.id });
+
     // Set cookies
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isVercel = process.env.VERCEL === '1';
+    const isProduction = env.isProduction();
+    const isVercel = !!env.get('VERCEL');
 
     const cookieStore = await cookies();
 
@@ -59,14 +65,18 @@ export async function GET(request: Request) {
       maxAge: 60 * 60 * 24 * 7 // 7 days
     });
 
+    logger.debug('Auth token cookie set');
+
     // Google access token (for Calendar API)
     cookieStore.set('google_access_token', tokens.access_token || '', {
       httpOnly: true,
       secure: isProduction || isVercel,
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 // 1 hour (Google tokens expire)
+      maxAge: 60 * 60 // 1 hour (Google tokens typically expire in 1 hour)
     });
+
+    logger.debug('Google access token cookie set');
 
     // Google refresh token (for refreshing access token)
     if (tokens.refresh_token) {
@@ -77,6 +87,19 @@ export async function GET(request: Request) {
         path: '/',
         maxAge: 60 * 60 * 24 * 30 // 30 days
       });
+      logger.debug('Google refresh token cookie set');
+    }
+
+    // Google token expiry time
+    if (tokens.expiry_date) {
+      cookieStore.set('google_token_expiry', tokens.expiry_date.toString(), {
+        httpOnly: true,
+        secure: isProduction || isVercel,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 // 1 hour
+      });
+      logger.debug('Google token expiry cookie set', { expiry: new Date(tokens.expiry_date).toISOString() });
     }
 
     // Store user ID
@@ -88,18 +111,18 @@ export async function GET(request: Request) {
       maxAge: 60 * 60 * 24 * 7 // 7 days
     });
 
-    // Get locale from cookie or default to 'ko'
-    const locale = cookieStore.get('NEXT_LOCALE')?.value || 'ko';
+    // Get locale from referrer or default to 'en'
+    const referrer = request.headers.get('referer');
+    let locale = 'en'; // Default to English
 
-    // Redirect to dashboard with locale
+    if (referrer) {
+      const referrerUrl = new URL(referrer);
+      const pathSegments = referrerUrl.pathname.split('/');
+      if (pathSegments.length > 1 && (pathSegments[1] === 'ko' || pathSegments[1] === 'en')) {
+        locale = pathSegments[1];
+      }
+    }
+
+    logger.info('OAuth login successful, redirecting to dashboard', { userId: user.id, locale });
     return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
-  } catch (error) {
-    console.error('Token exchange failed:', error);
-
-    // Get locale from cookie or default to 'ko'
-    const cookieStore = await cookies();
-    const locale = cookieStore.get('NEXT_LOCALE')?.value || 'ko';
-
-    return NextResponse.redirect(new URL(`/${locale}/login?error=auth_failed`, request.url));
-  }
-}
+})

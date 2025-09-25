@@ -284,9 +284,9 @@ export default function LandingPage() {
               className="flex flex-col sm:flex-row items-center gap-4"
             >
               <Link
-                href="/login"
+                href={`/${locale}/login`}
                 className="px-8 py-4 rounded-full font-semibold text-lg transition-all flex items-center gap-2 group shadow-lg hover:shadow-xl"
-                style={{ 
+                style={{
                   background: 'var(--btn-primary-bg)',
                   color: 'var(--btn-primary-text)'
                 }}
@@ -620,10 +620,10 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link 
-                href="/login?plan=free" 
+              <Link
+                href={`/${locale}/login?plan=free`}
                 className="block w-full py-3 rounded-full font-medium text-center transition-all"
-                style={{ 
+                style={{
                   background: 'var(--surface-primary)',
                   color: 'var(--text-primary)'
                 }}
@@ -677,7 +677,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link href="/login?plan=pro" className="block w-full py-3 hover:shadow-lg hover:shadow-purple-500/25 rounded-full font-medium text-center transition-all" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
+              <Link href={`/${locale}/login?plan=pro`} className="block w-full py-3 hover:shadow-lg hover:shadow-purple-500/25 rounded-full font-medium text-center transition-all" style={{ background: 'var(--gradient-purple-pink)', color: 'var(--text-on-accent)' }}>
                 {t('hero.freeTrialButton')}
               </Link>
             </motion.div>
@@ -721,7 +721,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               
-              <Link href="/login?plan=team" className="block w-full py-3 rounded-full font-medium text-center transition-all" style={{ background: 'var(--surface-primary)', color: 'var(--text-primary)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-primary)'}>
+              <Link href={`/${locale}/login?plan=team`} className="block w-full py-3 rounded-full font-medium text-center transition-all" style={{ background: 'var(--surface-primary)', color: 'var(--text-primary)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-elevated)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--surface-primary)'}>
                 {t('pricing.plans.team.button')}
               </Link>
             </motion.div>
@@ -751,13 +751,13 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/login"
+                href={`/${locale}/login`}
                 className="px-8 py-4 rounded-full font-semibold text-lg transition-all" style={{ background: 'var(--cta-button-primary)', color: 'var(--cta-button-primary-text)' }}
               >
                 {t('cta.startButton')}
               </Link>
               <Link
-                href="/subscription"
+                href={`/${locale}/subscription`}
                 className="px-8 py-4 rounded-full font-semibold text-lg transition-all border" style={{ background: 'var(--cta-button-secondary)', color: 'var(--cta-button-secondary-text)', borderColor: 'var(--border-default)' }}
               >
                 {t('cta.viewPlans')}

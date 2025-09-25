@@ -1,37 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { logger } from '@/lib/logger';
+import { apiSuccess, withErrorHandling } from '@/lib/api-utils';
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // In a real app, this would fetch from a database
+  // For now, we'll use cookies as a simple storage
+  const cookieStore = cookies();
+  const subscriptionData = cookieStore.get('subscription');
+
+  const defaultSubscription = {
+    plan: 'free',
+    billingCycle: null,
+    nextBillingDate: null,
+    status: 'active'
+  };
+
+  if (!subscriptionData) {
+    logger.debug('No subscription data found, returning free plan');
+    return apiSuccess(defaultSubscription, 'Subscription status retrieved');
+  }
+
   try {
-    // In a real app, this would fetch from a database
-    // For now, we'll use cookies as a simple storage
-    const cookieStore = cookies();
-    const subscriptionData = cookieStore.get('subscription');
-    
-    if (!subscriptionData) {
-      return NextResponse.json({
-        plan: 'free',
-        billingCycle: null,
-        nextBillingDate: null,
-        status: 'active'
-      });
-    }
-
     const subscription = JSON.parse(subscriptionData.value);
-    
-    return NextResponse.json({
+    logger.debug('Subscription data found', { plan: subscription.plan });
+
+    return apiSuccess({
       plan: subscription.plan || 'free',
       billingCycle: subscription.billingCycle || null,
       nextBillingDate: subscription.nextBillingDate || null,
       status: subscription.status || 'active'
-    });
+    }, 'Subscription status retrieved');
   } catch (error) {
-    console.error('Failed to get subscription status:', error);
-    return NextResponse.json({
-      plan: 'free',
-      billingCycle: null,
-      nextBillingDate: null,
-      status: 'active'
-    });
+    logger.warn('Failed to parse subscription data', { error });
+    return apiSuccess(defaultSubscription, 'Subscription status retrieved');
   }
-}
+})

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/lib/db';
 
 export async function GET() {
   try {
-    console.log('Checking chat database tables...');
+    logger.debug('Checking chat database tables...');
 
     const results = {
       chat_sessions: { exists: false, count: 0, error: null as string | null },
@@ -61,7 +62,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
-    console.error('Database check error:', error);
+    logger.error('Database check error:', error);
     return NextResponse.json({
       success: false,
       error: error.message,

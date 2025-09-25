@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
                 .single();
 
             if (inviteError) {
-                console.error('Error creating invitation:', inviteError);
+                logger.error('Error creating invitation:', inviteError);
                 return NextResponse.json({
                     success: false,
                     error: 'Failed to send invitation'
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
                 .single();
 
             if (requestError) {
-                console.error('Error creating friend request:', requestError);
+                logger.error('Error creating friend request:', requestError);
                 return {
                     success: false,
                     error: 'Failed to send friend request',
@@ -176,7 +177,7 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
-        console.error('Error in POST /api/friends/request:', error);
+        logger.error('Error in POST /api/friends/request:', error);
         return NextResponse.json({
             success: false,
             error: 'Internal server error'

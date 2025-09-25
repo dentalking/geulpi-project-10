@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAuthUrl } from '@/lib/google-auth';
+import { logger } from '@/lib/logger';
+import { ApiErrors, withErrorHandling } from '@/lib/api-utils';
 
-export async function GET() {
-  try {
-    const authUrl = getAuthUrl();
-    console.log('Generated auth URL:', authUrl);
-    return NextResponse.redirect(authUrl);
-  } catch (error) {
-    console.error('Error generating auth URL:', error);
-    return NextResponse.json({ error: 'Failed to generate auth URL' }, { status: 500 });
-  }
-}
+export const GET = withErrorHandling(async () => {
+  const authUrl = getAuthUrl();
+  logger.info('Generated Google OAuth URL for login');
+  return NextResponse.redirect(authUrl);
+})

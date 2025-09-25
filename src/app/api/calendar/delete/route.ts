@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { getCalendarClient } from '@/lib/google-auth';
 
@@ -21,7 +22,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Failed to delete event:', error);
+    logger.error('Failed to delete event:', error);
     return NextResponse.json({ 
       error: 'Failed to delete event',
       message: error.message 

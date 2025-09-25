@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { GoogleCalendarService } from '@/services/google/GoogleCalendarService';
@@ -30,7 +31,7 @@ export async function PUT(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -49,7 +50,7 @@ export async function PUT(request: Request) {
                     userId = googleUser.id; // This will be the Google user ID
                 }
             } catch (error) {
-                console.error('Failed to get user from access token', error);
+                logger.error('Failed to get user from access token', error);
             }
         }
 
@@ -104,7 +105,7 @@ export async function PUT(request: Request) {
                     googleUpdates
                 );
             } catch (error) {
-                console.error('Google Calendar update failed:', error);
+                logger.error('Google Calendar update failed:', error);
                 // Continue with Supabase update even if Google fails
             }
         }
@@ -131,7 +132,7 @@ export async function PUT(request: Request) {
             .single();
 
         if (updateError) {
-            console.error('Error updating event in database:', updateError);
+            logger.error('Error updating event in database:', updateError);
             return NextResponse.json({
                 success: false,
                 error: 'Failed to update event in database'

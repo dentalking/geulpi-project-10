@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { supabase } from '@/lib/db';
 
 // Cache for 60 seconds to reduce DB load
@@ -11,7 +13,7 @@ export async function GET() {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
+    environment: env.get('NODE_ENV') || 'development',
     services: {
       api: 'operational',
       database: 'checking...',
@@ -51,13 +53,13 @@ export async function GET() {
   } catch (error) {
     health.services.database = 'down';
     health.status = 'unhealthy';
-    console.error('Health check - Database error:', error);
+    logger.error('Health check - Database error:', error);
   }
   
   // Authentication 서비스 체크 (Google OAuth)
   try {
     // 간단히 환경 변수 존재 여부만 체크
-    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    if (env.get('GOOGLE_CLIENT_ID') && env.get('GOOGLE_CLIENT_SECRET')) {
       health.services.authentication = 'operational';
     } else {
       health.services.authentication = 'misconfigured';
@@ -65,7 +67,7 @@ export async function GET() {
     }
   } catch (error) {
     health.services.authentication = 'error';
-    console.error('Health check - Auth check error:', error);
+    logger.error('Health check - Auth check error:', error);
   }
   
   // 전체 응답 시간

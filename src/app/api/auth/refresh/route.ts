@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { cookies } from 'next/headers';
 import { sessionManager } from '@/lib/auth/session-manager';
 
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Update access token cookie
     cookieStore.set('auth-token', tokens.accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.isProduction(),
       sameSite: 'lax',
       maxAge: tokens.expiresIn,
       path: '/'
@@ -40,7 +42,7 @@ export async function POST(request: NextRequest) {
       expiresIn: tokens.expiresIn
     });
   } catch (error: any) {
-    console.error('Token refresh error:', error);
+    logger.error('Token refresh error:', error);
     return NextResponse.json(
       { error: 'Failed to refresh token' },
       { status: 500 }

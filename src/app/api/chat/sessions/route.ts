@@ -209,9 +209,27 @@ export async function POST(request: NextRequest) {
     // Rate limiting
     const rateLimitResponse = await checkRateLimit(request, 'general');
     if (rateLimitResponse) return rateLimitResponse;
-    
+
     const body = await request.json();
-    let { title = '새 채팅', userId, metadata = {} } = body;
+    let { title, userId, metadata = {}, locale } = body;
+
+    // Extract locale from request URL if not provided in body
+    if (!locale) {
+      const url = new URL(request.url);
+      const pathSegments = url.pathname.split('/');
+      // Check if the first segment after domain is a locale (ko/en)
+      if (pathSegments.length > 1 && (pathSegments[1] === 'ko' || pathSegments[1] === 'en')) {
+        locale = pathSegments[1];
+      } else {
+        // Default to Korean if no locale found
+        locale = 'ko';
+      }
+    }
+
+    // Set default title based on locale if not provided
+    if (!title) {
+      title = locale === 'en' ? 'New Chat' : '새 채팅';
+    }
 
     // 현재 로그인한 사용자의 ID 자동 추출
     if (!userId) {

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { supabase } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = env.get('JWT_SECRET') || 'your-secret-key-change-in-production';
 
 // Helper to get user ID from request
 function getUserIdFromRequest(request: NextRequest): string | null {
@@ -64,7 +66,7 @@ export async function GET(request: NextRequest) {
       events: events || []
     });
   } catch (error: any) {
-    console.error('Get events error:', error);
+    logger.error('Get events error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch events' },
       { status: 500 }
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
       event
     });
   } catch (error: any) {
-    console.error('Create event error:', error);
+    logger.error('Create event error:', error);
     return NextResponse.json(
       { error: 'Failed to create event' },
       { status: 500 }
@@ -198,7 +200,7 @@ export async function PUT(request: NextRequest) {
       event
     });
   } catch (error: any) {
-    console.error('Update event error:', error);
+    logger.error('Update event error:', error);
     return NextResponse.json(
       { error: 'Failed to update event' },
       { status: 500 }
@@ -256,7 +258,7 @@ export async function DELETE(request: NextRequest) {
       message: 'Event deleted successfully'
     });
   } catch (error: any) {
-    console.error('Delete event error:', error);
+    logger.error('Delete event error:', error);
     return NextResponse.json(
       { error: 'Failed to delete event' },
       { status: 500 }

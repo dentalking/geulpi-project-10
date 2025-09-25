@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { ProactiveNotification, NotificationAction } from '@/types';
-import { NotificationScheduler } from '@/services/notification';
+// Removed NotificationScheduler - using SimpleNotificationService instead
 
 interface NotificationState {
   notifications: ProactiveNotification[];
   unreadCount: number;
   isInitialized: boolean;
-  scheduler: NotificationScheduler | null;
+  // scheduler removed - using SimpleNotificationService for login notifications
   
   // Actions
   initialize: (userId: string) => Promise<void>;
@@ -29,23 +29,12 @@ export const useNotificationStore = create<NotificationState>()(
     notifications: [],
     unreadCount: 0,
     isInitialized: false,
-    scheduler: null,
 
     initialize: async (userId: string) => {
       set((state) => {
-        if (!state.scheduler) {
-          state.scheduler = new NotificationScheduler();
-        }
         state.isInitialized = true;
       });
-
-      const scheduler = get().scheduler;
-      if (scheduler) {
-        await scheduler.initialize(userId);
-        
-        // 초기 알림 체크
-        await scheduler.checkAndScheduleNotifications(userId);
-      }
+      // Notification scheduling now handled by SimpleNotificationService on login
     },
 
     addNotification: (notification: ProactiveNotification) => {
@@ -213,16 +202,11 @@ export const useNotificationStore = create<NotificationState>()(
     },
 
     cleanup: () => {
-      const scheduler = get().scheduler;
-      if (scheduler) {
-        scheduler.stop();
-      }
-      
+      // Scheduler removed - cleanup simplified
       set((state) => {
         state.notifications = [];
         state.unreadCount = 0;
         state.isInitialized = false;
-        state.scheduler = null;
       });
     }
   }))

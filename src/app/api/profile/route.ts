@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { EnhancedErrorLogger } from '@/lib/enhanced-error-handler';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 // GET: 사용자 프로필 조회
@@ -24,24 +26,24 @@ export async function GET(request: NextRequest) {
       authToken = cookieStore.get('auth-token')?.value || null;
     }
 
-    console.log('Profile API GET: authHeader present:', !!authHeader);
-    console.log('Profile API GET: authToken present:', !!authToken);
+    logger.debug('Profile API GET: authHeader present:', !!authHeader);
+    logger.debug('Profile API GET: authToken present:', !!authToken);
 
     if (authToken) {
       try {
-        console.log('Profile API GET: Verifying JWT token...');
+        logger.debug('Profile API GET: Verifying JWT token...');
         const user = await verifyToken(authToken);
         if (user) {
-          console.log('Profile API GET: JWT verification successful, userId:', user.id);
+          logger.debug('Profile API GET: JWT verification successful, userId:', user.id);
           userId = user.id;
         } else {
-          console.log('Profile API GET: JWT verification returned null user');
+          logger.debug('Profile API GET: JWT verification returned null user');
         }
       } catch (error) {
-        console.error('Profile API GET: JWT auth verification failed:', error);
+        logger.error('Profile API GET: JWT auth verification failed:', error);
       }
     } else {
-      console.log('Profile API GET: No auth token found in header or cookies');
+      logger.debug('Profile API GET: No auth token found in header or cookies');
     }
 
     // 2. Google OAuth 트랙 확인 (기존 시스템 보존)
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
             userId = user.id;
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (createError) {
-        console.error('Error creating profile:', createError);
+        logger.error('Error creating profile:', createError);
         return NextResponse.json(
           { success: false, error: 'Failed to create profile' },
           { status: 500 }
@@ -117,7 +119,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in GET /api/profile:', error);
+    logger.error('Error in GET /api/profile:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -147,7 +149,7 @@ export async function PUT(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -161,7 +163,7 @@ export async function PUT(request: NextRequest) {
             userId = user.id;
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -190,7 +192,7 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error updating profile:', error);
+      logger.error('Error updating profile:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to update profile' },
         { status: 500 }
@@ -203,7 +205,7 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in PUT /api/profile:', error);
+    logger.error('Error in PUT /api/profile:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -233,7 +235,7 @@ export async function PATCH(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -247,7 +249,7 @@ export async function PATCH(request: NextRequest) {
             userId = user.id;
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -300,7 +302,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error updating profile field:', error);
+      logger.error('Error updating profile field:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to update profile field' },
         { status: 500 }
@@ -313,7 +315,7 @@ export async function PATCH(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in PATCH /api/profile:', error);
+    logger.error('Error in PATCH /api/profile:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

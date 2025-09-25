@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/lib/db';
 
 // GET /api/admin/cleanup-sessions - user_id가 없는 세션들 확인 및 정리
 export async function GET() {
   try {
-    console.log('Checking for orphaned chat sessions...');
+    logger.debug('Checking for orphaned chat sessions...');
     
     // user_id가 null인 세션들 조회
     const { data: orphanedSessions, error: fetchError } = await supabase
@@ -14,14 +15,14 @@ export async function GET() {
       .order('created_at', { ascending: false });
     
     if (fetchError) {
-      console.error('Error fetching orphaned sessions:', fetchError);
+      logger.error('Error fetching orphaned sessions:', fetchError);
       return NextResponse.json({
         success: false,
         error: fetchError.message
       }, { status: 500 });
     }
     
-    console.log(`Found ${orphanedSessions?.length || 0} orphaned sessions`);
+    logger.debug(`Found ${orphanedSessions?.length || 0} orphaned sessions`);
     
     return NextResponse.json({
       success: true,
@@ -31,7 +32,7 @@ export async function GET() {
     });
     
   } catch (error: any) {
-    console.error('Cleanup check error:', error);
+    logger.error('Cleanup check error:', error);
     return NextResponse.json({
       success: false,
       error: error.message
@@ -42,7 +43,7 @@ export async function GET() {
 // DELETE /api/admin/cleanup-sessions - user_id가 없는 세션들 삭제
 export async function DELETE() {
   try {
-    console.log('Deleting orphaned chat sessions...');
+    logger.debug('Deleting orphaned chat sessions...');
     
     // 먼저 카운트 확인
     const { count, error: countError } = await supabase
@@ -51,14 +52,14 @@ export async function DELETE() {
       .is('user_id', null);
     
     if (countError) {
-      console.error('Error counting orphaned sessions:', countError);
+      logger.error('Error counting orphaned sessions:', countError);
       return NextResponse.json({
         success: false,
         error: countError.message
       }, { status: 500 });
     }
     
-    console.log(`Attempting to delete ${count} orphaned sessions`);
+    logger.debug(`Attempting to delete ${count} orphaned sessions`);
     
     // user_id가 null인 세션들 삭제 (CASCADE로 메시지도 자동 삭제)
     const { error: deleteError } = await supabase
@@ -67,14 +68,14 @@ export async function DELETE() {
       .is('user_id', null);
     
     if (deleteError) {
-      console.error('Error deleting orphaned sessions:', deleteError);
+      logger.error('Error deleting orphaned sessions:', deleteError);
       return NextResponse.json({
         success: false,
         error: deleteError.message
       }, { status: 500 });
     }
     
-    console.log(`Successfully deleted ${count} orphaned sessions`);
+    logger.debug(`Successfully deleted ${count} orphaned sessions`);
     
     return NextResponse.json({
       success: true,
@@ -83,7 +84,7 @@ export async function DELETE() {
     });
     
   } catch (error: any) {
-    console.error('Cleanup delete error:', error);
+    logger.error('Cleanup delete error:', error);
     return NextResponse.json({
       success: false,
       error: error.message

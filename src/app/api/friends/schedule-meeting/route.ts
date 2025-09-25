@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabaseEmailService } from '@/services/email/SupabaseEmailService';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 interface MeetingProposal {
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
             }
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
     if (autoSelect) {
       // 가능한 시간대 조회
       const availabilityResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/friends/availability?friendId=${friendId}`,
+        `${env.get('NEXT_PUBLIC_APP_URL')}/api/friends/availability?friendId=${friendId}`,
         {
           headers: {
             'Authorization': request.headers.get('authorization') || '',
@@ -197,7 +199,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (eventError) {
-      console.error('Error creating meeting proposal:', eventError);
+      logger.error('Error creating meeting proposal:', eventError);
       return NextResponse.json(
         { error: '약속 제안 생성에 실패했습니다' },
         { status: 500 }
@@ -228,7 +230,7 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (error) {
-      console.error('Failed to send notification:', error);
+      logger.error('Failed to send notification:', error);
       // 알림 실패해도 계속 진행
     }
 
@@ -281,7 +283,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in POST /api/friends/schedule-meeting:', error);
+    logger.error('Error in POST /api/friends/schedule-meeting:', error);
     return NextResponse.json(
       { error: '서버 오류가 발생했습니다' },
       { status: 500 }
@@ -311,7 +313,7 @@ export async function PATCH(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -372,7 +374,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', proposalId);
 
       if (updateError) {
-        console.error('Error accepting proposal:', updateError);
+        logger.error('Error accepting proposal:', updateError);
         return NextResponse.json(
           { error: '약속 수락에 실패했습니다' },
           { status: 500 }
@@ -397,7 +399,7 @@ export async function PATCH(request: NextRequest) {
           });
         }
       } catch (error) {
-        console.error('Failed to send acceptance notification:', error);
+        logger.error('Failed to send acceptance notification:', error);
       }
 
       return NextResponse.json({
@@ -413,7 +415,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', proposalId);
 
       if (deleteError) {
-        console.error('Error rejecting proposal:', deleteError);
+        logger.error('Error rejecting proposal:', deleteError);
         return NextResponse.json(
           { error: '약속 거절에 실패했습니다' },
           { status: 500 }
@@ -468,7 +470,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', proposalId);
 
       if (updateError) {
-        console.error('Error suggesting alternative:', updateError);
+        logger.error('Error suggesting alternative:', updateError);
         return NextResponse.json(
           { error: '수정 제안에 실패했습니다' },
           { status: 500 }
@@ -487,7 +489,7 @@ export async function PATCH(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('Error in PATCH /api/friends/schedule-meeting:', error);
+    logger.error('Error in PATCH /api/friends/schedule-meeting:', error);
     return NextResponse.json(
       { error: '서버 오류가 발생했습니다' },
       { status: 500 }

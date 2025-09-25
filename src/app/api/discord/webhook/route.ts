@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 // Discord 인터랙션 타입
@@ -77,9 +79,9 @@ interface DiscordResponse {
 
 // Discord 서명 검증
 function verifyDiscordSignature(body: string, signature: string, timestamp: string): boolean {
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+  const publicKey = env.get('DISCORD_PUBLIC_KEY');
   if (!publicKey) {
-    console.error('[Discord Bot] DISCORD_PUBLIC_KEY not configured');
+    logger.error('[Discord Bot] DISCORD_PUBLIC_KEY not configured');
     return false;
   }
 
@@ -94,12 +96,12 @@ function verifyDiscordSignature(body: string, signature: string, timestamp: stri
     const isValid = nacl.sign.detached.verify(message, sig, pub);
 
     if (!isValid) {
-      console.error('[Discord Bot] Signature verification failed');
+      logger.error('[Discord Bot] Signature verification failed');
     }
 
     return isValid;
   } catch (error) {
-    console.error('[Discord Bot] Signature verification error:', error);
+    logger.error('[Discord Bot] Signature verification error:', error);
     return false;
   }
 }
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
     // 서명 검증 (Discord에서 서명을 보내면 항상 검증)
     if (signature && timestamp) {
       if (!verifyDiscordSignature(bodyText, signature, timestamp)) {
-        console.error('[Discord Bot] Signature verification failed');
+        logger.error('[Discord Bot] Signature verification failed');
         return NextResponse.json(
           { error: 'Invalid signature' },
           { status: 401 }
@@ -124,11 +126,11 @@ export async function POST(request: NextRequest) {
 
     const interaction: DiscordInteraction = JSON.parse(bodyText);
 
-    console.log(`[Discord Bot] Interaction: ${interaction.type} - ${interaction.data?.name} from ${interaction.user?.username || interaction.member?.user.username}`);
+    logger.debug(`[Discord Bot] Interaction: ${interaction.type} - ${interaction.data?.name} from ${interaction.user?.username || interaction.member?.user.username}`);
 
     // PING 응답 (Discord 필수)
     if (interaction.type === 1) {
-      console.log('[Discord Bot] Sending PING response');
+      logger.debug('[Discord Bot] Sending PING response');
       return NextResponse.json({ type: 1 }, {
         headers: {
           'Content-Type': 'application/json'
@@ -165,7 +167,7 @@ export async function POST(request: NextRequest) {
       response = createDefaultResponse();
     }
 
-    console.log('[Discord Bot] Sending response:', JSON.stringify(response, null, 2));
+    logger.debug('[Discord Bot] Sending response:', JSON.stringify(response, null, 2));
     return NextResponse.json(response, {
       headers: {
         'Content-Type': 'application/json'
@@ -173,9 +175,9 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Discord Bot] Error:', error);
+    logger.error('[Discord Bot] Error:', error);
     const errorResponse = createErrorResponse();
-    console.log('[Discord Bot] Sending error response:', JSON.stringify(errorResponse, null, 2));
+    logger.debug('[Discord Bot] Sending error response:', JSON.stringify(errorResponse, null, 2));
     return NextResponse.json(errorResponse, {
       headers: {
         'Content-Type': 'application/json'
@@ -418,7 +420,7 @@ async function handleFriendsCommand(
           type: 2,
           style: 5,
           label: '웹에서 친구 관리',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/friends`
+          url: `${env.get('NEXT_PUBLIC_APP_URL')}/friends`
         }]
       }]
     }
@@ -492,7 +494,7 @@ async function getTodayEvents(userId: string) {
 
 // 회원가입 안내
 function createRegistrationPrompt(): DiscordResponse {
-  const registrationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/register?from=discord`;
+  const registrationUrl = `${env.get('NEXT_PUBLIC_APP_URL')}/auth/register?from=discord`;
 
   return {
     type: 4,

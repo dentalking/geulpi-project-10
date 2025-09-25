@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { 
   validatePasswordResetToken, 
   resetPasswordWithToken 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       email: validation.email
     });
   } catch (error: any) {
-    console.error('Token validation error:', error);
+    logger.error('Token validation error:', error);
     return NextResponse.json(
       { error: 'Failed to validate token' },
       { status: 500 }
@@ -110,14 +111,14 @@ export async function POST(request: NextRequest) {
     // await sessionManager.revokeAllUserSessions(userId);
     
     // Log for security audit
-    console.log(`Password reset completed for: ${validation.email.substring(0, 3)}***`);
+    logger.debug(`Password reset completed for: ${validation.email.substring(0, 3)}***`);
     
     return NextResponse.json({
       success: true,
       message: 'Password has been reset successfully'
     });
   } catch (error: any) {
-    console.error('Password reset error:', error);
+    logger.error('Password reset error:', error);
     return NextResponse.json(
       { error: 'Failed to reset password' },
       { status: 500 }

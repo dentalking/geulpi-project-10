@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { Button, Container } from '@/components/ui';
 import { Card } from '@/components/ui/Layout';
 import { FormField } from '@/components/ui/FormField';
@@ -9,6 +10,7 @@ import { Loader2, Shield, Key, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function Verify2FAPage() {
   const router = useRouter();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const pendingToken = searchParams?.get('token') || null;
 
@@ -79,7 +81,7 @@ export default function Verify2FAPage() {
 
       if (data.success) {
         // Successfully verified, redirect to dashboard
-        router.push('/dashboard');
+        router.push(`/${locale}/dashboard`);
       } else {
         setError(data.error || 'Verification failed');
         // Clear the input

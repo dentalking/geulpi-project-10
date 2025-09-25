@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { twoFactorAuth } from '@/lib/auth/two-factor-auth';
 import { rateLimit } from '@/lib/auth/rate-limit';
 import { sessionManager } from '@/lib/auth/session-manager';
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
     // Access token cookie
     cookieStore.set('auth-token', tokens.accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.isProduction(),
       sameSite: 'lax',
       maxAge: pendingLogin.rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60, // 7 days or 24 hours
       path: '/'
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
     // Refresh token cookie (longer expiry)
     cookieStore.set('refresh-token', tokens.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.isProduction(),
       sameSite: 'lax',
       maxAge: pendingLogin.rememberMe ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60, // 30 days or 7 days
       path: '/'
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
     // Session ID cookie (for tracking)
     cookieStore.set('session-id', session.id, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.isProduction(),
       sameSite: 'lax',
       maxAge: pendingLogin.rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60,
       path: '/'
@@ -150,7 +152,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('2FA login verification error:', error);
+    logger.error('2FA login verification error:', error);
     return NextResponse.json(
       { 
         success: false, 

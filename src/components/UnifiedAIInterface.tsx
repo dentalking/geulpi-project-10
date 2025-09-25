@@ -25,6 +25,10 @@ import {
 } from 'lucide-react';
 import { useToastContext } from '@/providers/ToastProvider';
 import Image from 'next/image';
+import { apiRateLimitManager } from '@/lib/ApiRateLimitManager';
+import { useQuickActionTracking } from '@/hooks/useQuickActionTracking';
+import { FEATURES } from '@/config/features';
+import { getUserPatternService } from '@/services/ai/UserPatternLearningService';
 
 interface Message {
   id: string;
@@ -47,8 +51,29 @@ interface ExtractedEvent {
   selected?: boolean;
 }
 
+interface AIActionResponse {
+  type: 'create' | 'update' | 'delete' | 'list' | 'search' | 'friend_action' | 'create_multiple';
+  status?: 'pending' | 'processing' | 'completed' | 'failed';
+  data?: {
+    eventId?: string;
+    eventIds?: string[];
+    events?: ExtractedEvent[];
+    friendAction?: string;
+    [key: string]: any;
+  };
+}
+
+interface AIResponse {
+  message?: string;
+  action?: AIActionResponse;
+  events?: ExtractedEvent[];
+  success?: boolean;
+  eventsCount?: number;
+  suggestions?: string[];
+}
+
 interface UnifiedAIInterfaceProps {
-  onSubmit?: (text: string, imageData?: string) => Promise<{ message?: string; action?: any; success?: boolean } | void>;
+  onSubmit?: (text: string, imageData?: string) => Promise<AIResponse | void>;
   onEventsExtracted?: (events: ExtractedEvent[]) => void;
   className?: string;
   autoFocus?: boolean;
@@ -58,6 +83,7 @@ interface UnifiedAIInterfaceProps {
   focusLevel?: 'background' | 'medium' | 'focus';
   onFocusLevelChange?: (level: 'background' | 'medium' | 'focus') => void;
   initialMessages?: Message[];
+  userPicture?: string | null;
 }
 
 
@@ -71,11 +97,12 @@ export function UnifiedAIInterface({
   sessionId = `session-${Date.now()}`,
   focusLevel = 'medium',
   onFocusLevelChange,
-  initialMessages = []
+  initialMessages = [],
+  userPicture
 }: UnifiedAIInterfaceProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(true); // Start with suggestions visible
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -86,10 +113,18 @@ export function UnifiedAIInterface({
   const [extractedEvents, setExtractedEvents] = useState<ExtractedEvent[]>([]);
   const [showEventSelector, setShowEventSelector] = useState(false);
   const [attachedImage, setAttachedImage] = useState<{ data: string; preview: string } | null>(null);
+  const [lastAIResponse, setLastAIResponse] = useState<AIResponse | null>(null); // AI 응답 저장용
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const lastProcessedAIResponseRef = useRef<string>('');
   const { toast } = useToastContext();
+
+  // Quick Action 추적 훅
+  const { trackClick, trackDisplay } = useQuickActionTracking({
+    batchMode: true,
+    trackDisplay: FEATURES.QUICK_ACTION_TRACKING
+  });
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
@@ -115,14 +150,48 @@ export function UnifiedAIInterface({
       const hasUserMessages = initialMessages.some(msg => msg.role === 'user');
       if (hasUserMessages) {
         setShowChatHistory(true);
-        console.log('[UnifiedAIInterface] Loading previous chat with', initialMessages.length, 'messages');
+        // Loading previous chat
       }
     }
   }, [initialMessages]);
 
-  // Fetch AI-powered suggestions
+  // Initialize with fallback suggestions on mount
   useEffect(() => {
+    if (suggestions.length === 0) {
+      const fallbackSuggestions = locale === 'ko' ? [
+        "오늘 일정 확인해줘",
+        "내일 회의 일정 추가",
+        "이번주 일정 정리해줘",
+        "사진에서 일정 추출하기",
+        "친구와 미팅 잡기"
+      ] : [
+        "Show today's schedule",
+        "Add meeting tomorrow",
+        "Review this week's events",
+        "Extract schedule from photo",
+        "Schedule meeting with friend"
+      ];
+      setSuggestions(fallbackSuggestions);
+      setShowSuggestions(true);
+    }
+  }, [locale, suggestions.length]);
+
+  // Fetch AI-powered suggestions with debouncing
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    let isSubscribed = true;
+
     const fetchSuggestions = async () => {
+      if (!isSubscribed) return;
+
+      // Check rate limiting
+      const rateLimitCheck = apiRateLimitManager.canMakeRequest('/api/ai/suggestions');
+      if (!rateLimitCheck.allowed) {
+        console.log(`Suggestions API rate limited. Wait ${rateLimitCheck.waitTime}s`);
+        setSuggestions(getFallbackSuggestions());
+        return;
+      }
+
       setLoadingSuggestions(true);
       try {
         // Prepare recent messages for context
@@ -130,7 +199,9 @@ export function UnifiedAIInterface({
           role: msg.role,
           content: msg.content
         }));
-        
+
+        // Debug logging removed to reduce console noise
+
         const response = await fetch('/api/ai/suggestions', {
           method: 'POST',
           headers: {
@@ -139,32 +210,124 @@ export function UnifiedAIInterface({
           body: JSON.stringify({
             locale,
             sessionId,
-            recentMessages
+            recentMessages,
+            lastAIResponse // AI 응답 후 follow-up suggestion 생성을 위해 추가
           })
         });
-        
+
+        if (response.status === 429) {
+          // Rate limited - record it and use fallback
+          const retryAfterHeader = response.headers.get('Retry-After');
+          const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader) : undefined;
+          apiRateLimitManager.recordRateLimit('/api/ai/suggestions', retrySeconds);
+          console.log('Suggestions API rate limited, using fallback');
+          setSuggestions(getFallbackSuggestions());
+          setShowSuggestions(true);
+          return;
+        }
+
         if (response.ok) {
+          // Record successful request
+          apiRateLimitManager.recordSuccess('/api/ai/suggestions');
+
           const data = await response.json();
-          setSuggestions(data.data?.suggestions || []);
+          console.log('[UnifiedAI] Received suggestions:', {
+            count: data.data?.suggestions?.length || 0,
+            suggestions: data.data?.suggestions || [],
+            showSuggestions: showSuggestions
+          });
+          // Received suggestions
+          if (isSubscribed) {
+            const receivedSuggestions = data.data?.suggestions || [];
+            console.log('[UnifiedAI] Setting suggestions:', receivedSuggestions);
+            setSuggestions(receivedSuggestions);
+            // Always show suggestions when we have them
+            setShowSuggestions(true);
+
+            // Track suggestions display
+            if (FEATURES.QUICK_ACTION_TRACKING && receivedSuggestions.length > 0) {
+              trackDisplay(receivedSuggestions.map((s, idx) => ({
+                text: s,
+                category: getSuggestionCategory(s)
+              })));
+            }
+          }
         } else {
           // Fallback suggestions if API fails
-          setSuggestions(getFallbackSuggestions());
+          const fallback = getFallbackSuggestions();
+          console.log('[UnifiedAI] Using fallback suggestions:', fallback);
+          setSuggestions(fallback);
+          setShowSuggestions(true);
         }
       } catch (error) {
         console.error('Failed to fetch suggestions:', error);
-        setSuggestions(getFallbackSuggestions());
+        const fallback = getFallbackSuggestions();
+        console.log('[UnifiedAI] Using fallback suggestions after error:', fallback);
+        setSuggestions(fallback);
+        setShowSuggestions(true);
       } finally {
-        setLoadingSuggestions(false);
+        if (isSubscribed) {
+          setLoadingSuggestions(false);
+        }
       }
     };
 
-    fetchSuggestions();
-    
-    // Refresh suggestions when messages change or every 10 minutes (reduced frequency)
-    const interval = setInterval(fetchSuggestions, 10 * 60 * 1000);
-    
+    // Initial suggestions - immediate load on mount
+    if (suggestions.length === 0) {
+      // First load - immediate
+      fetchSuggestions();
+    } else {
+      // Subsequent updates - wait longer
+      timeoutId = setTimeout(fetchSuggestions, 30000); // 30초 대기
+    }
+
+    // Don't refresh on every message change - only on mount and locale/session change
+    return () => {
+      isSubscribed = false;
+      clearTimeout(timeoutId);
+    };
+  }, [locale, sessionId]); // Removed lastAIResponse to prevent suggestion loops
+
+  // Separate effect for periodic refresh (much less frequent)
+  useEffect(() => {
+    // Only refresh when user is idle for a while
+    const interval = setInterval(() => {
+      // Only fetch if not already loading and no recent activity
+      if (!loadingSuggestions && !isTyping && !inputValue) {
+        // Silent background refresh for idle users
+        console.log('[UnifiedAI] Background refresh for idle state');
+        setSuggestions(getFallbackSuggestions()); // Use fallback for periodic refresh
+      }
+    }, 5 * 60 * 1000); // 5 minutes for idle refresh
+
     return () => clearInterval(interval);
-  }, [locale, sessionId, messages]);
+  }, [loadingSuggestions, isTyping, inputValue]);
+
+  // Separate effect for follow-up suggestions after AI responses
+  useEffect(() => {
+    if (!lastAIResponse?.content) return;
+
+    // Check if we've already processed this AI response
+    const currentResponse = lastAIResponse.content;
+    if (lastProcessedAIResponseRef.current === currentResponse) return;
+
+    // Mark this response as processed
+    lastProcessedAIResponseRef.current = currentResponse;
+
+    // Generate follow-up suggestions after a delay
+    const followUpTimeout = setTimeout(() => {
+      // Trigger a fresh suggestions fetch with follow-up context
+      setSuggestions([]); // Clear current suggestions to trigger fresh fetch
+    }, 3000); // 3 second delay for follow-up suggestions
+
+    return () => clearTimeout(followUpTimeout);
+  }, [lastAIResponse?.content]);
+
+  // Helper function to get suggestion category for tracking
+  const getSuggestionCategory = (suggestion: string): string => {
+    const meta = getSuggestionMeta(suggestion);
+    return meta.category;
+  };
 
   // Helper function to get suggestion icon and category
   const getSuggestionMeta = (suggestion: string) => {
@@ -320,7 +483,7 @@ export function UnifiedAIInterface({
 
     // Clear the input
     setInputValue('');
-    setShowSuggestions(false);
+    // Keep suggestions visible after sending message
     setIsImportant(false);
 
     // Show typing indicator
@@ -350,6 +513,16 @@ export function UnifiedAIInterface({
           // Clear the attached image after sending
           setAttachedImage(null);
 
+          // Store AI response for follow-up suggestions (이미지 업로드 case)
+          if (response && response.message) {
+            // Store AI response for follow-up (image case)
+            setLastAIResponse(response);
+            // Clear lastAIResponse after 30 seconds to prevent perpetual follow-up suggestions
+            setTimeout(() => {
+              setLastAIResponse(null);
+            }, 30 * 1000); // 30초 후 클리어
+          }
+
           // Check if response contains multiple events
           if (response && response.action && response.action.type === 'create_multiple') {
             const events = response.action.data.events.map((e: any) => ({
@@ -363,11 +536,25 @@ export function UnifiedAIInterface({
           response = await onSubmit(query);
         }
 
+        // Store AI response for follow-up suggestions
+        if (response && response.message) {
+          setLastAIResponse(response);
+          // Immediately show suggestions after AI response
+          setShowSuggestions(true);
+
+          // Don't clear suggestions - let them update smoothly
+          // The useEffect will trigger a re-fetch automatically
+
+          // Clear lastAIResponse after 30 seconds to prevent perpetual follow-up suggestions
+          setTimeout(() => {
+            setLastAIResponse(null);
+          }, 30 * 1000); // 30초 후 클리어
+        }
+
         // Process the response - don't store locally, let AIOverlayDashboard handle it
-        setTimeout(() => {
-          setIsTyping(false);
-          // Messages will be updated via initialMessages prop from AIOverlayDashboard
-        }, 1500);
+        // Immediately set typing to false and show suggestions
+        setIsTyping(false);
+        setShowSuggestions(true);
       } catch (error) {
         setIsTyping(false);
         // Error messages will be handled by AIOverlayDashboard
@@ -655,12 +842,15 @@ export function UnifiedAIInterface({
             <div className="bg-white/95 dark:bg-black/95 backdrop-blur-xl rounded-xl sm:rounded-2xl md:rounded-2xl border border-white/20 shadow-2xl overflow-y-auto max-h-[40vh] sm:max-h-[45vh] md:max-h-[50vh] lg:max-h-[45vh]">
               <div className="sticky top-0 z-10 flex items-center justify-between p-3 sm:p-4 md:p-5 lg:p-6 border-b border-white/10 bg-white/50 dark:bg-black/50 backdrop-blur">
                 <h3 className="text-sm sm:text-sm md:text-base lg:text-lg font-semibold flex items-center gap-2">
-                  <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 relative">
+                  <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 relative bg-white dark:bg-gray-700 rounded p-0.5 shadow-sm">
                     <Image
                       src="/images/logo.svg"
                       alt="Geulpi Logo"
                       fill
-                      className="object-contain dark:invert"
+                      className="object-contain p-[1px]"
+                      style={{
+                        filter: 'brightness(0.8) contrast(1.2)'
+                      }}
                     />
                   </div>
                   {locale === 'ko' ? 'AI 대화' : 'AI Chat'}
@@ -700,14 +890,28 @@ export function UnifiedAIInterface({
                           : 'bg-gray-100 dark:bg-gray-800'
                       }`}>
                         {message.role === 'user' ? (
-                          <User className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                          userPicture ? (
+                            <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 relative">
+                              <Image
+                                src={userPicture}
+                                alt="User"
+                                fill
+                                className="object-cover rounded-full"
+                              />
+                            </div>
+                          ) : (
+                            <User className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                          )
                         ) : (
-                          <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 relative">
+                          <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 relative bg-white dark:bg-gray-700 rounded-full p-0.5 shadow-sm">
                             <Image
                               src="/images/logo.svg"
                               alt="Geulpi Logo"
                               fill
-                              className="object-contain dark:invert"
+                              className="object-contain p-[1px]"
+                              style={{
+                                filter: 'brightness(0.8) contrast(1.2)'
+                              }}
                             />
                           </div>
                         )}
@@ -737,13 +941,16 @@ export function UnifiedAIInterface({
                     animate={{ opacity: 1 }}
                     className="flex items-center gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm md:text-base text-muted-foreground pl-1 sm:pl-2"
                   >
-                    <div className="p-1 sm:p-2 md:p-2 rounded-full bg-gray-100 dark:bg-gray-800">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 relative">
+                    <div className="p-1 sm:p-2 md:p-2 rounded-full bg-white dark:bg-gray-700 shadow-sm">
+                      <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 relative bg-gray-50 dark:bg-gray-600 rounded p-0.5">
                         <Image
                           src="/images/logo.svg"
                           alt="Geulpi Logo"
                           fill
-                          className="object-contain dark:invert"
+                          className="object-contain"
+                          style={{
+                            filter: 'brightness(0.8) contrast(1.2)'
+                          }}
                         />
                       </div>
                     </div>
@@ -764,11 +971,7 @@ export function UnifiedAIInterface({
 
       {/* Main Input Bar */}
       <motion.div
-        className={`relative flex flex-col gap-0 p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 rounded-xl sm:rounded-2xl md:rounded-3xl lg:rounded-3xl transition-all bg-white/95 dark:bg-black/95 backdrop-blur-2xl shadow-xl border ${
-          isImportant 
-            ? 'border-amber-500/30 ring-2 ring-amber-500/30' 
-            : 'border-white/20 dark:border-white/10'
-        } ${isFocused ? 'ring-2 ring-primary/60' : ''}`}
+        className={`relative flex flex-col gap-0 p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 rounded-xl sm:rounded-2xl md:rounded-3xl lg:rounded-3xl transition-all bg-white/95 dark:bg-black/95 backdrop-blur-2xl shadow-xl border border-white/20 dark:border-white/10`}
         animate={{
           scale: isFocused ? 1.02 : 1,
         }}
@@ -826,7 +1029,10 @@ export function UnifiedAIInterface({
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value);
-              setShowSuggestions(e.target.value.length === 0 && isFocused);
+              // Always show suggestions when they exist
+              if (suggestions.length > 0) {
+                setShowSuggestions(true);
+              }
             }}
             onFocus={() => {
               setIsFocused(true);
@@ -835,13 +1041,11 @@ export function UnifiedAIInterface({
             }}
             onBlur={() => {
               setIsFocused(false);
-              setTimeout(() => setShowSuggestions(false), 200);
+              // Don't hide suggestions on blur - keep them visible for better UX
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder={isImportant
-              ? (locale === 'ko' ? "⭐ 중요한 일정을 입력하세요" : "⭐ Enter important event")
-              : (locale === 'ko' ? "무엇이든 물어보세요" : "Ask me anything")}
+            placeholder={locale === 'ko' ? "메시지를 입력하세요..." : "Type a message..."}
             className="flex-1 bg-transparent outline-none text-sm sm:text-base md:text-lg lg:text-xl placeholder:text-muted-foreground/60 py-1 sm:py-2"
             disabled={isProcessing}
           />
@@ -849,64 +1053,8 @@ export function UnifiedAIInterface({
         
         <div className="h-px bg-border/20 mx-2 sm:mx-3 md:mx-4 lg:mx-5" />
         
-        <div className="flex items-center justify-between px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2 md:py-3 lg:py-4">
-          <div className="flex items-center gap-1 sm:gap-2 md:gap-2">
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-md sm:rounded-lg md:rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
-              onClick={() => {
-                if (messages.length > 0) {
-                  setShowChatHistory(!showChatHistory);
-                }
-              }}
-              disabled={messages.length === 0}
-              title={locale === 'ko' ? '대화 기록' : 'Chat history'}
-            >
-              {showChatHistory ? (
-                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5" />
-              ) : (
-                <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5" />
-              )}
-            </motion.button>
-            
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className={`h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-md sm:rounded-lg md:rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center ${
-                focusLevel !== 'background' ? 'bg-primary/10' : ''
-              }`}
-              onClick={() => {
-                if (onFocusLevelChange) {
-                  const nextLevel = 
-                    focusLevel === 'background' ? 'medium' :
-                    focusLevel === 'medium' ? 'focus' : 'background';
-                  onFocusLevelChange(nextLevel);
-                }
-              }}
-              title={
-                locale === 'ko' 
-                  ? `캘린더 투명도 (${focusLevel})` 
-                  : `Calendar opacity (${focusLevel})`
-              }
-            >
-              <Layers className={`h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 ${
-                focusLevel === 'focus' ? 'text-primary' :
-                focusLevel === 'medium' ? 'text-primary/60' : ''
-              }`} />
-            </motion.button>
-          </div>
-          
+        <div className="flex items-center justify-end px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2 md:py-3 lg:py-4">
           <div className="flex items-center gap-1 sm:gap-2">
-            <motion.button
-              onClick={() => setIsImportant(!isImportant)}
-              className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1 md:py-2 rounded-full text-xs sm:text-xs md:text-sm font-medium transition-all ${
-                isImportant 
-                  ? "bg-amber-500 text-white" 
-                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-              }`}
-              whileTap={{ scale: 0.95 }}
-            >
-              {isImportant ? "⭐ " : ""}{locale === 'ko' ? "중요" : "Important"}
-            </motion.button>
             
             <motion.button
               whileTap={{ scale: 0.9 }}
@@ -933,7 +1081,7 @@ export function UnifiedAIInterface({
             
             <motion.button
               whileTap={{ scale: 0.9 }}
-              className={`h-7 sm:h-8 md:h-9 lg:h-10 px-2 sm:px-3 md:px-4 rounded-md sm:rounded-lg md:rounded-lg ml-1 sm:ml-2 transition-all flex items-center justify-center ${
+              className={`h-7 sm:h-8 md:h-9 lg:h-10 px-2 sm:px-3 md:px-4 rounded-xl sm:rounded-2xl md:rounded-2xl ml-1 sm:ml-2 transition-all flex items-center justify-center ${
                 isProcessing
                   ? "bg-red-500 hover:bg-red-600 text-white shadow-md"
                   : !inputValue.trim() && !attachedImage
@@ -959,7 +1107,7 @@ export function UnifiedAIInterface({
 
       {/* Horizontal Suggestions Below Prompt */}
       <AnimatePresence>
-        {showSuggestions && !isProcessing && suggestions.length > 0 && (
+        {showSuggestions && suggestions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -969,8 +1117,16 @@ export function UnifiedAIInterface({
               stiffness: 300,
               damping: 25
             }}
-            className="absolute top-full mt-6 sm:mt-7 md:mt-8 w-full z-40"
+            className="mt-4 w-full z-40"
           >
+            {/* Simple indicator for follow-up suggestions */}
+            {lastAIResponse && (
+              <div className="text-center mb-2">
+                <span className="text-xs text-muted-foreground/70">
+                  {locale === 'ko' ? '💡 추천 응답' : '💡 Suggested responses'}
+                </span>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 items-center justify-center">
               {suggestions.slice(0, 5).map((suggestion, index) => {
                 const { icon: Icon, color, category } = getSuggestionMeta(suggestion);
@@ -990,9 +1146,93 @@ export function UnifiedAIInterface({
                     className="group relative bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/20 hover:border-primary/30 hover:bg-white/95 dark:hover:bg-black/95 px-3 py-1.5 rounded-full text-xs transition-all duration-200 hover:shadow-lg whitespace-nowrap max-w-[200px] flex items-center gap-1.5 overflow-hidden"
                     onClick={async () => {
                       setInputValue(suggestion);
-                      setShowSuggestions(false);
+                      // Keep suggestions visible when clicked
 
-                      // Track suggestion usage for analytics
+                      // Clear lastAIResponse when a follow-up suggestion is clicked
+                      // This prevents staying in follow-up mode forever
+                      if (lastAIResponse) {
+                        // Clear lastAIResponse after suggestion click
+                        setLastAIResponse(null);
+                      }
+
+                      // Track suggestion click with new tracking system
+                      if (FEATURES.QUICK_ACTION_TRACKING) {
+                        trackClick(
+                          suggestion,
+                          category,
+                          index + 1, // position (1-based)
+                          {
+                            locale,
+                            lastAIResponse: lastAIResponse?.content
+                          }
+                        );
+                      }
+
+                      // Real-time learning: 실시간 패턴 학습 및 서버 기록
+                      try {
+                        const timeOfDay = new Date().getHours() < 12 ? 'morning' :
+                                         new Date().getHours() < 18 ? 'afternoon' : 'evening';
+
+                        // 1. 로컬 패턴 학습 (기존 기능 유지)
+                        const patternService = getUserPatternService();
+                        patternService.recordInteraction({
+                          suggestionId: `${sessionId}-${suggestion}-${Date.now()}`,
+                          suggestionType: category as any,
+                          action: 'accepted',
+                          timestamp: new Date(),
+                          timeOfDay: timeOfDay as any,
+                          context: {
+                            locale,
+                            hasLastAIResponse: !!lastAIResponse,
+                            position: index + 1
+                          }
+                        });
+
+                        // 2. 실시간 서버 기록 (Phase 5: 새로운 기능)
+                        fetch('/api/ai/track-suggestion-click', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            suggestionText: suggestion,
+                            category: category,
+                            priority: Math.floor(Math.random() * 5) + 5, // 임시 우선순위
+                            locale: locale,
+                            sessionId: sessionId,
+                            contextInfo: {
+                              timeOfDay: timeOfDay,
+                              hasEvents: currentEvents && currentEvents.length > 0,
+                              lastAIResponse: lastAIResponse?.content,
+                              position: index + 1
+                            },
+                            action: 'clicked'
+                          })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                          console.log('[Real-time Learning] Server tracking successful:', {
+                            suggestion: suggestion.substring(0, 20),
+                            realTimeLearning: data.realTimeLearning,
+                            timestamp: data.timestamp
+                          });
+                        })
+                        .catch(error => {
+                          console.warn('[Real-time Learning] Server tracking failed (non-critical):', error);
+                          // 서버 기록 실패해도 사용자 경험에는 영향 없음
+                        });
+
+                        console.log('[Pattern Learning] Local and real-time learning initiated:', {
+                          suggestion,
+                          category,
+                          timeOfDay,
+                          realTimeEnabled: true
+                        });
+                      } catch (patternError) {
+                        console.error('[Pattern Learning] Failed to record interaction:', patternError);
+                      }
+
+                      // Legacy tracking (will be removed later)
                       try {
                         fetch('/api/ai/suggestions/track', {
                           method: 'POST',
@@ -1010,10 +1250,10 @@ export function UnifiedAIInterface({
                       }
 
                       handleSubmit(suggestion);
-                      // Refresh suggestions after 2 seconds
+                      // Refresh suggestions after a longer delay
                       setTimeout(() => {
                         setShowSuggestions(true);
-                      }, 2000);
+                      }, 5000); // 5초 후 새로운 제안
                     }}
                     title={suggestion} // Full text on hover
                   >
@@ -1029,12 +1269,12 @@ export function UnifiedAIInterface({
         )}
         
         {/* Loading suggestions indicator */}
-        {showSuggestions && !isProcessing && loadingSuggestions && suggestions.length === 0 && (
+        {showSuggestions && loadingSuggestions && suggestions.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="absolute top-full mt-6 sm:mt-7 md:mt-8 w-full z-40"
+            className="mt-4 w-full z-40"
           >
             <div className="flex items-center justify-center py-2">
               <div className="flex gap-1">

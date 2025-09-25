@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 
 export default function SubscriptionPage() {
   const router = useRouter();
+  const locale = useLocale();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<string>('pro');
 
@@ -92,7 +94,7 @@ export default function SubscriptionPage() {
       {/* Navigation */}
       <nav className="nav-apple" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
         <div className="nav-container">
-          <Link href="/landing" className="logo" style={{
+          <Link href={`/${locale}/landing`} className="logo" style={{
             fontSize: '1.25rem',
             fontWeight: 'var(--weight-semibold)',
             color: 'var(--apple-black)',
@@ -110,7 +112,7 @@ export default function SubscriptionPage() {
             alignItems: 'center',
             gap: 'var(--space-4)'
           }}>
-            <Link href="/landing" className="btn-apple-ghost">뒤로</Link>
+            <Link href={`/${locale}/landing`} className="btn-apple-ghost">뒤로</Link>
             <Link href="/login" className="btn-apple btn-apple-primary">
               로그인
             </Link>

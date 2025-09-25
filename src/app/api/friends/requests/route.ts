@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 // GET: 받은 친구 요청 목록 조회
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
       .eq('status', 'pending');
 
     if (error) {
-      console.error('Error fetching friend requests:', error);
+      logger.error('Error fetching friend requests:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch friend requests' },
         { status: 500 }
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in GET /api/friends/requests:', error);
+    logger.error('Error in GET /api/friends/requests:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

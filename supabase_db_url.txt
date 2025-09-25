@@ -1,1 +1,0 @@
-postgresql://postgres.moszlrvkzrpmhvzmpiqk:BV.t$P4u$nb7ZsN@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1

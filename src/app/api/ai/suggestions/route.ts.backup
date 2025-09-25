@@ -1,0 +1,480 @@
+import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
+import { getCalendarClient } from '@/lib/google-auth';
+import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
+import { verifyToken } from '@/lib/auth/supabase-auth';
+import { LocalCalendarService } from '@/lib/local-calendar';
+import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
+import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/middleware/rateLimiter';
+import { CalendarEvent } from '@/types';
+import { contextManager } from '@/lib/context-manager';
+import { format } from 'date-fns';
+import { ko, enUS } from 'date-fns/locale';
+import { EnhancedSuggestionService } from '@/services/ai/EnhancedSuggestionService';
+import type { EnhancedSuggestionContext } from '@/services/ai/EnhancedSuggestionService';
+import { IntelligentSuggestionService } from '@/services/ai/IntelligentSuggestionService';
+import type { IntelligentSuggestionContext } from '@/services/ai/IntelligentSuggestionService';
+import { getValidGoogleTokens } from '@/middleware/token-refresh';
+
+// Simple in-memory cache for suggestions
+const suggestionCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
+export async function POST(request: NextRequest) {
+  let locale = 'ko'; // Default value accessible in catch block
+  let userId: any = null; // Initialize userId early
+
+  try {
+    // Rate limiting
+    const rateLimitResponse = await checkRateLimit(request, 'ai');
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const body = await request.json();
+    const {
+      locale: requestLocale = 'ko',
+      sessionId = 'anonymous',
+      recentMessages = [],
+      selectedDate,
+      selectedEvent,
+      viewMode = 'day',
+      lastAIResponse // AI 응답 후 follow-up 제안을 위한 필드
+    } = body;
+
+    locale = requestLocale; // Assign to outer scope variable
+
+    // Get initial auth token to determine user ID early
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth-token')?.value;
+
+    // Try to get userId early for cache key
+    if (authToken) {
+      try {
+        const user = await verifyToken(authToken);
+        if (user) {
+          userId = user.id;
+        }
+      } catch (error) {
+        logger.warn('Early user verification failed for cache key', error);
+      }
+    }
+
+    // Create enhanced cache key with user personalization
+    const messageContext = recentMessages.slice(-2).map((m: any) => m.content).join('|');
+    const enhancedCacheKey = `${locale}-${sessionId}-${userId || 'anonymous'}-${messageContext}-${selectedDate || 'nodate'}-${selectedEvent?.id || 'noevent'}-${!!lastAIResponse}`;
+
+    // Check cache first (shorter cache for personalized suggestions)
+    if (!lastAIResponse) {
+      const cached = suggestionCache.get(enhancedCacheKey);
+      const personalizedCacheDuration = userId ? CACHE_DURATION / 2 : CACHE_DURATION; // Shorter cache for personalized
+      if (cached && (Date.now() - cached.timestamp) < personalizedCacheDuration) {
+        logger.info('[Enhanced Suggestions] Returning cached suggestions', {
+          locale,
+          sessionId,
+          userId: userId ? 'logged_in' : 'anonymous',
+          cacheAge: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+        });
+        return successResponse(cached.data);
+      }
+    }
+
+    logger.info('[Enhanced Suggestions] Generating new database-driven suggestions', {
+      locale,
+      sessionId,
+      hasRecentMessages: recentMessages.length > 0,
+      isFollowUp: !!lastAIResponse,
+      hasUserId: !!userId,
+      lastAIResponsePreview: lastAIResponse ? (lastAIResponse.message || lastAIResponse.content || '').substring(0, 50) : null
+    });
+
+    // Get Google OAuth tokens using proper token management
+    const googleTokens = await getValidGoogleTokens();
+
+    logger.info('[AI Suggestions] Auth tokens check', {
+      hasAuthToken: !!authToken,
+      hasGoogleTokens: googleTokens.isValid,
+      authTokenLength: authToken?.length,
+      googleTokenError: googleTokens.error,
+      locale,
+      sessionId,
+      hasRecentMessages: recentMessages.length > 0,
+      userIdFromEarlyAuth: !!userId
+    });
+
+    let events: CalendarEvent[] = [];
+
+    // Fetch calendar events - try both auth methods and use whichever provides events
+    let emailAuthEvents: CalendarEvent[] = [];
+    let googleAuthEvents: CalendarEvent[] = [];
+
+    // Try email auth first (may update userId if not already set)
+    if (authToken) {
+      try {
+        const user = await verifyToken(authToken);
+        if (!user) {
+          logger.warn('AI suggestions API - Email auth token verification returned null');
+        } else {
+          if (!userId) {
+            userId = user.id; // Only set if not already set from early auth
+          }
+          const localCalendar = new LocalCalendarService(user.id);
+          emailAuthEvents = localCalendar.getEvents();
+          logger.info('[AI Suggestions] Email auth events loaded', {
+            emailEventsCount: emailAuthEvents.length,
+            userId,
+            isUserIdFromEarlyAuth: userId === user.id
+          });
+        }
+      } catch (error) {
+        logger.error('Email auth token validation failed', error);
+      }
+    }
+
+    // Try Google OAuth (regardless of email auth success)
+    if (googleTokens.isValid && googleTokens.accessToken) {
+      try {
+        const calendar = getCalendarClient(googleTokens.accessToken, googleTokens.refreshToken);
+        const now = new Date();
+
+        const response = await calendar.events.list({
+          calendarId: 'primary',
+          timeMin: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(), // Past week
+          timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Next month
+          maxResults: 50,
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+
+        const googleEvents = response.data.items || [];
+        googleAuthEvents = convertGoogleEventsToCalendarEvents(googleEvents);
+
+        logger.info('[AI Suggestions] Google Calendar events loaded', {
+          googleEventsCount: googleEvents.length,
+          convertedEventsCount: googleAuthEvents.length
+        });
+      } catch (error) {
+        logger.error('Failed to fetch Google Calendar events', error);
+      }
+    }
+
+    // Use Google Calendar events if available, otherwise fall back to email auth events
+    events = googleAuthEvents.length > 0 ? googleAuthEvents : emailAuthEvents;
+
+    logger.info('[AI Suggestions] Final events count', {
+      eventsCount: events.length,
+      emailEventsCount: emailAuthEvents.length,
+      googleEventsCount: googleAuthEvents.length,
+      selectedSource: events === googleAuthEvents ? 'google' : events === emailAuthEvents ? 'email' : 'none',
+      userId,
+      hasAuthToken: !!authToken,
+      hasGoogleTokens: googleTokens.isValid,
+      googleTokenError: googleTokens.error
+    });
+
+    // Get recent chat context
+    const recentContext = contextManager.getContext(sessionId);
+    const recentEvents = recentContext.recentEvents || [];
+    const patterns = recentContext.patterns || {};
+
+    // Analyze patterns and context
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentDay = now.getDay();
+    const dateLocale = locale === 'ko' ? ko : enUS;
+
+    // Determine time of day
+    const timeOfDay: 'morning' | 'afternoon' | 'evening' =
+      currentHour < 12 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening';
+
+    // Initialize Enhanced Suggestion Service
+    const enhancedSuggestionService = new EnhancedSuggestionService(locale as 'ko' | 'en');
+
+    // Build comprehensive context for enhanced suggestions
+    const suggestionContext: EnhancedSuggestionContext = {
+      currentEvents: events,
+      selectedDate: selectedDate ? new Date(selectedDate) : undefined,
+      selectedEvent: selectedEvent,
+      userId: userId, // Pass user ID for personalization
+      recentMessages,
+      lastAction: recentContext.lastAction,
+      viewMode: viewMode as 'day' | 'week' | 'month' | 'list',
+      timeOfDay,
+      locale: locale as 'ko' | 'en',
+      conversationContext: recentContext // Add conversation context for better analysis
+    };
+    
+    // Generate smart suggestions based on context
+    let suggestions;
+
+    // Try Enhanced Suggestions first, fallback to Intelligent Suggestions
+    try {
+      // Generate enhanced suggestions with database-driven templates
+      logger.info('[Enhanced Suggestions] Generating context-aware suggestions', {
+        locale,
+        sessionId,
+        eventsCount: events.length,
+        hasSelectedDate: !!selectedDate,
+        hasSelectedEvent: !!selectedEvent,
+        hasUserId: !!userId,
+        isFollowUp: !!lastAIResponse,
+        viewMode,
+        suggestionContextKeys: Object.keys(suggestionContext),
+        eventsSample: events.slice(0, 2).map(e => ({ id: e.id, summary: e.summary }))
+      });
+
+      // Include AI response context if available
+      if (lastAIResponse) {
+        suggestionContext.recentMessages = [
+          ...(suggestionContext.recentMessages || []),
+          { role: 'assistant', content: lastAIResponse.message || lastAIResponse.content || '' }
+        ];
+      }
+
+      logger.info('[Enhanced Suggestions] About to call enhancedSuggestionService.generateEnhancedSuggestions');
+      suggestions = await enhancedSuggestionService.generateEnhancedSuggestions(suggestionContext);
+      logger.info('[Enhanced Suggestions] Successfully generated suggestions', { count: suggestions.length });
+
+      // If enhanced service returns empty suggestions, throw error to trigger fallback
+      if (!suggestions || suggestions.length === 0) {
+        throw new Error('Enhanced service returned no suggestions, falling back to intelligent service');
+      }
+    } catch (enhancedError) {
+      logger.warn('[Enhanced Suggestions] Database-driven suggestions failed, using intelligent fallback', {
+        error: enhancedError.message,
+        stack: enhancedError.stack?.substring(0, 500),
+        eventsCount: events.length,
+        userId
+      });
+
+      // Use IntelligentSuggestionService as robust fallback
+      logger.info('[Intelligent Suggestions] Starting intelligent fallback service', {
+        eventsCount: events.length,
+        locale,
+        timeOfDay,
+        hasUserId: !!userId
+      });
+
+      const intelligentService = new IntelligentSuggestionService(locale as 'ko' | 'en');
+
+      const intelligentContext: IntelligentSuggestionContext = {
+        currentEvents: events,
+        selectedDate: selectedDate ? new Date(selectedDate) : undefined,
+        selectedEvent: selectedEvent,
+        userId: userId,
+        recentMessages,
+        locale: locale as 'ko' | 'en',
+        timeOfDay
+      };
+
+      logger.info('[Intelligent Suggestions] About to call generateIntelligentSuggestions', {
+        contextKeys: Object.keys(intelligentContext),
+        eventsCount: events.length,
+        eventsSample: events.slice(0, 2).map(e => ({ id: e.id, summary: e.summary }))
+      });
+
+      const intelligentSuggestions = await intelligentService.generateIntelligentSuggestions(intelligentContext);
+
+      logger.info('[Intelligent Suggestions] Successfully generated intelligent suggestions', {
+        count: intelligentSuggestions.length,
+        suggestionTypes: intelligentSuggestions.map(s => s.type),
+        suggestionTexts: intelligentSuggestions.map(s => s.text)
+      });
+
+      // If intelligent service also returns empty, use simple fallback
+      if (!intelligentSuggestions || intelligentSuggestions.length === 0) {
+        logger.warn('[Intelligent Suggestions] No suggestions generated, using simple fallback');
+        suggestions = getFallbackSuggestions(locale as 'ko' | 'en').map((text, index) => ({
+          text,
+          type: 'view' as const,
+          priority: 5,
+          context: {},
+          action: 'requires_input' as const,
+          data: {},
+          reason: 'fallback',
+          template_source: 'simple_fallback'
+        }));
+      } else {
+        // Convert to compatible format
+        suggestions = intelligentSuggestions.map(s => ({
+          text: s.text,
+          type: s.type,
+          priority: s.priority,
+          context: { suggestedTime: s.suggestedTime },
+          action: s.actionable ? 'requires_input' : 'navigation',
+          data: { relatedEventId: s.relatedEventId },
+          reason: s.reasoning,
+          template_source: 'intelligent_service'
+        }));
+      }
+
+      logger.info('[Intelligent Suggestions] Generated intelligent suggestions', {
+        count: suggestions.length,
+        locale,
+        eventsCount: events.length,
+        suggestions: suggestions.map(s => ({ text: s.text, type: s.type, priority: s.priority }))
+      });
+    }
+
+    // Convert SmartSuggestion objects to simple text array for compatibility
+    const suggestionTexts = suggestions.map(s => s.text);
+
+    logger.info('[Enhanced Suggestions] Generated database-driven suggestions', {
+      count: suggestionTexts.length,
+      locale,
+      isFollowUp: !!lastAIResponse,
+      hasUserId: !!userId,
+      suggestions: suggestionTexts,
+      enhancedSuggestions: suggestions.map(s => ({
+        type: s.type,
+        priority: s.priority,
+        reason: s.reason,
+        templateSource: s.template_source
+      }))
+    });
+
+    // Convert suggestions to SmartSuggestion format for frontend compatibility
+    const smartSuggestions = suggestions.map((s, index) => ({
+      id: `suggestion-${Date.now()}-${index}`,
+      text: s.text,
+      type: s.type || 'view',
+      priority: s.priority || 5,
+      context: s.context || {},
+      action: s.action || 'requires_input',
+      reason: s.reason,
+      relatedEventId: s.data?.relatedEventId
+    }));
+
+    const responseData = {
+      suggestions: suggestionTexts, // Keep for backward compatibility
+      smartSuggestions: smartSuggestions, // Frontend expects this field
+      enhancedSuggestions: suggestions, // Include full enhanced suggestion objects with templates and personalization
+      context: {
+        timeOfDay,
+        currentDay: format(now, "EEEE", { locale: dateLocale }),
+        upcomingEventsCount: events.length,
+        isFollowUp: !!lastAIResponse,
+        isPersonalized: !!userId, // Indicate whether suggestions are personalized
+        templateDriven: suggestions.length > 0 && suggestions[0].template_source !== 'intelligent_service',
+        isIntelligent: suggestions.length > 0 && suggestions[0].template_source === 'intelligent_service',
+        intelligentAnalysis: suggestions.length > 0 && suggestions[0].template_source === 'intelligent_service'
+      }
+    };
+
+    // Store in cache using the same enhanced cache key defined earlier
+    suggestionCache.set(enhancedCacheKey, {
+      data: responseData,
+      timestamp: Date.now()
+    });
+
+    // Clean old cache entries (keep max 100 entries)
+    if (suggestionCache.size > 100) {
+      const entries = Array.from(suggestionCache.entries());
+      const oldestEntries = entries
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .slice(0, 50);
+      oldestEntries.forEach(([key]) => suggestionCache.delete(key));
+    }
+
+    return successResponse(responseData);
+    
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return errorResponse(error);
+    }
+
+    logger.error('[Enhanced Suggestions] Unexpected error, using intelligent fallback', error);
+
+    // Final fallback to IntelligentSuggestionService
+    try {
+      const intelligentService = new IntelligentSuggestionService(locale as 'ko' | 'en');
+
+      const intelligentContext: IntelligentSuggestionContext = {
+        currentEvents: events || [],
+        locale: locale as 'ko' | 'en',
+        timeOfDay: 'afternoon' // Default fallback
+      };
+
+      const intelligentSuggestions = await intelligentService.generateIntelligentSuggestions(intelligentContext);
+
+      const suggestionTexts = intelligentSuggestions.map(s => s.text);
+
+      // Convert intelligent suggestions to SmartSuggestion format
+      const smartSuggestions = intelligentSuggestions.map((s, index) => ({
+        id: `fallback-suggestion-${Date.now()}-${index}`,
+        text: s.text,
+        type: s.type || 'view',
+        priority: s.priority || 5,
+        context: {},
+        action: 'requires_input',
+        reason: s.reasoning,
+        relatedEventId: s.relatedEventId
+      }));
+
+      return successResponse({
+        suggestions: suggestionTexts,
+        smartSuggestions: smartSuggestions, // Frontend expects this field
+        enhancedSuggestions: intelligentSuggestions,
+        fallback: false,
+        isIntelligent: true,
+        context: {
+          timeOfDay: 'afternoon',
+          currentDay: format(new Date(), "EEEE", { locale: locale === 'ko' ? ko : enUS }),
+          upcomingEventsCount: events?.length || 0,
+          isIntelligent: true,
+          emergencyFallback: true
+        }
+      });
+    } catch (finalError) {
+      logger.error('[Final Fallback] All suggestion services failed', finalError);
+
+      // Only use simple fallback as last resort
+      const fallbackSuggestions = getFallbackSuggestions(locale as 'ko' | 'en');
+
+      // Convert fallback suggestions to SmartSuggestion format
+      const smartFallbackSuggestions = fallbackSuggestions.map((text, index) => ({
+        id: `fallback-${Date.now()}-${index}`,
+        text,
+        type: 'view' as const,
+        priority: 5,
+        context: {},
+        action: 'requires_input' as const
+      }));
+
+      return successResponse({
+        suggestions: fallbackSuggestions,
+        smartSuggestions: smartFallbackSuggestions, // Frontend expects this field
+        fallback: true,
+        context: {
+          timeOfDay: 'afternoon',
+          currentDay: 'Unknown',
+          upcomingEventsCount: 0,
+          isError: true
+        }
+      });
+    }
+  }
+}
+
+/**
+ * Simple fallback suggestions when smart service fails
+ */
+function getFallbackSuggestions(locale: 'ko' | 'en'): string[] {
+  if (locale === 'ko') {
+    return [
+      "오늘 일정 확인해줘",
+      "내일 회의 일정 추가",
+      "이번주 일정 정리해줘",
+      "사진에서 일정 추출하기",
+      "친구와 미팅 잡기"
+    ];
+  } else {
+    return [
+      "Show today's schedule",
+      "Add meeting tomorrow",
+      "Review this week's events",
+      "Extract schedule from photo",
+      "Schedule meeting with friend"
+    ];
+  }
+}
+

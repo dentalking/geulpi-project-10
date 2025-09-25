@@ -131,7 +131,7 @@ export function SearchEventViewer({
   };
 
   const handleOpenInCalendar = () => {
-    router.push(`/dashboard?event=${event.id}`);
+    router.push(`/${locale}/dashboard?event=${event.id}`);
   };
 
   const hasVideoMeeting = event.location?.toLowerCase().includes('meet') || 

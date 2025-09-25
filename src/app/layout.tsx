@@ -1,19 +1,16 @@
 import './globals.css';
 import { ToastProvider } from '@/providers/ToastProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import { EventProvider } from '@/contexts/EventContext';
 import KeyboardShortcutsProvider from '@/components/KeyboardShortcutsProvider';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal';
+import { SettingsInitializer } from '@/components/SettingsInitializer';
 import { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
   title: 'Geulpi AI Calendar Assistant',
   description: 'AI-powered smart calendar management system',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Geulpi Calendar',
-  },
   formatDetection: {
     telephone: false,
   },
@@ -27,6 +24,11 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'Geulpi AI Calendar Assistant',
     description: 'AI-powered smart calendar management system',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-title': 'Geulpi Calendar',
+    'apple-mobile-web-app-status-bar-style': 'default',
   },
 };
 
@@ -45,14 +47,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <head>
-      </head>
       <body suppressHydrationWarning>
         <ThemeProvider>
           <KeyboardShortcutsProvider>
             <ToastProvider>
-              {children}
-              <KeyboardShortcutsModal />
+              <EventProvider>
+                {children}
+                <KeyboardShortcutsModal />
+              </EventProvider>
             </ToastProvider>
           </KeyboardShortcutsProvider>
         </ThemeProvider>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { googleMapsService } from '@/services/maps/GoogleMapsService';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Midpoint calculation error:', error);
+    logger.error('Midpoint calculation error:', error);
     return NextResponse.json(
       { error: 'Failed to calculate midpoint' },
       { status: 500 }

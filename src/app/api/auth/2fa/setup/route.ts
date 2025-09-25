@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { generate2FASetup } from '@/lib/auth/two-factor-auth';
 import { rateLimit } from '@/lib/auth/rate-limit';
 import { auth } from '@/lib/auth';
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('2FA setup error:', error);
+    logger.error('2FA setup error:', error);
     return NextResponse.json(
       { 
         success: false, 

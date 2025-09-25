@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { checkRateLimit } from '@/lib/rate-limiter';
 import { 
   createPasswordResetToken, 
@@ -49,8 +51,8 @@ export async function POST(request: NextRequest) {
       const { token, expiresAt } = await createPasswordResetToken(email);
       
       // Generate reset link
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
-                     (process.env.NODE_ENV === 'production' 
+      const baseUrl = env.get('NEXT_PUBLIC_BASE_URL') || 
+                     (env.isProduction() 
                        ? 'https://geulpi-project-10.vercel.app' 
                        : 'http://localhost:3000');
       
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
       await emailService.sendPasswordResetEmail(email, resetLink);
       
       // Log for monitoring (without sensitive data)
-      console.log(`Password reset requested for: ${email.substring(0, 3)}***@${email.split('@')[1]}`);
+      logger.debug(`Password reset requested for: ${email.substring(0, 3)}***@${email.split('@')[1]}`);
       
       // Always return success (don't reveal if email exists)
       return NextResponse.json({
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
       });
       
     } catch (error: any) {
-      console.error('Password reset error:', error);
+      logger.error('Password reset error:', error);
       
       // Still return success to prevent email enumeration
       return NextResponse.json({
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (error: any) {
-    console.error('Forgot password error:', error);
+    logger.error('Forgot password error:', error);
     return NextResponse.json(
       { error: 'Failed to process password reset request' },
       { status: 500 }

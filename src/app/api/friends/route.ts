@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { getUserFriendlyErrorMessage } from '@/lib/error-messages';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 // GET: 친구 목록 조회
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
             }
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -108,7 +110,7 @@ export async function GET(request: NextRequest) {
       .eq('status', 'accepted');
 
     if (error) {
-      console.error('Error fetching friends:', error);
+      logger.error('Error fetching friends:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch friends' },
         { status: 500 }
@@ -143,7 +145,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in GET /api/friends:', error);
+    logger.error('Error in GET /api/friends:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -169,7 +171,7 @@ export async function POST(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('Failed to verify email auth token:', error);
+        logger.error('Failed to verify email auth token:', error);
       }
     }
 
@@ -255,7 +257,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating friend request:', createError);
+      logger.error('Error creating friend request:', createError);
       return NextResponse.json(
         { success: false, error: 'Failed to send friend request' },
         { status: 500 }
@@ -275,7 +277,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in POST /api/friends:', error);
+    logger.error('Error in POST /api/friends:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -301,7 +303,7 @@ export async function PATCH(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('Failed to verify email auth token:', error);
+        logger.error('Failed to verify email auth token:', error);
       }
     }
 
@@ -357,7 +359,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', friendshipId);
 
       if (updateError) {
-        console.error('Error accepting friend request:', updateError);
+        logger.error('Error accepting friend request:', updateError);
         return NextResponse.json(
           { success: false, error: 'Failed to accept friend request' },
           { status: 500 }
@@ -377,7 +379,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', friendshipId);
 
       if (deleteError) {
-        console.error('Error rejecting friend request:', deleteError);
+        logger.error('Error rejecting friend request:', deleteError);
         return NextResponse.json(
           { success: false, error: 'Failed to reject friend request' },
           { status: 500 }
@@ -396,7 +398,7 @@ export async function PATCH(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('Error in PATCH /api/friends:', error);
+    logger.error('Error in PATCH /api/friends:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

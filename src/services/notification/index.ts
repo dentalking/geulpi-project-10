@@ -1,2 +1,9 @@
-export { default as NotificationManager } from './NotificationManager';
-export { default as NotificationScheduler } from './NotificationScheduler';
+// Simple notification service for login/dashboard insights
+export { default as SimpleNotificationService } from './SimpleNotificationService';
+export type {
+  LoginNotifications,
+  TodayBrief,
+  ConflictAlert,
+  AISuggestion,
+  TimeSlot
+} from './SimpleNotificationService';

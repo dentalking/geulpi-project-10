@@ -87,6 +87,12 @@ const limiters = {
   auth: new InMemoryRateLimiter({
     windowMs: 60 * 60 * 1000,
     maxRequests: 5
+  }),
+
+  // 추적 API: 분당 100 요청 (유저 행동 추적용)
+  tracking: new InMemoryRateLimiter({
+    windowMs: 60 * 1000,
+    maxRequests: 100
   })
 };
 
@@ -102,48 +108,77 @@ export function rateLimitMiddleware(
     req: NextRequest
   ): Promise<NextResponse | null> {
     // IP 주소 또는 사용자 ID를 식별자로 사용
-    const identifier = req.ip || 
-                      req.headers.get('x-forwarded-for') || 
+    const identifier = req.ip ||
+                      req.headers.get('x-forwarded-for') ||
                       'anonymous';
-    
-    const limiter = limiters[type];
-    
-    if (!limiter.isAllowed(identifier)) {
-      const resetTime = limiter.getResetTime(identifier);
-      
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'RATE_LIMIT_EXCEEDED',
-            message: 'Too many requests. Please try again later.',
-            retryAfter: Math.ceil((resetTime - Date.now()) / 1000)
-          }
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': limiter['config'].maxRequests.toString(),
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': new Date(resetTime).toISOString(),
-            'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
-          }
-        }
-      );
+
+    // Multiple safety checks to prevent undefined errors
+    if (!limiters || typeof limiters !== 'object') {
+      console.error('[RateLimit Error] Global limiters object is undefined or invalid');
+      return null; // Allow request through if rate limiter is broken
     }
-    
-    // Rate limit 정보를 헤더에 추가
-    const response = NextResponse.next();
-    response.headers.set(
-      'X-RateLimit-Limit', 
-      limiter['config'].maxRequests.toString()
-    );
-    response.headers.set(
-      'X-RateLimit-Remaining', 
-      limiter.getRemainingRequests(identifier).toString()
-    );
-    
-    return null; // 통과
+
+    const limiter = limiters[type];
+    console.log('[RateLimit Debug]', {
+      type,
+      limiterExists: !!limiter,
+      availableTypes: Object.keys(limiters),
+      limitersObject: !!limiters,
+      typeTypeof: typeof type,
+      limiterType: typeof limiter
+    });
+
+    if (!limiter || typeof limiter !== 'object') {
+      console.error('[RateLimit Error] Limiter not found or invalid for type:', type, 'Available types:', Object.keys(limiters));
+      return null; // Allow request through if specific limiter not found
+    }
+
+    if (typeof limiter.isAllowed !== 'function') {
+      console.error('[RateLimit Error] Limiter.isAllowed is not a function:', typeof limiter.isAllowed, 'Limiter:', limiter);
+      return null; // Allow request through if limiter is malformed
+    }
+
+    try {
+      if (!limiter.isAllowed(identifier)) {
+        const resetTime = limiter.getResetTime(identifier);
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'RATE_LIMIT_EXCEEDED',
+              message: 'Too many requests. Please try again later.',
+              retryAfter: Math.ceil((resetTime - Date.now()) / 1000)
+            }
+          },
+          {
+            status: 429,
+            headers: {
+              'X-RateLimit-Limit': limiter['config'].maxRequests.toString(),
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': new Date(resetTime).toISOString(),
+              'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
+            }
+          }
+        );
+      }
+
+      // Rate limit 정보를 헤더에 추가
+      const response = NextResponse.next();
+      response.headers.set(
+        'X-RateLimit-Limit',
+        limiter['config'].maxRequests.toString()
+      );
+      response.headers.set(
+        'X-RateLimit-Remaining',
+        limiter.getRemainingRequests(identifier).toString()
+      );
+
+      return null; // 통과
+    } catch (error) {
+      console.error('[RateLimit Error] Exception in rate limiting:', error);
+      return null; // Allow request through if there's any error
+    }
   };
 }
 
@@ -154,12 +189,17 @@ export async function checkRateLimit(
   req: NextRequest,
   type: LimiterType = 'general'
 ): Promise<Response | null> {
-  const middleware = rateLimitMiddleware(type);
-  const response = await middleware(req);
-  
-  if (response) {
-    return response;
+  try {
+    const middleware = rateLimitMiddleware(type);
+    const response = await middleware(req);
+
+    if (response) {
+      return response;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[RateLimit Error] Exception in checkRateLimit:', error);
+    return null; // Allow request through if there's any error
   }
-  
-  return null;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Supabase auth verification failed:', error);
+                logger.error('Supabase auth verification failed:', error);
             }
         }
 
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
                 .eq('id', friendRequestId);
 
             if (updateError) {
-                console.error('Error accepting friend request:', updateError);
+                logger.error('Error accepting friend request:', updateError);
                 return NextResponse.json({
                     success: false,
                     error: 'Failed to accept friend request'
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
                 });
 
             if (reciprocalError) {
-                console.error('Error creating reciprocal friendship:', reciprocalError);
+                logger.error('Error creating reciprocal friendship:', reciprocalError);
                 // This is not critical, the main relationship is already created
             }
 
@@ -123,7 +124,7 @@ export async function POST(request: Request) {
                 .eq('id', friendRequestId);
 
             if (deleteError) {
-                console.error('Error declining friend request:', deleteError);
+                logger.error('Error declining friend request:', deleteError);
                 return NextResponse.json({
                     success: false,
                     error: 'Failed to decline friend request'
@@ -138,7 +139,7 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {
-        console.error('Error in POST /api/friends/respond:', error);
+        logger.error('Error in POST /api/friends/respond:', error);
         return NextResponse.json({
             success: false,
             error: 'Internal server error'

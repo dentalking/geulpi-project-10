@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { disable2FAForUser, twoFactorAuth } from '@/lib/auth/two-factor-auth';
 import { auth } from '@/lib/auth';
 import { rateLimit } from '@/lib/auth/rate-limit';
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('2FA disable error:', error);
+    logger.error('2FA disable error:', error);
     return NextResponse.json(
       { 
         success: false, 

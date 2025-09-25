@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/lib/db';
 
 interface RouteParams {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { messageId } = params;
 
-    console.log('Fetching message:', messageId);
+    logger.debug('Fetching message:', messageId);
 
     const { data: message, error } = await supabase
       .from('chat_messages')
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Error fetching message:', error);
+      logger.error('Error fetching message:', error);
       return NextResponse.json({
         success: false,
         error: error.message
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error: any) {
-    console.error('Get message error:', error);
+    logger.error('Get message error:', error);
     return NextResponse.json({
       success: false,
       error: error.message
@@ -67,7 +68,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }, { status: 400 });
     }
 
-    console.log('Updating message:', messageId);
+    logger.debug('Updating message:', messageId);
 
     // 업데이트할 필드들만 포함
     const updateData: any = {};
@@ -84,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      console.error('Error updating message:', error);
+      logger.error('Error updating message:', error);
       return NextResponse.json({
         success: false,
         error: error.message
@@ -108,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error: any) {
-    console.error('Update message error:', error);
+    logger.error('Update message error:', error);
     return NextResponse.json({
       success: false,
       error: error.message
@@ -121,7 +122,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { messageId } = params;
 
-    console.log('Deleting message:', messageId);
+    logger.debug('Deleting message:', messageId);
 
     const { error } = await supabase
       .from('chat_messages')
@@ -129,7 +130,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .eq('id', messageId);
 
     if (error) {
-      console.error('Error deleting message:', error);
+      logger.error('Error deleting message:', error);
       return NextResponse.json({
         success: false,
         error: error.message
@@ -142,7 +143,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error: any) {
-    console.error('Delete message error:', error);
+    logger.error('Delete message error:', error);
     return NextResponse.json({
       success: false,
       error: error.message

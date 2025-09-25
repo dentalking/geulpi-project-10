@@ -61,19 +61,50 @@ export function getCalendarClient(accessToken: string, refreshToken?: string) {
 
 export async function refreshAccessToken(refreshToken: string) {
   try {
+    if (!refreshToken || refreshToken.trim() === '') {
+      throw new Error('Invalid refresh token: empty or null');
+    }
+
     const oauth2Client = getGoogleAuthClient();
-    oauth2Client.setCredentials({ refresh_token: refreshToken });
-    
+    oauth2Client.setCredentials({ refresh_token: refreshToken.trim() });
+
     const { credentials } = await oauth2Client.refreshAccessToken();
     console.log('[Google Auth] Token refreshed successfully');
-    
+
+    // Validate the returned credentials
+    if (!credentials.access_token) {
+      throw new Error('Refresh response missing access_token');
+    }
+
     return {
       access_token: credentials.access_token,
       refresh_token: credentials.refresh_token || refreshToken,
       expiry_date: credentials.expiry_date
     };
-  } catch (error) {
-    console.error('[Google Auth] Token refresh failed:', error);
+  } catch (error: any) {
+    console.error('[Google Auth] Token refresh failed:', {
+      error: error.message,
+      code: error.code,
+      status: error.status,
+      refreshTokenLength: refreshToken ? refreshToken.length : 0
+    });
+
+    // Handle specific invalid_grant error
+    if (error.message?.includes('invalid_grant') || error.code === 400) {
+      // Clear invalid tokens from cookies
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+
+      console.warn('[Google Auth] Clearing invalid Google OAuth tokens');
+      cookieStore.delete('google_access_token');
+      cookieStore.delete('google_refresh_token');
+      cookieStore.delete('google_token_expiry');
+      cookieStore.delete('access_token'); // Legacy cookie
+      cookieStore.delete('refresh_token'); // Legacy cookie
+
+      throw new Error('Google OAuth tokens expired. Please re-authenticate.');
+    }
+
     throw error;
   }
 }

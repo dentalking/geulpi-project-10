@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 // 카카오톡 메시지 타입
@@ -36,7 +38,7 @@ interface KakaoResponse {
 
 // 서명 검증 (보안)
 function verifySignature(body: string, signature: string): boolean {
-  const botSecret = process.env.KAKAO_BOT_SECRET;
+  const botSecret = env.get('KAKAO_BOT_SECRET');
   if (!botSecret) return false;
 
   const hash = crypto
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('X-KakaoTalk-Signature');
 
     // 서명 검증 (프로덕션에서 필수)
-    if (process.env.NODE_ENV === 'production' && signature) {
+    if (env.isProduction() && signature) {
       if (!verifySignature(bodyText, signature)) {
         return NextResponse.json(
           { error: 'Invalid signature' },
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
     const body: KakaoMessage = JSON.parse(bodyText);
     const { user_key, type, content } = body;
 
-    console.log(`[Kakao Bot] Received: ${type} - ${content} from ${user_key}`);
+    logger.debug(`[Kakao Bot] Received: ${type} - ${content} from ${user_key}`);
 
     // 사용자 정보 조회 또는 생성
     const userInfo = await getOrCreateKakaoUser(user_key);
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('[Kakao Bot] Error:', error);
+    logger.error('[Kakao Bot] Error:', error);
     return NextResponse.json(createErrorResponse());
   }
 }
@@ -308,29 +310,119 @@ function createEventsResponse(events: any[]): KakaoResponse {
 
 // 약속 제안 생성
 async function createAppointmentProposal(proposal: any): Promise<KakaoResponse> {
-  // 여기서 실제 약속 제안 로직 구현
-  // 1. 친구 찾기
-  // 2. 시간 파싱
-  // 3. 제안 생성
-
-  return {
-    message: {
-      text: `✅ 약속 제안이 준비되었습니다!\n\n` +
-        `👤 ${proposal.friendName}님과의 약속\n` +
-        `📅 ${proposal.date} ${proposal.time}\n` +
-        `📍 ${proposal.location}\n\n` +
-        `친구가 응답하면 알려드릴게요.`
-    },
-    keyboard: {
-      type: 'buttons',
-      buttons: ['📅 일정 확인', '🏠 메인 메뉴']
+  try {
+    if (!proposal.proposerId) {
+      return {
+        message: {
+          text: '❌ 서비스에 연결 후 친구와 약속을 잡을 수 있어요.\n아래 버튼을 눌러 연결해주세요!'
+        },
+        keyboard: {
+          type: 'buttons',
+          buttons: ['🔗 서비스 연결하기', '🏠 메인 메뉴']
+        }
+      };
     }
-  };
+
+    // 1. 친구 찾기 (이름으로 검색)
+    const { data: friends } = await supabase
+      .from('friends')
+      .select(`
+        id,
+        friend_id,
+        nickname,
+        user:users!friends_friend_id_fkey(id, name, email)
+      `)
+      .eq('user_id', proposal.proposerId)
+      .eq('status', 'accepted');
+
+    const foundFriend = friends?.find(f =>
+      f.nickname?.toLowerCase().includes(proposal.friendName.toLowerCase()) ||
+      (f.user as any)?.name?.toLowerCase().includes(proposal.friendName.toLowerCase())
+    );
+
+    if (!foundFriend) {
+      return {
+        message: {
+          text: `❌ "${proposal.friendName}"님을 친구 목록에서 찾을 수 없어요.\n\n` +
+            `먼저 친구 추가를 해주세요!`
+        },
+        keyboard: {
+          type: 'buttons',
+          buttons: ['👥 친구 추가', '🏠 메인 메뉴']
+        }
+      };
+    }
+
+    // 2. 시간 파싱 (한국어 날짜/시간 처리)
+    const { parseKoreanDateTime } = await import('@/lib/date-parser');
+    let proposedDateTime: Date;
+
+    try {
+      const parsedResult = await parseKoreanDateTime(proposal.date, proposal.time);
+      proposedDateTime = new Date(parsedResult.date + ' ' + parsedResult.time);
+    } catch (error) {
+      return {
+        message: {
+          text: '❌ 날짜나 시간 형식을 인식할 수 없어요.\n\n' +
+            '예: "내일 오후 3시", "금요일 저녁 7시"'
+        }
+      };
+    }
+
+    // 3. 약속 제안 데이터베이스에 저장
+    const { data: meetingProposal, error } = await supabase
+      .from('meeting_proposals')
+      .insert({
+        proposer_id: proposal.proposerId,
+        invitee_id: foundFriend.friend_id,
+        title: `${foundFriend.nickname || (foundFriend.user as any)?.name}님과의 약속`,
+        proposed_time: proposedDateTime.toISOString(),
+        location: proposal.location,
+        meeting_type: 'other',
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Meeting proposal creation error:', error);
+      return {
+        message: {
+          text: '❌ 약속 제안 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.'
+        }
+      };
+    }
+
+    // 4. 친구에게 알림 발송 (실제 앱에서는 푸시 알림 등)
+    // TODO: 실시간 알림 시스템 연동
+
+    return {
+      message: {
+        text: `✅ 약속 제안이 완료되었어요!\n\n` +
+          `👤 ${foundFriend.nickname || (foundFriend.user as any)?.name}님과의 약속\n` +
+          `📅 ${proposedDateTime.toLocaleDateString('ko-KR')} ${proposedDateTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}\n` +
+          `📍 ${proposal.location}\n\n` +
+          `상대방이 응답하면 알려드릴게요! 🔔`
+      },
+      keyboard: {
+        type: 'buttons',
+        buttons: ['📋 제안 목록', '📅 일정 확인', '🏠 메인 메뉴']
+      }
+    };
+
+  } catch (error) {
+    logger.error('Appointment proposal error:', error);
+    return {
+      message: {
+        text: '❌ 약속 제안 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.'
+      }
+    };
+  }
 }
 
 // 회원가입 안내
 function createRegistrationPrompt(): KakaoResponse {
-  const registrationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/register?from=kakao`;
+  const registrationUrl = `${env.get('NEXT_PUBLIC_APP_URL')}/auth/register?from=kakao`;
 
   return {
     message: {

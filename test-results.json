@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-09-21T07:02:43.345Z",
+  "summary": {
+    "passed": 15,
+    "failed": 0,
+    "warnings": 2,
+    "successRate": 88.23529411764706
+  },
+  "details": [
+    {
+      "test": "File exists: src/store/unifiedEventStore.ts",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/hooks/useSupabaseRealtime.ts",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/hooks/useServerSentEvents.ts",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/hooks/useUnifiedSync.ts",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/app/api/events/stream/route.ts",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/components/UnifiedAIInterface.enhanced.tsx",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/components/EventsArtifactPanel.enhanced.tsx",
+      "status": "PASS"
+    },
+    {
+      "test": "File exists: src/providers/UnifiedEventProvider.tsx",
+      "status": "PASS"
+    },
+    {
+      "test": "TypeScript type check",
+      "status": "WARN",
+      "error": "Type errors found"
+    },
+    {
+      "test": "UnifiedEventStore structure",
+      "status": "PASS"
+    },
+    {
+      "test": "Environment variables",
+      "status": "WARN",
+      "error": "Missing env vars"
+    },
+    {
+      "test": "Package dependencies",
+      "status": "PASS"
+    },
+    {
+      "test": "Backup preserved: src/components/UnifiedAIInterface.tsx",
+      "status": "PASS"
+    },
+    {
+      "test": "Backup preserved: src/components/EventsArtifactPanel.tsx",
+      "status": "PASS"
+    },
+    {
+      "test": "Backup preserved: src/contexts/EventContext.tsx",
+      "status": "PASS"
+    },
+    {
+      "test": "SSE API Edge Runtime",
+      "status": "PASS"
+    },
+    {
+      "test": "SSE API implementation",
+      "status": "PASS"
+    }
+  ]
+}

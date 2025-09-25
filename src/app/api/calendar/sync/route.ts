@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       return await performCalendarSync(request, userId);
     });
   } catch (error) {
-    console.error('Calendar sync error:', error);
+    logger.error('Calendar sync error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -72,7 +73,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
     const userTimezone = getUserTimezone(userProfile || undefined);
 
     if (userError) {
-      console.error('Error fetching user data:', userError);
+      logger.error('Error fetching user data:', userError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch user data' },
         { status: 500 }
@@ -85,13 +86,13 @@ async function performCalendarSync(request: NextRequest, userId: string) {
     // Dual-track syncing based on auth_type
     if (userData?.auth_type === 'google_oauth') {
       // Google OAuth users: Fetch from Google Calendar API
-      console.log('Fetching events from Google Calendar for OAuth user:', userId);
+      logger.debug('Fetching events from Google Calendar for OAuth user:', userId);
 
       // Use centralized token management
       const tokenResult = await getValidGoogleTokens();
 
       if (!tokenResult.isValid || !tokenResult.accessToken) {
-        console.error('Google authentication failed:', tokenResult.error);
+        logger.error('Google authentication failed:', tokenResult.error);
         return NextResponse.json(
           { success: false, error: tokenResult.error || 'Google authentication required' },
           { status: 401 }
@@ -148,10 +149,10 @@ async function performCalendarSync(request: NextRequest, userId: string) {
         }
 
         source = 'google';
-        console.log('Successfully fetched Google Calendar events:', calendarEvents.length);
+        logger.debug('Successfully fetched Google Calendar events:', calendarEvents.length);
 
       } catch (error) {
-        console.error('Error fetching Google Calendar events:', error);
+        logger.error('Error fetching Google Calendar events:', error);
         return NextResponse.json(
           { success: false, error: 'Failed to fetch Google Calendar events' },
           { status: 500 }
@@ -160,7 +161,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
 
     } else {
       // Standard email auth users: Fetch from Supabase database
-      console.log('Fetching events from database for standard user:', userId);
+      logger.debug('Fetching events from database for standard user:', userId);
 
       const { data: events, error } = await supabase
         .from('calendar_events')
@@ -170,7 +171,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
         .limit(maxResults);
 
       if (error) {
-        console.error('Error fetching events from database:', error);
+        logger.error('Error fetching events from database:', error);
         return NextResponse.json(
           { success: false, error: 'Failed to fetch events from database' },
           { status: 500 }
@@ -195,7 +196,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
           try {
             return JSON.parse(event.attendees);
           } catch (error) {
-            console.warn('Invalid attendees JSON for event', event.id, event.attendees);
+            logger.warn('Invalid attendees JSON for event', event.id, event.attendees);
             return [];
           }
         })() : [],
@@ -209,7 +210,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
       source = 'supabase';
     }
 
-    console.log('Calendar events synced', {
+    logger.debug('Calendar events synced', {
       eventCount: calendarEvents.length,
       sessionId,
       userId,
@@ -228,7 +229,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
     });
 
   } catch (error) {
-    console.error('Calendar sync error', error);
+    logger.error('Calendar sync error', error);
     return NextResponse.json(
       { success: false, error: 'Failed to sync calendar' },
       { status: 500 }

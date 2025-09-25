@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Setting up chat database tables...');
+    logger.debug('Setting up chat database tables...');
 
     // SQL 스크립트들을 단계별로 실행
     const queries = [
@@ -131,19 +132,19 @@ export async function POST(request: NextRequest) {
       const query = queries[i].trim();
       if (!query) continue;
 
-      console.log(`Executing query ${i + 1}/${queries.length}: ${query.substring(0, 50)}...`);
+      logger.debug(`Executing query ${i + 1}/${queries.length}: ${query.substring(0, 50)}...`);
       
       const { error } = await supabase.rpc('execute_sql', {
         sql_query: query
       });
 
       if (error) {
-        console.error(`Error in query ${i + 1}:`, error);
+        logger.error(`Error in query ${i + 1}:`, error);
         
         // 대안: 직접 SQL 실행 시도
         try {
           await supabase.from('_').select().limit(0); // 연결 테스트
-          console.log('Trying direct SQL execution...');
+          logger.debug('Trying direct SQL execution...');
           
           // RPC 함수가 없다면 직접 테이블 조작 시도
           if (query.includes('CREATE TABLE IF NOT EXISTS chat_sessions')) {
@@ -154,14 +155,14 @@ export async function POST(request: NextRequest) {
               .limit(1);
             
             if (testError && testError.code === 'PGRST116') {
-              console.log('chat_sessions table does not exist, needs manual creation');
+              logger.debug('chat_sessions table does not exist, needs manual creation');
             }
           }
         } catch (directError) {
-          console.error('Direct execution also failed:', directError);
+          logger.error('Direct execution also failed:', directError);
         }
       } else {
-        console.log(`Query ${i + 1} executed successfully`);
+        logger.debug(`Query ${i + 1} executed successfully`);
       }
     }
 
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Setup error:', error);
+    logger.error('Setup error:', error);
     return NextResponse.json({
       success: false,
       error: error.message,

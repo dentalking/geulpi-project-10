@@ -410,7 +410,7 @@ ${data.message ? `메시지: "${data.message}"` : ''}
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL}/ko/dashboard"
              style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white; text-decoration: none; padding: 12px 30px; border-radius: 50px;
                     font-weight: 600; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
@@ -467,7 +467,7 @@ ${data.message ? `메시지: "${data.message}"` : ''}
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL}/ko/dashboard"
              style="display: inline-block; background: #10b981; color: white; text-decoration: none;
                     padding: 12px 30px; border-radius: 50px; font-weight: 600;">
             캘린더에서 보기 →

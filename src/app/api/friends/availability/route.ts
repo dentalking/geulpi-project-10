@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
 interface TimeSlot {
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -64,7 +66,7 @@ export async function GET(request: NextRequest) {
             }
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -158,7 +160,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in GET /api/friends/availability:', error);
+    logger.error('Error in GET /api/friends/availability:', error);
     return NextResponse.json(
       { error: '서버 오류가 발생했습니다' },
       { status: 500 }

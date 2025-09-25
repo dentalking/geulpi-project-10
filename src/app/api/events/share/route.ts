@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
             .eq('status', 'accepted');
 
         if (friendError) {
-            console.error('Error checking friendships:', friendError);
+            logger.error('Error checking friendships:', friendError);
             return NextResponse.json({
                 success: false,
                 error: 'Failed to verify friendships'
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
             .eq('id', eventId);
 
         if (updateError) {
-            console.error('Error sharing event:', updateError);
+            logger.error('Error sharing event:', updateError);
             return NextResponse.json({
                 success: false,
                 error: 'Failed to share event'
@@ -157,7 +158,7 @@ export async function DELETE(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -203,7 +204,7 @@ export async function DELETE(request: Request) {
             .eq('id', eventId);
 
         if (updateError) {
-            console.error('Error unsharing event:', updateError);
+            logger.error('Error unsharing event:', updateError);
             return NextResponse.json({
                 success: false,
                 error: 'Failed to unshare event'

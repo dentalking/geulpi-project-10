@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { supabase } from '@/lib/db';
 
 export async function GET(request: Request) {
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
     });
 
   } catch (error) {
-    console.error('Error fetching invitation info:', error);
+    logger.error('Error fetching invitation info:', error);
     return NextResponse.json({
       success: false,
       error: 'Failed to fetch invitation information'

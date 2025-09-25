@@ -1,5 +1,7 @@
-export function parseKoreanDateTime(text: string): { date: string; time: string } {
-  const now = new Date();
+export function parseKoreanDateTime(text: string, timezone: string = 'Asia/Seoul'): { date: string; time: string } {
+  // Get current time in the specified timezone
+  const nowInTimezone = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+  const now = new Date(nowInTimezone);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -61,16 +63,45 @@ export function parseKoreanDateTime(text: string): { date: string; time: string 
     }
   }
 
-  // 포맷팅
-  const year = targetDate.getFullYear();
-  const month = String(targetDate.getMonth() + 1).padStart(2, '0');
-  const day = String(targetDate.getDate()).padStart(2, '0');
+  // Format date in the specified timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  const dateStr = formatter.format(targetDate);
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
   return {
-    date: `${year}-${month}-${day}`,
+    date: dateStr,
     time: timeStr
   };
+}
+
+// Get current date in KST/specified timezone as YYYY-MM-DD string
+export function getCurrentDateInTimezone(timezone: string = 'Asia/Seoul'): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(new Date());
+}
+
+// Get tomorrow's date in KST/specified timezone as YYYY-MM-DD string
+export function getTomorrowDateInTimezone(timezone: string = 'Asia/Seoul'): string {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(tomorrow);
 }
 
 // 테스트 케이스를 위한 export

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, useAnimation, PanInfo, AnimatePresence } from 'framer-motion';
 import { Plus, Calendar, Clock, MapPin, X } from 'lucide-react';
 import type { CalendarEvent } from '@/types';
+import { useEvents, useCalendarView } from '@/contexts/EventContext';
 import { EventListModal, EventCreateModal } from './EventModals';
-import { UnifiedEventDetailModal } from './UnifiedEventDetailModal';
+import { UnifiedEventModal } from './UnifiedEventModal';
 import { AIEventReportModal } from './AIEventReportModal';
 import { NotionStyleEventModal } from './NotionStyleEventModal';
 import { useToastContext } from '@/providers/ToastProvider';
@@ -28,7 +29,7 @@ interface UnifiedCalendarViewProps {
 }
 
 export function UnifiedCalendarView({
-  events = [],
+  events: propEvents,
   currentDate,
   locale,
   onEventClick,
@@ -41,14 +42,42 @@ export function UnifiedCalendarView({
   spotlightEvent,
   onOpenAIChat
 }: UnifiedCalendarViewProps) {
+  // Use EventContext
+  const {
+    events: contextEvents,
+    selectedEvent: contextSelectedEvent,
+    selectEvent: contextSelectEvent,
+    toggleEventDetail
+  } = useEvents();
+
+  const {
+    date: contextDate,
+    setDate: setContextDate
+  } = useCalendarView();
+
+  // Use context events if available, otherwise use props
+  const events = contextEvents.length > 0 ? contextEvents : propEvents || [];
+
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>(isDesktop ? 'expanded' : 'expanded');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(contextDate || new Date());
   const [isDragging, setIsDragging] = useState(false);
   const [showEventListModal, setShowEventListModal] = useState(false);
   const [showEventDetailModal, setShowEventDetailModal] = useState(false);
   const [eventViewMode, setEventViewMode] = useState<'notion' | 'ai-report' | 'unified'>('notion'); // 이벤트 뷰 모드
   const [showEventCreateModal, setShowEventCreateModal] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(contextSelectedEvent);
+
+  // Sync with context
+  useEffect(() => {
+    setSelectedEvent(contextSelectedEvent);
+    if (contextSelectedEvent) {
+      setShowEventDetailModal(true);
+    }
+  }, [contextSelectedEvent]);
+
+  useEffect(() => {
+    setSelectedDate(contextDate);
+  }, [contextDate]);
   const controls = useAnimation();
   const { toast } = useToastContext();
   const t = useTranslations();
@@ -107,22 +136,23 @@ export function UnifiedCalendarView({
 
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date);
+    setContextDate(date);  // Update context
     onDateClick(date);
-    
+
     // Show modal in expanded view
     if (viewMode === 'expanded') {
       const dayEvents = (events || []).filter(event => {
         const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
         return eventDate.toDateString() === date.toDateString();
       });
-      
+
       if (dayEvents.length > 0) {
         setShowEventListModal(true);
       } else {
         setShowEventCreateModal(true);
       }
     }
-  }, [onDateClick, viewMode, events]);
+  }, [onDateClick, viewMode, events, setContextDate]);
 
   // Get events for a specific date
   const getEventsForDate = useCallback((date: Date) => {
@@ -161,9 +191,10 @@ export function UnifiedCalendarView({
   // Event handlers
   const handleEventClick = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event);
+    contextSelectEvent(event);  // Update context
     setShowEventListModal(false);
     setShowEventDetailModal(true);
-  }, []);
+  }, [contextSelectEvent]);
 
   const handleEventEdit = useCallback((event: CalendarEvent) => {
     // Close the detail modal and open edit modal
@@ -313,10 +344,10 @@ export function UnifiedCalendarView({
                   }}
                   transition={{ duration: 0.8, ease: "easeInOut" }}
                   className={`
-                    relative flex flex-col 
+                    relative flex flex-col
                     transition-all
-                    ${viewMode === 'compact' ? 
-                      'min-h-[50px] p-0.5 items-start justify-start' : 
+                    ${viewMode === 'compact' ?
+                      'min-h-[50px] p-0.5 items-start justify-start' :
                       isDesktop ? 'min-h-[100px] p-1 items-start justify-start' : 'min-h-[110px] p-1 items-start justify-start'
                     }
                     ${!isCurrentMonth ? 'opacity-30' : ''}
@@ -408,9 +439,9 @@ export function UnifiedCalendarView({
                             }}
                           >
                             {eventTime && (
-                              <span className="opacity-60" style={{ fontSize: 'var(--calendar-event-time)' }}>{eventTime} </span>
+                              <span className="opacity-60" style={{ fontSize: '0.75rem' }}>{eventTime} </span>
                             )}
-                            <span style={{ fontSize: 'var(--calendar-event-text)' }}>{event.summary}</span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: '500' }}>{event.summary}</span>
                           </div>
                         );
                       })}
@@ -499,9 +530,9 @@ export function UnifiedCalendarView({
                             <Calendar className="w-4 h-4 text-purple-500" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-medium" style={{ fontSize: 'var(--font-base)' }}>{event.summary || '제목 없음'}</h4>
+                            <h4 className="font-medium" style={{ fontSize: '1rem' }}>{event.summary || '제목 없음'}</h4>
                             {eventTime && (
-                              <p className="mt-1 flex items-center gap-1" style={{ color: 'var(--text-tertiary)', fontSize: 'var(--font-sm)' }}>
+                              <p className="mt-1 flex items-center gap-1" style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                                 <Clock className="w-3 h-3" />
                                 {eventTime}
                               </p>
@@ -585,14 +616,15 @@ export function UnifiedCalendarView({
           locale={locale}
         />
       ) : (
-        <UnifiedEventDetailModal
+        <UnifiedEventModal
           isOpen={showEventDetailModal}
           onClose={() => setShowEventDetailModal(false)}
           event={selectedEvent}
           onEdit={handleEventEdit}
           onDelete={handleEventDelete}
           locale={locale}
-          onChatAboutEvent={(event) => {
+          enableAI={true}
+          onChat={(event) => {
             setShowEventDetailModal(false);
             onOpenAIChat?.(event);
           }}

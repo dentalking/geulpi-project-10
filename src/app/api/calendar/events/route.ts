@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { handleApiError, AuthError } from '@/lib/api-errors';
 import { supabase } from '@/lib/db';
 import { getCalendarClient } from '@/lib/google-auth';
+// Use SSR functions for better Next.js integration
+import { getCurrentUserSSR, createSupabaseServerClient } from '@/lib/supabase-ssr';
 import {
   withRetry,
   createErrorResponse,
@@ -14,6 +17,8 @@ import {
   ErrorCode,
   logError
 } from '@/lib/error-handler';
+// Import unified date utilities
+import { parseEventDate, getUserTimezone } from '@/utils/dateUtils';
 
 // GET: 이벤트 목록 조회
 export async function GET(request: Request) {
@@ -37,7 +42,7 @@ export async function GET(request: Request) {
           userId = user.id;
         }
       } catch (error) {
-        console.error('JWT auth verification failed:', error);
+        logger.error('JWT auth verification failed:', error);
       }
     }
 
@@ -63,7 +68,7 @@ export async function GET(request: Request) {
             isGoogleUser = true;
           }
         } catch (error) {
-          console.error('Google OAuth verification failed:', error);
+          logger.error('Google OAuth verification failed:', error);
         }
       }
     }
@@ -82,14 +87,14 @@ export async function GET(request: Request) {
       try {
         const calendar = getCalendarClient(accessToken);
 
-        // Google Calendar API 호출
+        // Google Calendar API 호출 - 더 넓은 범위로 검색하여 동기화 이슈 해결
         const calendarResponse = await calendar.events.list({
           calendarId: 'primary',
           maxResults: maxResults,
           singleEvents: true,
           orderBy: 'startTime',
-          timeMin: timeMin || new Date().toISOString(),
-          timeMax: timeMax || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90일
+          timeMin: timeMin || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1주일 전부터
+          timeMax: timeMax || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1년 후까지
         });
 
         const events = calendarResponse.data.items || [];
@@ -111,7 +116,7 @@ export async function GET(request: Request) {
           googleEventId: event.id
         }));
 
-        console.log(`[Google Calendar] Fetched ${transformedEvents.length} events for user ${userId}`);
+        logger.debug(`[Google Calendar] Fetched ${transformedEvents.length} events for user ${userId}`);
 
         return NextResponse.json({
           success: true,
@@ -119,7 +124,7 @@ export async function GET(request: Request) {
           total: transformedEvents.length
         });
       } catch (error) {
-        console.error('Failed to fetch from Google Calendar:', error);
+        logger.error('Failed to fetch from Google Calendar:', error);
         // Google Calendar 실패 시 DB로 폴백
       }
     }
@@ -143,7 +148,7 @@ export async function GET(request: Request) {
     const { data: events, error } = await query;
 
     if (error) {
-      console.error('Error fetching events from database:', error);
+      logger.error('Error fetching events from database:', error);
       return NextResponse.json({
         success: false,
         error: 'Failed to fetch events'
@@ -205,7 +210,7 @@ export async function POST(request: Request) {
         userId = user.id;
       }
     } catch (error) {
-      console.error('JWT auth verification failed:', error);
+      logger.error('JWT auth verification failed:', error);
     }
   }
 
@@ -227,7 +232,7 @@ export async function POST(request: Request) {
           isGoogleUser = true;
         }
       } catch (error) {
-        console.error('Google OAuth verification failed:', error);
+        logger.error('Google OAuth verification failed:', error);
       }
     }
   }
@@ -240,62 +245,85 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { 
-      summary, 
-      description, 
+    const {
+      summary,
+      description,
       location,
       startDateTime,
+      startDate,  // For all-day events
       endDateTime,
+      endDate,    // For all-day events
       attendees = [],
       reminders = { useDefault: true }
     } = body;
 
-    // 필수 필드 검증
-    const missingFields = validateRequired(body, ['summary', 'startDateTime', 'endDateTime']);
-    if (missingFields.length > 0) {
-      return createErrorResponse(
-        new AppError(
-          ErrorCode.VALIDATION_ERROR,
-          `필수 필드가 누락되었습니다: ${missingFields.join(', ')}`,
-          400,
-          { missingFields }
-        )
-      );
-    }
+    // Determine if it's an all-day event
+    const isAllDay = !!(startDate && endDate && !startDateTime && !endDateTime);
 
-    // 날짜 유효성 검증
-    if (!validateDateRange(startDateTime, endDateTime)) {
-      return createErrorResponse(
-        new AppError(
-          ErrorCode.VALIDATION_ERROR,
-          '시작 시간이 종료 시간보다 늦을 수 없습니다.',
-          400
-        )
-      );
+    // Validate based on event type
+    if (isAllDay) {
+      const missingFields = validateRequired(body, ['summary', 'startDate', 'endDate']);
+      if (missingFields.length > 0) {
+        return createErrorResponse(
+          new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            `필수 필드가 누락되었습니다: ${missingFields.join(', ')}`,
+            400,
+            { missingFields }
+          )
+        );
+      }
+    } else {
+      const missingFields = validateRequired(body, ['summary', 'startDateTime', 'endDateTime']);
+      if (missingFields.length > 0) {
+        return createErrorResponse(
+          new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            `필수 필드가 누락되었습니다: ${missingFields.join(', ')}`,
+            400,
+            { missingFields }
+          )
+        );
+      }
+
+      // 날짜 유효성 검증 (timed events only)
+      if (!validateDateRange(startDateTime, endDateTime)) {
+        return createErrorResponse(
+          new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            '시작 시간이 종료 시간보다 늦을 수 없습니다.',
+            400
+          )
+        );
+      }
     }
 
     // Email auth users store events in database
     if (!isGoogleUser) {
+      // Prepare event data based on type
+      const eventData = {
+        user_id: userId,
+        summary,
+        description,
+        location,
+        start_time: isAllDay ? `${startDate}T00:00:00Z` : startDateTime,
+        end_time: isAllDay ? `${endDate}T23:59:59Z` : endDateTime,
+        is_all_day: isAllDay,  // Store all-day flag
+        attendees: attendees, // JSONB column - pass array directly
+        source: 'local',
+        status: 'confirmed',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
       const { data: newEvent, error: dbError } = await supabase
         .from('calendar_events')
-        .insert({
-          user_id: userId,
-          summary,
-          description,
-          location,
-          start_time: startDateTime,
-          end_time: endDateTime,
-          attendees: attendees, // JSONB column - pass array directly
-          source: 'local',
-          status: 'confirmed',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert(eventData)
         .select()
         .single();
 
       if (dbError) {
-        console.error('Error creating event in database:', {
+        logger.error('Error creating event in database:', {
           error: dbError,
           message: dbError.message,
           details: dbError.details,
@@ -321,17 +349,16 @@ export async function POST(request: Request) {
           summary: newEvent.summary,
           description: newEvent.description,
           location: newEvent.location,
-          start: {
-            dateTime: newEvent.start_time,
-            timeZone: 'Asia/Seoul'
-          },
-          end: {
-            dateTime: newEvent.end_time,
-            timeZone: 'Asia/Seoul'
-          },
+          start: isAllDay
+            ? { date: startDate }
+            : { dateTime: newEvent.start_time, timeZone: 'Asia/Seoul' },
+          end: isAllDay
+            ? { date: endDate }
+            : { dateTime: newEvent.end_time, timeZone: 'Asia/Seoul' },
           attendees: newEvent.attendees || [],
           status: newEvent.status,
-          source: newEvent.source
+          source: newEvent.source,
+          isAllDay: newEvent.is_all_day
         },
         message: `이벤트 "${summary}"가 생성되었습니다.`
       });
@@ -340,19 +367,17 @@ export async function POST(request: Request) {
     // Google OAuth users use Google Calendar API
     const calendar = getCalendarClient(accessToken!);
 
-    // 이벤트 생성 요청 구성
+    // 이벤트 생성 요청 구성 - all-day vs timed event 구분
     const event = {
       summary,
       description,
       location,
-      start: {
-        dateTime: startDateTime,
-        timeZone: 'Asia/Seoul'
-      },
-      end: {
-        dateTime: endDateTime,
-        timeZone: 'Asia/Seoul'
-      },
+      start: isAllDay
+        ? { date: startDate }
+        : { dateTime: startDateTime, timeZone: 'Asia/Seoul' },
+      end: isAllDay
+        ? { date: endDate }
+        : { dateTime: endDateTime, timeZone: 'Asia/Seoul' },
       attendees: attendees.map((email: string) => ({ email })),
       reminders
     };
@@ -455,7 +480,7 @@ export async function PUT(request: Request) {
       message: '이벤트가 업데이트되었습니다.'
     });
   } catch (error: any) {
-    console.error('Failed to update event:', error);
+    logger.error('Failed to update event:', error);
     return handleApiError(error);
   }
 }
@@ -493,7 +518,7 @@ export async function DELETE(request: Request) {
       deletedEventId: eventId
     });
   } catch (error: any) {
-    console.error('Failed to delete event:', error);
+    logger.error('Failed to delete event:', error);
     return handleApiError(error);
   }
 }

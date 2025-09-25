@@ -14,6 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      calendar_events: {
+        Row: {
+          attendees: Json | null
+          category: string | null
+          color_id: string | null
+          created_at: string | null
+          creator: Json | null
+          description: string | null
+          end_time: string
+          google_event_id: string | null
+          google_user_id: string | null
+          id: string
+          is_all_day: boolean | null
+          last_synced_at: string | null
+          location: string | null
+          metadata: Json | null
+          organizer: Json | null
+          recurrence: Json | null
+          recurring_event_id: string | null
+          reminders: Json | null
+          share_permission: string | null
+          shared_with: string[] | null
+          source: string | null
+          start_time: string
+          status: string | null
+          summary: string
+          tags: string[] | null
+          timezone: string | null
+          transparency: string | null
+          updated_at: string | null
+          user_id: string | null
+          visibility: string | null
+        }
+        Insert: {
+          attendees?: Json | null
+          category?: string | null
+          color_id?: string | null
+          created_at?: string | null
+          creator?: Json | null
+          description?: string | null
+          end_time: string
+          google_event_id?: string | null
+          google_user_id?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          last_synced_at?: string | null
+          location?: string | null
+          metadata?: Json | null
+          organizer?: Json | null
+          recurrence?: Json | null
+          recurring_event_id?: string | null
+          reminders?: Json | null
+          share_permission?: string | null
+          shared_with?: string[] | null
+          source?: string | null
+          start_time: string
+          status?: string | null
+          summary: string
+          tags?: string[] | null
+          timezone?: string | null
+          transparency?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          visibility?: string | null
+        }
+        Update: {
+          attendees?: Json | null
+          category?: string | null
+          color_id?: string | null
+          created_at?: string | null
+          creator?: Json | null
+          description?: string | null
+          end_time?: string
+          google_event_id?: string | null
+          google_user_id?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          last_synced_at?: string | null
+          location?: string | null
+          metadata?: Json | null
+          organizer?: Json | null
+          recurrence?: Json | null
+          recurring_event_id?: string | null
+          reminders?: Json | null
+          share_permission?: string | null
+          shared_with?: string[] | null
+          source?: string | null
+          start_time?: string
+          status?: string | null
+          summary?: string
+          tags?: string[] | null
+          timezone?: string | null
+          transparency?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          visibility?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_sharing: {
         Row: {
           created_at: string | null
@@ -133,6 +240,84 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      context_templates: {
+        Row: {
+          condition_rules: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          locale: string | null
+          priority_weight: number | null
+          suggested_actions: Json
+          template_name: string
+        }
+        Insert: {
+          condition_rules: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          locale?: string | null
+          priority_weight?: number | null
+          suggested_actions: Json
+          template_name: string
+        }
+        Update: {
+          condition_rules?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          locale?: string | null
+          priority_weight?: number | null
+          suggested_actions?: Json
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_queue: {
+        Row: {
+          attempts: number | null
+          body_text: string | null
+          created_at: string | null
+          error_message: string | null
+          html: string | null
+          id: string
+          last_attempt_at: string | null
+          recipient: string
+          sent_at: string | null
+          status: string | null
+          subject: string
+          updated_at: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          body_text?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          html?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          recipient: string
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+          updated_at?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          body_text?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          html?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          recipient?: string
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -311,6 +496,653 @@ export type Database = {
           },
         ]
       }
+      guest_actions: {
+        Row: {
+          action_details: Json | null
+          action_type: string
+          created_at: string | null
+          guest_id: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action_details?: Json | null
+          action_type: string
+          created_at?: string | null
+          guest_id: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action_details?: Json | null
+          action_type?: string
+          created_at?: string | null
+          guest_id?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_actions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_sessions: {
+        Row: {
+          action_count: number | null
+          created_at: string | null
+          expires_at: string
+          guest_id: string
+          id: string
+          last_activity_at: string | null
+          metadata: Json | null
+          platform: string | null
+          platform_user_id: string | null
+          upgraded_at: string | null
+          upgraded_to_user_id: string | null
+        }
+        Insert: {
+          action_count?: number | null
+          created_at?: string | null
+          expires_at: string
+          guest_id: string
+          id?: string
+          last_activity_at?: string | null
+          metadata?: Json | null
+          platform?: string | null
+          platform_user_id?: string | null
+          upgraded_at?: string | null
+          upgraded_to_user_id?: string | null
+        }
+        Update: {
+          action_count?: number | null
+          created_at?: string | null
+          expires_at?: string
+          guest_id?: string
+          id?: string
+          last_activity_at?: string | null
+          metadata?: Json | null
+          platform?: string | null
+          platform_user_id?: string | null
+          upgraded_at?: string | null
+          upgraded_to_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_sessions_upgraded_to_user_id_fkey"
+            columns: ["upgraded_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_coordination_sessions: {
+        Row: {
+          created_at: string | null
+          current_status: string | null
+          deadline: string | null
+          final_decision: Json | null
+          id: string
+          initiator_id: string | null
+          meeting_title: string
+          participants: Json
+          proposed_locations: Json | null
+          proposed_times: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_status?: string | null
+          deadline?: string | null
+          final_decision?: Json | null
+          id?: string
+          initiator_id?: string | null
+          meeting_title: string
+          participants: Json
+          proposed_locations?: Json | null
+          proposed_times?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_status?: string | null
+          deadline?: string | null
+          final_decision?: Json | null
+          id?: string
+          initiator_id?: string | null
+          meeting_title?: string
+          participants?: Json
+          proposed_locations?: Json | null
+          proposed_times?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      meeting_polls: {
+        Row: {
+          event_id: string | null
+          id: string
+          participant_id: string
+          participant_name: string | null
+          participant_type: string | null
+          proposal_id: string | null
+          vote_metadata: Json | null
+          vote_type: string | null
+          vote_value: string | null
+          voted_at: string | null
+        }
+        Insert: {
+          event_id?: string | null
+          id?: string
+          participant_id: string
+          participant_name?: string | null
+          participant_type?: string | null
+          proposal_id?: string | null
+          vote_metadata?: Json | null
+          vote_type?: string | null
+          vote_value?: string | null
+          voted_at?: string | null
+        }
+        Update: {
+          event_id?: string | null
+          id?: string
+          participant_id?: string
+          participant_name?: string | null
+          participant_type?: string | null
+          proposal_id?: string | null
+          vote_metadata?: Json | null
+          vote_type?: string | null
+          vote_value?: string | null
+          voted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_polls_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messenger_integrations: {
+        Row: {
+          access_token: string | null
+          created_at: string | null
+          id: string
+          platform: string
+          platform_user_id: string
+          preferences: Json | null
+          refresh_token: string | null
+          updated_at: string | null
+          user_id: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string | null
+          id?: string
+          platform: string
+          platform_user_id: string
+          preferences?: Json | null
+          refresh_token?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string | null
+          id?: string
+          platform?: string
+          platform_user_id?: string
+          preferences?: Json | null
+          refresh_token?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messenger_integrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          briefing_enabled: boolean | null
+          briefing_time: string | null
+          browser_enabled: boolean | null
+          conflict_enabled: boolean | null
+          created_at: string | null
+          email_enabled: boolean | null
+          id: string
+          in_app_enabled: boolean | null
+          preparation_enabled: boolean | null
+          preparation_minutes: number | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          reminder_enabled: boolean | null
+          reminder_minutes: number | null
+          travel_buffer_minutes: number | null
+          travel_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          briefing_enabled?: boolean | null
+          briefing_time?: string | null
+          browser_enabled?: boolean | null
+          conflict_enabled?: boolean | null
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          in_app_enabled?: boolean | null
+          preparation_enabled?: boolean | null
+          preparation_minutes?: number | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          reminder_enabled?: boolean | null
+          reminder_minutes?: number | null
+          travel_buffer_minutes?: number | null
+          travel_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          briefing_enabled?: boolean | null
+          briefing_time?: string | null
+          browser_enabled?: boolean | null
+          conflict_enabled?: boolean | null
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          in_app_enabled?: boolean | null
+          preparation_enabled?: boolean | null
+          preparation_minutes?: number | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          reminder_enabled?: boolean | null
+          reminder_minutes?: number | null
+          travel_buffer_minutes?: number | null
+          travel_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_queue: {
+        Row: {
+          created_at: string | null
+          data: Json | null
+          id: string
+          message: string
+          notification_type: string
+          platforms: string[] | null
+          priority: number | null
+          recipient_id: string | null
+          scheduled_at: string | null
+          sender_id: string | null
+          sent_at: string | null
+          status: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          message: string
+          notification_type: string
+          platforms?: string[] | null
+          priority?: number | null
+          recipient_id?: string | null
+          scheduled_at?: string | null
+          sender_id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          message?: string
+          notification_type?: string
+          platforms?: string[] | null
+          priority?: number | null
+          recipient_id?: string | null
+          scheduled_at?: string | null
+          sender_id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          notification_types: Json | null
+          platform: string
+          preferences: Json | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notification_types?: Json | null
+          platform: string
+          preferences?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notification_types?: Json | null
+          platform?: string
+          preferences?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actions: Json | null
+          created_at: string | null
+          dismissed: boolean | null
+          dismissed_at: string | null
+          event_id: string | null
+          expires_at: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          priority: string
+          processed_at: string | null
+          read: boolean | null
+          read_at: string | null
+          scheduled_for: string | null
+          title: string
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          actions?: Json | null
+          created_at?: string | null
+          dismissed?: boolean | null
+          dismissed_at?: string | null
+          event_id?: string | null
+          expires_at?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          priority: string
+          processed_at?: string | null
+          read?: boolean | null
+          read_at?: string | null
+          scheduled_for?: string | null
+          title: string
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          actions?: Json | null
+          created_at?: string | null
+          dismissed?: boolean | null
+          dismissed_at?: string | null
+          event_id?: string | null
+          expires_at?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          priority?: string
+          processed_at?: string | null
+          read?: boolean | null
+          read_at?: string | null
+          scheduled_for?: string | null
+          title?: string
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      place_recommendations: {
+        Row: {
+          created_at: string | null
+          id: string
+          meeting_id: string | null
+          place_address: string | null
+          place_id: string
+          place_location: Json | null
+          place_name: string | null
+          place_photo_url: string | null
+          place_rating: number | null
+          score: number | null
+          score_details: Json | null
+          selected: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          meeting_id?: string | null
+          place_address?: string | null
+          place_id: string
+          place_location?: Json | null
+          place_name?: string | null
+          place_photo_url?: string | null
+          place_rating?: number | null
+          score?: number | null
+          score_details?: Json | null
+          selected?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          meeting_id?: string | null
+          place_address?: string | null
+          place_id?: string
+          place_location?: Json | null
+          place_name?: string | null
+          place_photo_url?: string | null
+          place_rating?: number | null
+          score?: number | null
+          score_details?: Json | null
+          selected?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "place_recommendations_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realtime_sessions: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_activity: string | null
+          platform_data: Json | null
+          session_id: string
+          session_type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_activity?: string | null
+          platform_data?: Json | null
+          session_id: string
+          session_type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_activity?: string | null
+          platform_data?: Json | null
+          session_id?: string
+          session_type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_action_logs: {
+        Row: {
+          action_timestamp: string | null
+          action_type: string
+          browser: string | null
+          created_at: string | null
+          day_of_week: number | null
+          device_type: string | null
+          event_count: number | null
+          id: string
+          last_ai_response: string | null
+          locale: string | null
+          response_time_ms: number | null
+          session_id: string
+          suggestion_category: string | null
+          suggestion_position: number | null
+          suggestion_text: string
+          time_of_day: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_timestamp?: string | null
+          action_type: string
+          browser?: string | null
+          created_at?: string | null
+          day_of_week?: number | null
+          device_type?: string | null
+          event_count?: number | null
+          id?: string
+          last_ai_response?: string | null
+          locale?: string | null
+          response_time_ms?: number | null
+          session_id: string
+          suggestion_category?: string | null
+          suggestion_position?: number | null
+          suggestion_text: string
+          time_of_day?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_timestamp?: string | null
+          action_type?: string
+          browser?: string | null
+          created_at?: string | null
+          day_of_week?: number | null
+          device_type?: string | null
+          event_count?: number | null
+          id?: string
+          last_ai_response?: string | null
+          locale?: string | null
+          response_time_ms?: number | null
+          session_id?: string
+          suggestion_category?: string | null
+          suggestion_position?: number | null
+          suggestion_text?: string
+          time_of_day?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_action_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_behavior_patterns: {
+        Row: {
+          action_type: string
+          context_data: Json | null
+          created_at: string | null
+          frequency: number | null
+          id: string
+          last_action_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          context_data?: Json | null
+          created_at?: string | null
+          frequency?: number | null
+          id?: string
+          last_action_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          context_data?: Json | null
+          created_at?: string | null
+          frequency?: number | null
+          id?: string
+          last_action_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          active_time_slots: Json | null
+          id: string
+          personalization_data: Json | null
+          preferred_event_types: string[] | null
+          quick_action_history: Json | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          active_time_slots?: Json | null
+          id?: string
+          personalization_data?: Json | null
+          preferred_event_types?: string[] | null
+          quick_action_history?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          active_time_slots?: Json | null
+          id?: string
+          personalization_data?: Json | null
+          preferred_event_types?: string[] | null
+          quick_action_history?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           allergies: string[] | null
@@ -411,41 +1243,121 @@ export type Database = {
           work_start_time?: string | null
           working_days?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
+          auth_type: string
           created_at: string | null
           email: string
+          google_access_token: string | null
+          google_calendar_enabled: boolean | null
+          google_refresh_token: string | null
+          google_user_id: string | null
           id: string
           name: string | null
-          password: string
+          password: string | null
           updated_at: string | null
         }
         Insert: {
+          auth_type: string
           created_at?: string | null
           email: string
+          google_access_token?: string | null
+          google_calendar_enabled?: boolean | null
+          google_refresh_token?: string | null
+          google_user_id?: string | null
           id?: string
           name?: string | null
-          password: string
+          password?: string | null
           updated_at?: string | null
         }
         Update: {
+          auth_type?: string
           created_at?: string | null
           email?: string
+          google_access_token?: string | null
+          google_calendar_enabled?: boolean | null
+          google_refresh_token?: string | null
+          google_user_id?: string | null
           id?: string
           name?: string | null
-          password?: string
+          password?: string | null
           updated_at?: string | null
         }
         Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      unread_notification_counts: {
+        Row: {
+          high_count: number | null
+          low_count: number | null
+          medium_count: number | null
+          total_count: number | null
+          urgent_count: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      user_suggestion_stats: {
+        Row: {
+          click_count: number | null
+          ctr_percentage: number | null
+          display_count: number | null
+          last_interaction: string | null
+          suggestion_category: string | null
+          suggestion_text: string | null
+          time_of_day: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_action_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      cleanup_expired_notifications: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      get_user_preferences: {
+        Args: { p_user_id: string }
+        Returns: {
+          avg_response_time_ms: number
+          most_clicked_suggestions: string[]
+          preferred_category: string
+          preferred_time_of_day: string
+        }[]
+      }
+      schedule_event_notifications: {
+        Args: {
+          p_event_id: string
+          p_event_location?: string
+          p_event_time: string
+          p_event_title: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      set_current_user_id: {
+        Args: { user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

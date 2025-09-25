@@ -20,8 +20,9 @@ export interface TokenValidationResult {
 export async function validateAndRefreshGoogleToken(): Promise<TokenValidationResult> {
   try {
     const cookieStore = await cookies();
-    const accessToken = cookieStore.get('google_access_token')?.value;
-    const refreshToken = cookieStore.get('google_refresh_token')?.value;
+    // Check new cookie names first, then fall back to old names for backward compatibility
+    const accessToken = cookieStore.get('google_access_token')?.value || cookieStore.get('access_token')?.value;
+    const refreshToken = cookieStore.get('google_refresh_token')?.value || cookieStore.get('refresh_token')?.value;
     const tokenExpiry = cookieStore.get('google_token_expiry')?.value;
 
     // No tokens available
@@ -101,12 +102,30 @@ export async function validateAndRefreshGoogleToken(): Promise<TokenValidationRe
             error: 'Failed to refresh token - no access token returned'
           };
         }
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         console.error('Token refresh failed:', refreshError);
+
+        // Handle invalid_grant specifically
+        if (refreshError.message?.includes('Google OAuth tokens expired') ||
+            refreshError.message?.includes('invalid_grant')) {
+          // Clear all Google OAuth cookies when tokens are invalid
+          cookieStore.delete('google_access_token');
+          cookieStore.delete('google_refresh_token');
+          cookieStore.delete('google_token_expiry');
+          cookieStore.delete('access_token'); // Legacy
+          cookieStore.delete('refresh_token'); // Legacy
+
+          return {
+            isValid: false,
+            needsRefresh: false, // Don't retry - need re-authentication
+            error: 'OAuth tokens expired. Please re-authenticate.'
+          };
+        }
+
         return {
           isValid: false,
           needsRefresh: true,
-          error: `Token refresh failed: ${refreshError}`
+          error: `Token refresh failed: ${refreshError.message || refreshError}`
         };
       }
     }
@@ -182,9 +201,11 @@ export async function getValidGoogleTokens(): Promise<{
   const tokenResult = await validateAndRefreshGoogleToken();
   const cookieStore = await cookies();
 
+  const refreshToken = cookieStore.get('google_refresh_token')?.value || cookieStore.get('refresh_token')?.value;
+
   return {
     accessToken: tokenResult.accessToken,
-    refreshToken: cookieStore.get('google_refresh_token')?.value,
+    refreshToken: refreshToken,
     isValid: tokenResult.isValid,
     error: tokenResult.error
   };

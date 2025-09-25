@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { sessionManager } from '@/lib/auth/session-manager';
 import { verifyToken } from '@/lib/auth/supabase-auth';
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       currentSessionId: session.id
     });
   } catch (error: any) {
-    console.error('Get sessions error:', error);
+    logger.error('Get sessions error:', error);
     return NextResponse.json(
       { error: 'Failed to get sessions' },
       { status: 500 }
@@ -117,7 +118,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
   } catch (error: any) {
-    console.error('Revoke session error:', error);
+    logger.error('Revoke session error:', error);
     return NextResponse.json(
       { error: 'Failed to revoke session' },
       { status: 500 }

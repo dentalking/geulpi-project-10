@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -67,37 +67,48 @@ export function UnifiedSidebar({
   const [chatHistory, setChatHistory] = useState<{id: string, title: string, timestamp: Date}[]>([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
-  
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingRef = useRef(false);
+
   // Load chat history asynchronously
   useEffect(() => {
     const loadChatHistory = async (showLoading: boolean = false) => {
+      // Prevent concurrent loading
+      if (loadingRef.current) {
+        console.log('[UnifiedSidebar] Chat history loading already in progress, skipping');
+        return;
+      }
+
       try {
+        loadingRef.current = true;
+
         // Only show loading on first load
         if (showLoading) {
           setChatHistoryLoading(true);
         }
-        
+
         const sessions = await chatStorage.getRecentSessions(5);
         const historyData = sessions.map(session => ({
           id: session.id,
           title: session.title,
-          timestamp: new Date(session.updatedAt) // Date 객체로 변환
+          timestamp: new Date(session.updatedAt)
         }));
-        
+
         // Only update if data has changed to prevent unnecessary re-renders
         setChatHistory(prev => {
-          const hasChanged = prev.length !== historyData.length || 
+          const hasChanged = prev.length !== historyData.length ||
             prev.some((item, idx) => item.id !== historyData[idx]?.id);
           return hasChanged ? historyData : prev;
         });
-        
-        console.log('UnifiedSidebar chatHistory loaded:', historyData);
+
+        console.log('[UnifiedSidebar] Chat history loaded:', historyData.length, 'sessions');
       } catch (error) {
-        console.error('Failed to load chat history:', error);
+        console.error('[UnifiedSidebar] Failed to load chat history:', error);
         if (showLoading) {
           setChatHistory([]);
         }
       } finally {
+        loadingRef.current = false;
         if (showLoading) {
           setChatHistoryLoading(false);
           setIsFirstLoad(false);
@@ -105,16 +116,30 @@ export function UnifiedSidebar({
       }
     };
 
-    // Initial load with loading indicator
-    loadChatHistory(isFirstLoad);
-    
-    // Reload chat history every 3 seconds when sidebar is open (without loading indicator)
-    const interval = isOpen ? setInterval(() => loadChatHistory(false), 3000) : null;
-    
+    // Initial load when sidebar opens (only once per open)
+    if (isOpen && isFirstLoad) {
+      console.log('[UnifiedSidebar] Loading chat history for first time');
+      loadChatHistory(true);
+    }
+
+    // Set up periodic refresh only when sidebar is open (30 seconds interval instead of 3)
+    if (isOpen && !isFirstLoad) {
+      console.log('[UnifiedSidebar] Setting up periodic chat refresh');
+      intervalRef.current = setInterval(() => {
+        console.log('[UnifiedSidebar] Periodic chat history refresh');
+        loadChatHistory(false);
+      }, 30000); // 30 seconds instead of 3
+    }
+
+    // Cleanup interval when sidebar closes or component unmounts
     return () => {
-      if (interval) clearInterval(interval);
+      if (intervalRef.current) {
+        console.log('[UnifiedSidebar] Clearing chat history interval');
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [isOpen, isFirstLoad]); // Reload when sidebar opens/closes
+  }, [isOpen, isFirstLoad]);
   
   const menuItems = [
     { 
@@ -517,15 +542,16 @@ export function UnifiedSidebar({
 }
 
 // Simplified Navigation Header for desktop and mobile
-export function UnifiedHeader({ 
+export function UnifiedHeader({
   onMenuClick,
   onSearchClick,
   onAddEvent,
   showMenuButton = true,
   title = 'Geulpi',
   subtitle,
-  isMobile = false
-}: { 
+  isMobile = false,
+  notificationIcon
+}: {
   onMenuClick: () => void;
   onSearchClick?: () => void;
   onAddEvent?: () => void;
@@ -533,6 +559,7 @@ export function UnifiedHeader({
   title?: string;
   subtitle?: string;
   isMobile?: boolean;
+  notificationIcon?: React.ReactNode;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -576,6 +603,9 @@ export function UnifiedHeader({
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Notification Icon */}
+            {notificationIcon}
+
             {/* AI Overlay Toggle Button */}
             {onAddEvent && (
               <button

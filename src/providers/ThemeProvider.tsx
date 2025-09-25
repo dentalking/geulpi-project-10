@@ -25,15 +25,71 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme;
     const savedFontSize = localStorage.getItem('fontSize') as FontSize;
-    
+
+    console.log('[ThemeProvider] Loading preferences from localStorage:', {
+      theme: savedTheme,
+      fontSize: savedFontSize
+    });
+
     if (savedTheme) {
       setTheme(savedTheme);
     }
     if (savedFontSize) {
       setFontSize(savedFontSize);
     }
-    
+
     setMounted(true);
+  }, []);
+
+  // Listen for theme change events (from chat or other sources)
+  useEffect(() => {
+    // Listen for custom theme change events (same window)
+    const handleThemeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newTheme = customEvent.detail?.theme as Theme;
+      if (newTheme) {
+        console.log('[ThemeProvider] Theme change event detected from:', customEvent.detail?.source, 'theme:', newTheme);
+        setTheme(newTheme);
+        // Also save to localStorage to keep in sync
+        localStorage.setItem('theme', newTheme);
+      }
+    };
+
+    // Listen for custom fontSize change events (same window)
+    const handleFontSizeChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newFontSize = customEvent.detail?.fontSize as FontSize;
+      if (newFontSize) {
+        console.log('[ThemeProvider] FontSize change event detected from:', customEvent.detail?.source, 'fontSize:', newFontSize);
+        setFontSize(newFontSize);
+        // Also save to localStorage to keep in sync
+        localStorage.setItem('fontSize', newFontSize);
+      }
+    };
+
+    // Listen for storage events (from other tabs/windows)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'theme' && e.newValue) {
+        const newTheme = e.newValue as Theme;
+        console.log('[ThemeProvider] Storage event detected (other tab), changing theme to:', newTheme);
+        setTheme(newTheme);
+      }
+      if (e.key === 'fontSize' && e.newValue) {
+        const newFontSize = e.newValue as FontSize;
+        console.log('[ThemeProvider] Storage event detected (other tab), changing fontSize to:', newFontSize);
+        setFontSize(newFontSize);
+      }
+    };
+
+    window.addEventListener('themeChanged', handleThemeChange);
+    window.addEventListener('fontSizeChanged', handleFontSizeChange);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('themeChanged', handleThemeChange);
+      window.removeEventListener('fontSizeChanged', handleFontSizeChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Determine actual theme based on system preference with enhanced detection

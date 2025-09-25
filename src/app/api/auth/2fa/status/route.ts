@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { get2FAUserStatus } from '@/lib/auth/two-factor-auth';
 import { auth } from '@/lib/auth';
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('2FA status error:', error);
+    logger.error('2FA status error:', error);
     return NextResponse.json(
       { 
         success: false, 

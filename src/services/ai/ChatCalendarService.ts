@@ -1,5 +1,11 @@
 import { GoogleGenerativeAI, GenerativeModel, ChatSession } from '@google/generative-ai';
-import { parseKoreanDateTime } from '@/lib/date-parser';
+import { parseKoreanDateTime, getCurrentDateInTimezone, getTomorrowDateInTimezone } from '@/lib/date-parser';
+import { eventContextManager } from '@/lib/EventContextManager';
+// Temporary stub to avoid SWR import issues
+const invalidateArtifactCache = async (userId?: string) => {
+  console.log('invalidateArtifactCache called for user:', userId);
+  // TODO: Re-implement when SWR imports are fixed
+};
 
 export interface ChatResponse {
   message: string;  // 사용자에게 보여줄 메시지
@@ -15,6 +21,9 @@ export interface ChatResponse {
     data?: any;
   };
   createdEventId?: string;  // 생성된 일정의 ID (하이라이트용)
+  artifactMode?: 'list' | 'focused' | 'edit';  // 아티팩트 패널 모드
+  focusedEvent?: any;  // 포커스할 이벤트
+  pendingChanges?: any;  // 미리보기할 변경사항
 }
 
 export class ChatCalendarService {
@@ -67,6 +76,65 @@ export class ChatCalendarService {
   }
 
   /**
+   * 메시지 의도 분류 (향상된 컨텍스트 이해)
+   */
+  private classifyIntent(message: string): {
+    type: 'settings' | 'calendar' | 'place_search' | 'general';
+    confidence: number;
+    subtype?: string;
+  } {
+    const lowerMessage = message.toLowerCase();
+
+    // Settings intent patterns (매우 구체적)
+    const settingsPatterns = [
+      { pattern: /언어.*변경|언어.*바꿔|영어로.*변경|한국어로.*변경/i, subtype: 'language' },
+      { pattern: /테마.*변경|다크.*모드|라이트.*모드|어두운.*테마|밝은.*테마/i, subtype: 'theme' },
+      { pattern: /알림.*설정|알림.*켜|알림.*꺼|푸시.*설정/i, subtype: 'notification' },
+      { pattern: /폰트.*크기|글씨.*크기|글씨.*크게|글씨.*작게/i, subtype: 'font' },
+      { pattern: /배경.*설정|투명.*배경|배경.*투명/i, subtype: 'background' }
+    ];
+
+    // Calendar intent patterns (일정 관련)
+    const calendarPatterns = [
+      { pattern: /일정.*추가|미팅.*잡|회의.*생성|약속.*만들|schedule.*meeting|add.*event/i, subtype: 'create' },
+      { pattern: /일정.*확인|일정.*보기|스케줄.*확인|오늘.*일정|내일.*일정/i, subtype: 'view' },
+      { pattern: /일정.*수정|일정.*변경|회의.*변경|약속.*변경/i, subtype: 'edit' },
+      { pattern: /일정.*삭제|회의.*취소|약속.*취소/i, subtype: 'delete' },
+      { pattern: /friend.*schedule|친구.*일정|친구.*만나|친구.*미팅/i, subtype: 'friend_schedule' }
+    ];
+
+    // Place search patterns
+    const placePatterns = [
+      { pattern: /카페|커피|음식점|맛집|식당|레스토랑|장소|추천|근처|주변/i, subtype: 'place' },
+      { pattern: /cafe|coffee|restaurant|place|recommend|near|around/i, subtype: 'place' }
+    ];
+
+    // Check settings patterns
+    for (const { pattern, subtype } of settingsPatterns) {
+      if (pattern.test(message)) {
+        return { type: 'settings', confidence: 0.9, subtype };
+      }
+    }
+
+    // Check calendar patterns
+    for (const { pattern, subtype } of calendarPatterns) {
+      if (pattern.test(message)) {
+        return { type: 'calendar', confidence: 0.8, subtype };
+      }
+    }
+
+    // Check place search patterns
+    for (const { pattern, subtype } of placePatterns) {
+      if (pattern.test(message)) {
+        return { type: 'place_search', confidence: 0.8, subtype };
+      }
+    }
+
+    // Default to general chat
+    return { type: 'general', confidence: 0.5 };
+  }
+
+  /**
    * 채팅 메시지 처리 (모든 캘린더 작업 통합)
    */
   async processMessage(
@@ -79,7 +147,31 @@ export class ChatCalendarService {
     });
 
     const sessionId = userContext?.sessionId || 'default';
+
+    // Enhanced intent classification
+    const intentClass = this.classifyIntent(message);
+    console.log('[ChatCalendarService] Intent classification:', intentClass);
+
+    // Handle settings requests with clear rejection
+    if (intentClass.type === 'settings') {
+      return {
+        message: userContext?.locale === 'en'
+          ? 'For settings changes, please use the settings menu or be more specific about what you want to change.'
+          : '설정 변경은 설정 메뉴를 사용하거나, 변경하고 싶은 내용을 더 구체적으로 말씀해주세요.',
+        suggestions: userContext?.locale === 'en'
+          ? ['Open settings menu', 'Help with calendar', 'Show today\'s events']
+          : ['설정 메뉴 열기', '캘린더 도움말', '오늘 일정 보기']
+      };
+    }
+
     const chat = this.getOrCreateSession(sessionId);
+
+    // Detect event context and suggested action
+    const eventContext = eventContextManager.detectEventReference(message, currentEvents);
+    const suggestedAction = eventContextManager.suggestAction(message);
+
+    // Store session events for context tracking
+    eventContextManager.setSessionEvents(sessionId, currentEvents);
 
     // Check if this is a place/location search request
     const isPlaceSearch = /카페|커피|음식점|맛집|식당|레스토랑|장소|추천|근처|주변/i.test(message) ||
@@ -174,10 +266,18 @@ ${profile.exercise_routine ? `- ${isEnglish ? 'Exercise routine' : '운동 루�
     const hasHistory = this.conversationHistories.has(sessionId) && 
                        this.conversationHistories.get(sessionId)!.length > 0;
     
+    // 오늘과 내일 날짜 미리 계산
+    const todayDate = getCurrentDateInTimezone(userContext?.timezone || 'Asia/Seoul');
+    const tomorrowDate = getTomorrowDateInTimezone(userContext?.timezone || 'Asia/Seoul');
+
     const prompt = `
 ${isEnglish ? 'You are a friendly and capable calendar assistant.' : '당신은 친절하고 유능한 캘린더 비서입니다.'}
+${isEnglish ? 'Focus ONLY on calendar and scheduling tasks. For other requests like settings changes, politely redirect users to appropriate menus.' : '캘린더와 일정 관리에만 집중하세요. 설정 변경 등 다른 요청은 적절한 메뉴로 안내해주세요.'}
+${isEnglish ? 'When users mention "friend" or "meeting", understand this as calendar scheduling, NOT language changes.' : '사용자가 "friend"나 "meeting"을 언급하면 이를 언어 변경이 아닌 일정 잡기로 이해하세요.'}
 ${hasHistory ? (isEnglish ? 'Continue the conversation naturally, remembering previous context.' : '이전 대화 맥락을 기억하며 자연스럽게 대화를 이어가세요.') : ''}
 ${isEnglish ? 'Current time:' : '현재 시간:'} ${currentDateTime}
+${isEnglish ? 'Today\'s date:' : '오늘 날짜:'} ${todayDate}
+${isEnglish ? 'Tomorrow\'s date:' : '내일 날짜:'} ${tomorrowDate}
 ${isEnglish ? 'User timezone:' : '사용자 시간대:'} ${userContext?.timezone || 'Asia/Seoul'}
 ${isEnglish ? 'User language: English' : '사용자 언어: 한국어'}
 ${profileContext}
@@ -198,16 +298,107 @@ ${userContext?.lastExtractedEvent ? `
 
 세션 ID: ${sessionId}
 
-현재 등록된 일정 (${currentEvents.length}개):
-${currentEvents.slice(0, 10).map(e => {
-  const startDate = new Date(e.start?.dateTime || e.start?.date || '');
-  // Use toLocaleDateString with Asia/Seoul timezone
-  const dateStr = startDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }); // en-CA gives YYYY-MM-DD format
-  const timeStr = e.start?.dateTime 
-    ? startDate.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
-    : '종일';
-  return `- [ID: ${e.id}] ${e.summary}: ${dateStr} ${timeStr}`;
-}).join('\n')}
+${(() => {
+  // Smart event filtering based on query
+  let eventsToShow = currentEvents;
+  const messageMonth = message.match(/(\d{1,2})월|january|february|march|april|may|june|july|august|september|october|november|december/i);
+
+  if (messageMonth) {
+    // If user mentions a specific month, prioritize showing all events from that month
+    const monthMap: { [key: string]: number } = {
+      '1월': 1, '2월': 2, '3월': 3, '4월': 4, '5월': 5, '6월': 6,
+      '7월': 7, '8월': 8, '9월': 9, '10월': 10, '11월': 11, '12월': 12,
+      'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+      'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+    };
+
+    const monthStr = messageMonth[0].toLowerCase();
+    const monthNum = monthMap[monthStr] || parseInt(messageMonth[1]);
+
+    if (monthNum) {
+      // Filter events for the specific month
+      const monthEvents = currentEvents.filter(e => {
+        const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+        return startDate.getMonth() + 1 === monthNum;
+      });
+
+      // If there are events in that month, show them all
+      if (monthEvents.length > 0) {
+        eventsToShow = monthEvents;
+      }
+    }
+  } else if (currentEvents.length > 50) {
+    // If too many events and no specific month mentioned, show recent and upcoming events
+    const now = new Date();
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const twoMonthsLater = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+
+    eventsToShow = currentEvents.filter(e => {
+      const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+      return startDate >= oneMonthAgo && startDate <= twoMonthsLater;
+    });
+  }
+
+  // Enhanced event context with clear date categorization
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const todayEvents = currentEvents.filter(e => {
+    const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+    return startDate >= todayStart && startDate <= todayEnd;
+  });
+
+  const thisWeekEvents = currentEvents.filter(e => {
+    const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+    return startDate >= weekStart && startDate <= weekEnd;
+  });
+
+  const thisMonthEvents = currentEvents.filter(e => {
+    const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+    return startDate >= monthStart && startDate <= monthEnd;
+  });
+
+  // Create contextual summary
+  let contextSummary = `📊 일정 현황:\n`;
+  contextSummary += `- 오늘 (${todayDate}): ${todayEvents.length}개 일정\n`;
+  contextSummary += `- 이번 주: ${thisWeekEvents.length}개 일정\n`;
+  contextSummary += `- 이번 달: ${thisMonthEvents.length}개 일정\n`;
+  contextSummary += `- 전체: ${currentEvents.length}개 일정\n\n`;
+
+  if (eventsToShow.length > 0) {
+    contextSummary += `표시된 일정 (${eventsToShow.length}개):\n`;
+    contextSummary += eventsToShow.map(e => {
+      const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+      const dateStr = startDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+      const timeStr = e.start?.dateTime
+        ? startDate.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
+        : '종일';
+
+      // Add context marker for today's events
+      const isToday = startDate >= todayStart && startDate <= todayEnd;
+      const marker = isToday ? ' [오늘]' : '';
+
+      return `- [ID: ${e.id}] ${e.summary}: ${dateStr} ${timeStr}${marker}`;
+    }).join('\n');
+  } else {
+    contextSummary += `표시할 일정이 없습니다.`;
+  }
+
+  return contextSummary;
+})()}
 
 사용자 메시지: "${message}"
 
@@ -222,11 +413,14 @@ ${profile ? `
 - 운동 루틴을 고려한 운동 일정 제안
 ` : ''}
 
+중요: 날짜를 지정할 때 반드시 위에 제공된 '오늘 날짜: ${todayDate}' 와 '내일 날짜: ${tomorrowDate}'를 사용하세요.
+절대 다른 날짜를 만들어내지 마세요.
+
 1. 먼저 사용자의 의도를 파악하세요:
    - CREATE: 새 일정 추가 (예: "내일 3시 회의 추가해줘")
      * "이것을 등록해줘", "register this" 같은 참조 명령은 최근 추출된 일정을 등록하는 것임
-     * 단일 일정: {"type":"create","data":{"title":"회의","date":"2024-01-11","time":"15:00"}}
-     * 여러 일정: {"type":"create_multiple","data":{"events":[{"title":"회의1","date":"2024-01-11","time":"10:00"},{"title":"회의2","date":"2024-01-12","time":"14:00"}]}}
+     * 단일 일정: {"type":"create","data":{"title":"회의","date":"${tomorrowDate}","time":"15:00"}}
+     * 여러 일정: {"type":"create_multiple","data":{"events":[{"title":"회의1","date":"날짜1","time":"10:00"},{"title":"회의2","date":"날짜2","time":"14:00"}]}}
    - UPDATE: 기존 일정 수정 (예: "회의 시간 4시로 변경", "전주 여행에 맛집 정보 추가")
      * 특정 일정을 수정할 때는 반드시 해당 일정의 eventId를 찾아서 포함시켜야 함
      * "전주 여행 준비사항 추가" 같은 경우 현재 일정 목록에서 "전주 여행"을 찾아 그 eventId로 수정
@@ -234,7 +428,7 @@ ${profile ? `
      * 개별 삭제: eventId 포함
      * 전체 삭제: eventIds 배열 포함 (예: {"type":"delete","data":{"eventIds":["id1","id2","id3"]}})
    - SEARCH: 일정 검색/조회 (예: "이번 주 일정 보여줘", "오늘 일정 알려줘", "내일 일정 보여줘")
-     * 조회 시: {"type":"search","data":{"query":"오늘", "startDate":"2024-01-10", "endDate":"2024-01-10"}}
+     * 조회 시: {"type":"search","data":{"query":"오늘", "startDate":"${todayDate}", "endDate":"${todayDate}"}}
    - FRIEND: 친구 관련 작업 (예: "email@example.com 친구 추가", "친구 목록 보여줘", "친구 요청 수락")
      * 친구 추가: {"type":"friend_action","data":{"action":"add","email":"friend@example.com"}}
      * 친구 목록: {"type":"friend_action","data":{"action":"list"}}
@@ -256,18 +450,18 @@ ${profile ? `
 ---RESPONSE---
 네, 내일 오후 3시에 회의 일정을 추가했습니다. 장소나 참석자 정보도 추가하시겠어요?
 ---ACTION---
-{"type":"create","data":{"title":"회의","date":"2024-01-11","time":"15:00","duration":60}}
+{"type":"create","data":{"title":"회의","date":"${tomorrowDate}","time":"15:00","duration":60}}
 ---SUGGESTIONS---
 회의 장소 추가하기, 참석자 이메일 추가하기, 오늘 일정 확인하기
 
 다중 이벤트 생성 예시 (중요: 여러 일정을 한 번에 생성할 때):
-사용자: "1월 20일 오전 10시 팀 미팅, 1월 21일 오후 2시 프로젝트 발표, 1월 22일 오전 11시 고객 미팅 추가해줘"
+사용자: "여러 일정을 추가해주세요"
 ---RESPONSE---
-네, 3개의 일정을 모두 추가했습니다. 1월 20일 팀 미팅, 21일 프로젝트 발표, 22일 고객 미팅이 등록되었어요.
+네, 모든 일정을 추가했습니다. 각 날짜에 맞게 일정이 등록되었어요.
 ---ACTION---
-{"type":"create_multiple","data":{"events":[{"title":"팀 미팅","date":"2025-01-20","time":"10:00","duration":60},{"title":"프로젝트 발표","date":"2025-01-21","time":"14:00","duration":60},{"title":"고객 미팅","date":"2025-01-22","time":"11:00","duration":60}]}}
+{"type":"create_multiple","data":{"events":[{"title":"일정1","date":"YYYY-MM-DD","time":"10:00","duration":60},{"title":"일정2","date":"YYYY-MM-DD","time":"14:00","duration":60}]}}
 ---SUGGESTIONS---
-각 일정에 장소 추가하기, 참석자 추가하기, 1월 일정 확인하기
+각 일정에 장소 추가하기, 참석자 추가하기, 이번 달 일정 확인하기
 
 일정 수정 예시:
 ---RESPONSE---
@@ -297,7 +491,7 @@ ${profile ? `
 ---RESPONSE---
 오늘 등록된 일정을 확인해 드릴게요.
 ---ACTION---
-{"type":"search","data":{"query":"오늘","startDate":"${new Date().toISOString().split('T')[0]}","endDate":"${new Date().toISOString().split('T')[0]}"}}
+{"type":"search","data":{"query":"오늘","startDate":"${todayDate}","endDate":"${todayDate}"}}
 ---SUGGESTIONS---
 일정 추가하기, 내일 일정 보기, 이번 주 일정 확인하기
 
@@ -305,7 +499,7 @@ ${profile ? `
 ---RESPONSE---
 내일 예정된 일정을 확인해 드릴게요.
 ---ACTION---
-{"type":"search","data":{"query":"내일","startDate":"${new Date(Date.now() + 86400000).toISOString().split('T')[0]}","endDate":"${new Date(Date.now() + 86400000).toISOString().split('T')[0]}"}}
+{"type":"search","data":{"query":"내일","startDate":"${tomorrowDate}","endDate":"${tomorrowDate}"}}
 ---SUGGESTIONS---
 내일 일정 추가하기, 오늘 일정 보기, 이번 주 일정 확인하기
 
@@ -426,6 +620,9 @@ NONE
         userMessage = response.substring(0, 500); // Limit length
       }
 
+      // Enhance response with context if discussing events
+      userMessage = this.enhanceResponseWithContext(userMessage, currentEvents, userContext?.timezone, isEnglish);
+
       // 대화 히스토리 저장 (세션 재생성시 사용)
       const history = await chat.getHistory();
       this.conversationHistories.set(sessionId, history.map(h => ({
@@ -443,12 +640,55 @@ NONE
           createdAt: new Date()
         });
         this.recentlyCreatedEvents.set(sessionId, recentEvents);
+
+        // Record action in context manager
+        eventContextManager.recordEventAction('new', 'create');
+
+        // Invalidate artifact cache to sync with new data
+        if (userContext?.userProfile?.id) {
+          await invalidateArtifactCache(userContext.userProfile.id);
+        }
+      }
+
+      // Also invalidate cache for update/delete actions
+      if (action && (action.type === 'update' || action.type === 'delete')) {
+        if (userContext?.userProfile?.id) {
+          await invalidateArtifactCache(userContext.userProfile.id);
+        }
+      }
+
+      // Determine artifact mode based on action and context
+      let artifactMode: 'list' | 'focused' | 'edit' | undefined;
+      let focusedEvent: any = undefined;
+      let pendingChanges: any = undefined;
+
+      // If an event was referenced in the message
+      if (eventContext.event) {
+        if (suggestedAction.action === 'edit') {
+          artifactMode = 'focused';
+          focusedEvent = eventContext.event;
+          // If we have action data, use it as pending changes
+          if (action?.type === 'update' && action.data) {
+            pendingChanges = action.data;
+          }
+        } else if (suggestedAction.action === 'view') {
+          artifactMode = 'focused';
+          focusedEvent = eventContext.event;
+        }
+      }
+
+      // For list/search actions, keep list mode
+      if (action?.type === 'list' || action?.type === 'search') {
+        artifactMode = 'list';
       }
 
       const finalResponse = {
         message: userMessage,
         action,
-        suggestions
+        suggestions,
+        artifactMode,
+        focusedEvent,
+        pendingChanges
       };
       
       console.log('[ChatCalendarService] Final response:', {
@@ -467,6 +707,113 @@ NONE
         suggestions: ['다시 시도하기', '도움말 보기', '일정 목록 보기']
       };
     }
+  }
+
+  /**
+   * Enhance response with clear date context
+   */
+  private enhanceResponseWithContext(
+    originalMessage: string,
+    events: any[],
+    timezone: string = 'Asia/Seoul',
+    isEnglish: boolean = false
+  ): string {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // Count events by period
+    const todayEvents = events.filter(e => {
+      const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+      return startDate >= todayStart && startDate <= todayEnd;
+    });
+
+    const thisWeekEvents = events.filter(e => {
+      const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+      return startDate >= weekStart && startDate <= weekEnd;
+    });
+
+    const thisMonthEvents = events.filter(e => {
+      const startDate = new Date(e.start?.dateTime || e.start?.date || '');
+      return startDate >= monthStart && startDate <= monthEnd;
+    });
+
+    // Detect if response is about no events
+    const noEventsKeywords = isEnglish
+      ? ['no events', 'no schedule', 'nothing scheduled', 'empty']
+      : ['일정이 없', '일정 없', '비어', '없습니다', '없네요'];
+
+    const hasNoEventsMessage = noEventsKeywords.some(keyword =>
+      originalMessage.toLowerCase().includes(keyword.toLowerCase())
+    );
+
+    // If the message mentions no events, add context
+    if (hasNoEventsMessage && todayEvents.length === 0) {
+      let contextAddition = '';
+
+      if (isEnglish) {
+        const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        contextAddition = `\n\n📊 Event Summary:\n`;
+        contextAddition += `• Today (${todayStr}): No events\n`;
+
+        if (thisWeekEvents.length > 0) {
+          contextAddition += `• This week: ${thisWeekEvents.length} event${thisWeekEvents.length > 1 ? 's' : ''}\n`;
+        }
+        if (thisMonthEvents.length > 0) {
+          contextAddition += `• This month: ${thisMonthEvents.length} event${thisMonthEvents.length > 1 ? 's' : ''} total`;
+        }
+      } else {
+        const todayStr = `${now.getMonth() + 1}월 ${now.getDate()}일`;
+        contextAddition = `\n\n📊 일정 요약:\n`;
+        contextAddition += `• 오늘 (${todayStr}): 일정 없음\n`;
+
+        if (thisWeekEvents.length > 0) {
+          contextAddition += `• 이번 주: ${thisWeekEvents.length}개 일정\n`;
+        }
+        if (thisMonthEvents.length > 0) {
+          contextAddition += `• 이번 달: 총 ${thisMonthEvents.length}개 일정`;
+        }
+      }
+
+      return originalMessage + contextAddition;
+    }
+
+    // If the message mentions viewing/checking events
+    const viewKeywords = isEnglish
+      ? ['showing', 'here are', 'your events', 'scheduled', 'found']
+      : ['보여드릴게요', '확인해', '일정을', '예정된', '있습니다', '있어요'];
+
+    const isShowingEvents = viewKeywords.some(keyword =>
+      originalMessage.toLowerCase().includes(keyword.toLowerCase())
+    );
+
+    if (isShowingEvents && todayEvents.length > 0) {
+      let contextPrefix = '';
+
+      if (isEnglish) {
+        const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        contextPrefix = `Today (${todayStr}): ${todayEvents.length} event${todayEvents.length > 1 ? 's' : ''}. `;
+      } else {
+        const todayStr = `${now.getMonth() + 1}월 ${now.getDate()}일`;
+        contextPrefix = `오늘 (${todayStr}) ${todayEvents.length}개의 일정이 있습니다. `;
+      }
+
+      return contextPrefix + originalMessage;
+    }
+
+    return originalMessage;
   }
 
   /**

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { createClient } from '@supabase/supabase-js';
 
 // Force this route to run only on the server
@@ -6,8 +8,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  env.get('NEXT_PUBLIC_SUPABASE_URL')!,
+  env.get('SUPABASE_SERVICE_ROLE_KEY') || env.get('NEXT_PUBLIC_SUPABASE_ANON_KEY')!
 );
 
 export async function POST(request: NextRequest) {
@@ -15,7 +17,7 @@ export async function POST(request: NextRequest) {
     const { to, inviterName, invitationCode } = await request.json();
 
     // Generate invitation URL
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://geulpi.com'}/invite/${invitationCode}`;
+    const invitationUrl = `${env.get('NEXT_PUBLIC_APP_URL') || 'https://geulpi.com'}/invite/${invitationCode}`;
 
     // Store invitation in database for processing
     const { data, error } = await supabase
@@ -46,13 +48,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[Send Invitation] Database error:', error);
+      logger.error('[Send Invitation] Database error:', error);
       throw error;
     }
 
     // Try to send immediately using fallback method
     // For now, we'll rely on the email processor script
-    console.log('[Send Invitation] Email queued successfully:', data.id);
+    logger.debug('[Send Invitation] Email queued successfully:', data.id);
 
     return NextResponse.json({
       success: true,
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[Send Invitation] Error:', error);
+    logger.error('[Send Invitation] Error:', error);
     return NextResponse.json({
       success: false,
       error: error.message

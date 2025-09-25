@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
         const { data: sharedEvents, error } = await query;
 
         if (error) {
-            console.error('Error fetching shared events:', error);
+            logger.error('Error fetching shared events:', error);
             return NextResponse.json({
                 success: false,
                 error: 'Failed to fetch shared events'
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
                     userId = user.id;
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -218,7 +219,7 @@ export async function POST(request: Request) {
                 .eq('id', existingShare.id);
 
             if (updateError) {
-                console.error('Error updating calendar sharing:', updateError);
+                logger.error('Error updating calendar sharing:', updateError);
                 return NextResponse.json({
                     success: false,
                     error: 'Failed to update calendar sharing'
@@ -243,7 +244,7 @@ export async function POST(request: Request) {
                 });
 
             if (createError) {
-                console.error('Error creating calendar sharing:', createError);
+                logger.error('Error creating calendar sharing:', createError);
                 return NextResponse.json({
                     success: false,
                     error: 'Failed to create calendar sharing'

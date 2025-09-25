@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken, changeUserPassword } from '@/lib/auth/supabase-auth';
 
@@ -49,7 +50,7 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Password change error:', error);
+    logger.error('Password change error:', error);
     
     if (error.message === 'Invalid current password') {
       return NextResponse.json(

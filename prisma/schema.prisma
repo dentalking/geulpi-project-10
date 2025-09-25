@@ -34,6 +34,7 @@ model User {
   invitationsSent FriendInvitation[]
   calendarSharingOwner   CalendarSharing[] @relation("CalendarOwner")
   calendarSharingWith    CalendarSharing[] @relation("CalendarSharedWith")
+  messengerIntegrations  MessengerIntegration[]
 
   @@map("users")
   @@index([email])
@@ -233,4 +234,46 @@ model CalendarSharing {
   @@map("calendar_sharing")
   @@index([ownerId])
   @@index([sharedWithId])
+}
+
+model MessengerIntegration {
+  id              String    @id @default(uuid())
+  userId          String?   @map("user_id")
+  platform        String    @db.VarChar(20) // "kakao", "discord", "telegram"
+  platformUserId  String    @map("platform_user_id") @db.VarChar(100)
+  preferences     Json?     @default("{}")
+  isActive        Boolean   @default(true) @map("is_active")
+  lastActiveAt    DateTime? @map("last_active_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messenger_integrations")
+  @@unique([platform, platformUserId])
+  @@index([userId])
+  @@index([platform])
+}
+
+model MeetingProposal {
+  id                 String    @id @default(uuid())
+  proposerId         String    @map("proposer_id")
+  inviteeId          String    @map("invitee_id")
+  title              String
+  description        String?
+  proposedTime       DateTime  @map("proposed_time")
+  duration           Int       @default(60) // minutes
+  location           String?
+  suggestedLocations Json?     @map("suggested_locations") @default("[]")
+  meetingType        String?   @map("meeting_type") @db.VarChar(20) // "coffee", "meal", "online", "activity"
+  status             String    @default("pending") @db.VarChar(20) // "pending", "accepted", "rejected", "confirmed"
+  responseMessage    String?   @map("response_message")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  respondedAt        DateTime? @map("responded_at")
+  confirmedAt        DateTime? @map("confirmed_at")
+
+  @@map("meeting_proposals")
+  @@index([proposerId])
+  @@index([inviteeId])
+  @@index([status])
 }

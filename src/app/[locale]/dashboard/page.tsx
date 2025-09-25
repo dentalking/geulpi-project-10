@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useEffect, lazy, Suspense, useMemo, useCallback } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useToastContext } from '@/providers/ToastProvider';
+import { useEvents, useCalendarView } from '@/contexts/EventContext';
 import type { CalendarEvent } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
+
+// 통합 상태 관리 import
+import { UnifiedEventProvider } from '@/providers/UnifiedEventProvider';
 import { motion } from 'framer-motion';
+import { useTheme } from '@/providers/ThemeProvider';
 import { 
   Bell, 
   Settings,
@@ -29,33 +35,59 @@ import { ScrollAnimation, ScrollStagger } from '@/components/ScrollAnimation';
 // import { useKeyboardShortcuts } from '@/components/KeyboardNavigation';
 import { PullToRefresh, Swipeable, BottomSheet } from '@/components/MobileInteractions';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
-import { AIEventDetailModal } from '@/components/AIEventDetailModal';
+import { UnifiedEventModal } from '@/components/UnifiedEventModal';
 import { fetchWithRetry } from '@/hooks/useRetry';
 import { AIOverlayDashboard } from '@/components/AIOverlayDashboard';
 import { chatStorage } from '@/utils/chatStorage';
 import { SearchModal } from '@/components/SearchModal';
 import { Modal, ModalBody } from '@/components/ui';
+import { useSupabaseNotifications } from '@/hooks/useSupabaseNotifications';
+import SimpleNotificationWidget from '@/components/SimpleNotificationWidget';
+import NotificationIconButton from '@/components/NotificationIconButton';
 
-// Lazy load heavy components
-const GoogleCalendarLink = lazy(() => import('@/components/GoogleCalendarLink'));
-const SettingsPanel = lazy(() => import('@/components/SettingsPanel'));
+// Use Next.js dynamic import for better code splitting
+const GoogleCalendarLink = dynamic(() => import('@/components/GoogleCalendarLink'), {
+  ssr: false,
+  loading: () => null
+});
+const SettingsPanel = dynamic(() => import('@/components/SettingsPanel'), {
+  ssr: false,
+  loading: () => null
+});
 
 export default function SimplifiedDashboardPage() {
   const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
   const { toast } = useToastContext();
-  
+
+  // EventContext hooks
+  const {
+    events,
+    selectedEvent,
+    setEvents,
+    selectEvent,
+    setLoading: setContextLoading,
+    isLoading: contextLoading
+  } = useEvents();
+
+  const {
+    date: selectedDate,
+    setDate: setSelectedDate,
+    view: viewType,
+    setView: setViewType
+  } = useCalendarView();
+
   // Core states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
   const [spotlightEvent, setSpotlightEvent] = useState<{ id: string; date: Date; title: string } | null>(null);
-  const [sessionId] = useState(() => `session-${Date.now()}`);
+  const sessionIdRef = useRef(`session-${Date.now()}`);
   const [userInfo, setUserInfo] = useState<{ id?: string; email?: string; name?: string; picture?: string } | null>(null);
+  const isInitializedRef = useRef(false);
+  const isSyncingRef = useRef(false);
   
   // UI states
   const [showSettings, setShowSettings] = useState(false);
@@ -85,6 +117,14 @@ export default function SimplifiedDashboardPage() {
     }
     return 'classic';
   });
+
+  // Debug logging for view modes
+  useEffect(() => {
+    console.log('[Dashboard] Current view mode:', {
+      dashboardView,
+      isRendering: dashboardView === 'overlay' ? 'Overlay' : 'Classic'
+    });
+  }, [dashboardView]);
   
   // Dashboard view cycle function
   const cycleDashboardView = useCallback(() => {
@@ -120,11 +160,11 @@ export default function SimplifiedDashboardPage() {
   
   // Sync events when switching to overlay mode if needed
   useEffect(() => {
-    if (dashboardView === 'overlay' && (!events || events.length === 0) && isAuthenticated) {
+    if (dashboardView === 'overlay' && (!events || events.length === 0) && isAuthenticated && !isSyncingRef.current) {
       console.log('[Dashboard] Forcing sync for overlay mode');
-      // Direct sync without using the callback to avoid dependency issues
+      isSyncingRef.current = true;
       setSyncStatus('syncing');
-      fetch(`/api/calendar/sync?sessionId=${sessionId}`)
+      fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`)
         .then(response => response.json())
         .then(data => {
           console.log('[Dashboard] Overlay sync response:', {
@@ -145,15 +185,52 @@ export default function SimplifiedDashboardPage() {
         .catch(error => {
           console.error('Event sync failed:', error);
           setSyncStatus('error');
+        })
+        .finally(() => {
+          isSyncingRef.current = false;
         });
     }
-  }, [dashboardView, isAuthenticated, sessionId]);
-  
+  }, [dashboardView, isAuthenticated]);
+
+  // Note: No longer redirecting for one-line mode - rendering inline instead
+
   // Mobile Bottom Sheet for event details
   const [showEventBottomSheet, setShowEventBottomSheet] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  
-  // Memoized notification count
+
+  // Initialize Supabase notifications
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Use Supabase notifications hook
+  const { markAsRead, dismissNotification, markAllAsRead } = useSupabaseNotifications(userId || undefined);
+
+  // Notification permission setup - moved to checkAuth function
+
+  // Schedule notifications for events when they are loaded
+  // Disabled - causing excessive API calls and authentication errors
+  // TODO: Implement proper notification scheduling strategy
+  /*
+  useEffect(() => {
+    if (events && events.length > 0 && isAuthenticated) {
+      // Schedule notifications for each event via API
+      events.forEach(async (event) => {
+        if (event.start?.dateTime || event.start?.date) {
+          try {
+            await fetch('/api/notifications/schedule', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include', // Include cookies for authentication
+              body: JSON.stringify({ event })
+            });
+          } catch (error) {
+            console.error('Failed to schedule notifications for event:', error);
+          }
+        }
+      });
+    }
+  }, [events, isAuthenticated]);
+  */
+
+  // Memoized notification count (legacy - for simple display)
   const notificationCount = useMemo(() => {
     // events가 undefined나 null일 경우를 처리
     if (!events || !Array.isArray(events)) {
@@ -168,6 +245,9 @@ export default function SimplifiedDashboardPage() {
   }, [events]);
   
   const checkAuth = async () => {
+    if (isInitializedRef.current) return; // Prevent multiple initializations
+    isInitializedRef.current = true;
+
     try {
       const response = await fetchWithRetry('/api/auth/status', {
         retryOptions: {
@@ -177,20 +257,33 @@ export default function SimplifiedDashboardPage() {
         }
       });
       const data = await response.json();
-      console.log('Auth status response:', data); // Debug log
-      setIsAuthenticated(data.authenticated);
-      
-      if (data.authenticated && data.user) {
-        console.log('Setting user info:', data.user); // Debug log
-        setUserInfo(data.user);
+      console.log('Auth status response:', data);
+
+      const authenticated = data.data?.authenticated || false;
+      const user = data.data?.user || null;
+
+      setIsAuthenticated(authenticated);
+
+      if (authenticated && user) {
+        console.log('Setting user info:', user);
+        setUserInfo(user);
+        setUserId(user.id);
+
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
       }
-      
-      if (!data.authenticated) {
-        router.push('/landing');
+
+      if (!authenticated) {
+        console.log('Not authenticated, redirecting to landing');
+        router.push(`/${locale}/landing`);
+      } else {
+        console.log('Authentication successful, staying on dashboard');
       }
     } catch (error) {
       console.error('Auth check failed after retries:', error);
-      router.push('/landing');
+      router.push(`/${locale}/landing`);
     } finally {
       setLoading(false);
     }
@@ -198,11 +291,17 @@ export default function SimplifiedDashboardPage() {
   
   // Manual sync function for user-triggered syncs with retry logic
   const syncEvents = useCallback(async () => {
+    if (isSyncingRef.current) {
+      console.log('[Dashboard] Sync already in progress, skipping');
+      return;
+    }
+
     console.log('[Dashboard] Manual sync triggered');
+    isSyncingRef.current = true;
     setSyncStatus('syncing');
     try {
       const response = await fetchWithRetry(
-        `/api/calendar/sync?sessionId=${sessionId}`,
+        `/api/calendar/sync?sessionId=${sessionIdRef.current}`,
         {
           retryOptions: {
             maxAttempts: 3,
@@ -222,7 +321,7 @@ export default function SimplifiedDashboardPage() {
         source: data.data?.source,
         error: data.error
       });
-      
+
       if (data.success && data.data) {
         const receivedEvents = data.data.events || [];
         console.log('[Dashboard] Setting events from manual sync:', receivedEvents.length);
@@ -239,8 +338,10 @@ export default function SimplifiedDashboardPage() {
       console.error('Event sync failed after retries:', error);
       setSyncStatus('error');
       toast.error(`${t('dashboard.sync.failed')} - 네트워크 연결을 확인해주세요`);
+    } finally {
+      isSyncingRef.current = false;
     }
-  }, [sessionId, t, toast]);
+  }, [t, toast]);
   
   // Remove the handleEventClick function - let the calendar component handle event clicks internally
   
@@ -250,13 +351,14 @@ export default function SimplifiedDashboardPage() {
   
   // Initial sync on authentication - NO dependencies on syncEvents to prevent loops
   useEffect(() => {
-    if (!isAuthenticated) return;
-    
+    if (!isAuthenticated || isSyncingRef.current) return;
+
     console.log('[Dashboard] Initial sync - isAuthenticated:', isAuthenticated);
     console.log('[Dashboard] Dashboard view:', dashboardView);
-    
+
+    isSyncingRef.current = true;
     setSyncStatus('syncing');
-    fetch(`/api/calendar/sync?sessionId=${sessionId}`)
+    fetch(`/api/calendar/sync?sessionId=${sessionIdRef.current}`)
       .then(response => response.json())
       .then(data => {
         console.log('[Dashboard] Sync response:', data);
@@ -276,6 +378,9 @@ export default function SimplifiedDashboardPage() {
         console.error('Event sync failed:', error);
         setSyncStatus('error');
         toast.error(t('dashboard.sync.failed'));
+      })
+      .finally(() => {
+        isSyncingRef.current = false;
       });
   }, [isAuthenticated]); // Only depend on isAuthenticated to run once on login
   
@@ -360,22 +465,38 @@ export default function SimplifiedDashboardPage() {
   }
   
   return (
-    <div className="min-h-screen pb-safe-bottom" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+    <UnifiedEventProvider
+      userId={userInfo?.id}
+      authToken={undefined} // JWT 토큰이 있다면 여기에 전달
+      enabled={isAuthenticated}
+    >
+      <div className="min-h-screen pb-safe-bottom" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       
       {/* Unified Header for both mobile and desktop - Hide in overlay mode */}
       {dashboardView === 'classic' && (
         <div className="logo-container">
-          <UnifiedHeader 
-          onMenuClick={() => setShowSidebar(true)}
-          onSearchClick={() => setShowSearch(true)}
-          onAddEvent={cycleDashboardView}
-          showMenuButton={true}
-          isMobile={isMobile}
-        />
+          <UnifiedHeader
+            onMenuClick={() => setShowSidebar(true)}
+            onSearchClick={() => setShowSearch(true)}
+            onAddEvent={cycleDashboardView}
+            showMenuButton={true}
+            isMobile={isMobile}
+            notificationIcon={
+              isAuthenticated && userInfo?.id ? (
+                <NotificationIconButton
+                  userId={userInfo.id}
+                  events={events}
+                  locale={locale}
+                />
+              ) : null
+            }
+          />
         </div>
       )}
-      
-      
+
+      {/* Simple Notification Widget - Show only in classic view and when authenticated */}
+      {/* Notification widget now accessed via NotificationIconButton in header */}
+
       {/* Unified Sidebar for both mobile and desktop */}
       <UnifiedSidebar 
         isOpen={showSidebar} 
@@ -395,7 +516,7 @@ export default function SimplifiedDashboardPage() {
         }}
         onFriendsClick={() => {
           setShowSidebar(false);
-          setShowFriends(true);
+          router.push(`/${locale}/friends`);
         }}
         onProfileClick={() => {
           console.log('Dashboard: onProfileClick called - opening profile');
@@ -420,7 +541,7 @@ export default function SimplifiedDashboardPage() {
       />
       
       {/* Main Content - Optimized for Mobile */}
-      <main className={`main-content ${dashboardView === 'overlay' ? '' : isMobile ? '' : 'max-w-[1400px] mx-auto px-4 sm:px-6 py-4'}`}>
+      <main className={`main-content ${dashboardView === 'overlay' ? '' : isMobile ? '' : 'max-w-[1600px] mx-auto px-2 sm:px-4 py-2'}`}>
         
         {/* Month Navigation and Actions Bar - Hide in overlay mode */}
         {dashboardView === 'classic' && (
@@ -477,20 +598,18 @@ export default function SimplifiedDashboardPage() {
             <div className="flex items-center gap-2">
               {/* Google Calendar Sync */}
               <div className="google-sync-button">
-                <Suspense fallback={null}>
-                  <GoogleCalendarLink
-                    currentDate={currentDate}
-                    currentView="month"
-                    lastSyncTime={lastSyncTime}
-                    syncStatus={syncStatus}
-                    onSync={syncEvents}
-                  />
-                </Suspense>
+                <GoogleCalendarLink
+                  currentDate={currentDate}
+                  currentView="month"
+                  lastSyncTime={lastSyncTime}
+                  syncStatus={syncStatus}
+                  onSync={syncEvents}
+                />
               </div>
-              
-              {/* Notifications - If any */}
-              {notificationCount > 0 && (
-                <button 
+
+              {/* Legacy Notifications - If any */}
+              {notificationCount > 0 && false && (
+                <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="p-2 rounded-lg transition-all relative hover:bg-gray-100 dark:hover:bg-gray-800"
                   style={{ color: 'var(--text-tertiary)' }}
@@ -520,7 +639,7 @@ export default function SimplifiedDashboardPage() {
                 onEventCreated={syncEvents}
                 highlightedEventId={highlightedEventId}
                 spotlightEvent={spotlightEvent}
-                sessionId={sessionId}
+                sessionId={sessionIdRef.current}
                 userInfo={userInfo}
                 onViewToggle={cycleDashboardView}
               />
@@ -561,7 +680,7 @@ export default function SimplifiedDashboardPage() {
                           const eventDate = new Date(event.start.dateTime || event.start.date || '');
                           setSelectedDate(eventDate);
                           // Open bottom sheet for mobile
-                          setSelectedEvent(event);
+                          selectEvent(event);
                           setShowEventBottomSheet(true);
                         }
                       }}
@@ -580,11 +699,11 @@ export default function SimplifiedDashboardPage() {
               </div>
             </PullToRefresh>
           ) : (
-            // Desktop view without pull-to-refresh
-            <div className="calendar-container mt-4" style={{ height: '75vh' }}>
-                <div className="backdrop-blur-xl rounded-xl border overflow-hidden"
-                     style={{ 
-                       background: 'var(--surface-primary)', 
+            // Desktop view without pull-to-refresh - optimized for larger display
+            <div className="calendar-container mt-2" style={{ height: '82vh' }}>
+                <div className="backdrop-blur-xl rounded-lg border overflow-hidden"
+                     style={{
+                       background: 'var(--surface-primary)',
                        borderColor: 'var(--glass-border)',
                        height: '100%'
                      }}>
@@ -600,7 +719,7 @@ export default function SimplifiedDashboardPage() {
                         const eventDate = new Date(event.start.dateTime || event.start.date || '');
                         setSelectedDate(eventDate);
                         // Show event detail modal for desktop too
-                        setSelectedEvent(event);
+                        selectEvent(event);
                         setShowEventBottomSheet(true);
                       }
                     }}
@@ -696,12 +815,12 @@ export default function SimplifiedDashboardPage() {
         }}
       />
       
-      {/* AI Event Detail Modal with Tabs */}
-      <AIEventDetailModal
+      {/* Unified Event Detail Modal */}
+      <UnifiedEventModal
         isOpen={showEventBottomSheet}
         onClose={() => {
           setShowEventBottomSheet(false);
-          setSelectedEvent(null);
+          selectEvent(null);
         }}
         event={selectedEvent}
         onEdit={(event) => {
@@ -721,7 +840,7 @@ export default function SimplifiedDashboardPage() {
               if (response.ok) {
                 toast.success(t('eventDeleted'));
                 setShowEventBottomSheet(false);
-                setSelectedEvent(null);
+                selectEvent(null);
                 syncEvents();
               }
             } catch (error) {
@@ -730,15 +849,17 @@ export default function SimplifiedDashboardPage() {
           }
         }}
         locale={locale}
-        onChatAboutEvent={(event) => {
+        enableAI={true}
+        onChat={(event) => {
           setShowEventBottomSheet(false);
           setDashboardView('overlay');
         }}
-        onShareEvent={(event) => {
+        onShare={(event) => {
           setEventToShare(event);
           setShowEventSharing(true);
         }}
       />
-    </div>
+      </div>
+    </UnifiedEventProvider>
   );
 }

@@ -1,59 +1,49 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { registerUser } from '@/lib/auth/supabase-auth';
 import { checkRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
+import { apiSuccess, ApiErrors, validateBody, withErrorHandling } from '@/lib/api-utils';
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  // Get client IP for rate limiting
+  const ip = request.headers.get('x-forwarded-for') ||
+             request.headers.get('x-real-ip') ||
+             'unknown';
+
+  // Check rate limit
   try {
-    // Get client IP for rate limiting
-    const ip = request.headers.get('x-forwarded-for') || 
-               request.headers.get('x-real-ip') || 
-               'unknown';
-    
-    // Check rate limit
-    try {
-      await checkRateLimit('auth.signup', ip);
-    } catch (error: any) {
-      return NextResponse.json(
-        { error: error.message || 'Too many signup attempts. Please try again later.' },
-        { status: 429 }
-      );
-    }
+    await checkRateLimit('auth.signup', ip);
+  } catch (error: any) {
+    logger.warn('Rate limit exceeded for signup', { ip });
+    return ApiErrors.rateLimitExceeded(error.message || 'Too many signup attempts. Please try again later.');
+  }
 
-    const body = await request.json();
-    const { email, password, name } = body;
+  const body = await request.json();
+  const { email, password, name } = body;
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
+  // Validate required fields
+  const validation = validateBody(body, ['email', 'password']);
+  if (!validation.valid) {
+    return ApiErrors.validationError(validation.errors);
+  }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
-    }
+  // Validate password length
+  if (password.length < 6) {
+    return ApiErrors.validationError(['Password must be at least 6 characters']);
+  }
 
+  logger.debug('Signup attempt', { email, ip });
+
+  try {
     const user = await registerUser(email, password, name);
-    
-    return NextResponse.json({
-      success: true,
-      user
-    });
+
+    logger.info('User registered successfully', { userId: user.id, email });
+    return apiSuccess({ user }, 'Account created successfully');
   } catch (error: any) {
     if (error.message === 'User already exists') {
-      return NextResponse.json(
-        { error: 'User already exists' },
-        { status: 409 }
-      );
+      logger.warn('Signup attempt for existing user', { email });
+      return ApiErrors.conflict('User already exists');
     }
-    
-    console.error('Signup error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create account' },
-      { status: 500 }
-    );
+    throw error; // Let withErrorHandling catch other errors
   }
-}
+})

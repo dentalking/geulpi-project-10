@@ -1,420 +1,458 @@
 import { NextRequest } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { cookies } from 'next/headers';
 import { getCalendarClient } from '@/lib/google-auth';
 import { convertGoogleEventsToCalendarEvents } from '@/utils/typeConverters';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { LocalCalendarService } from '@/lib/local-calendar';
-import { successResponse, errorResponse, ApiError, ErrorCodes } from '@/lib/api-response';
+import { successResponse, errorResponse } from '@/lib/api-response';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/middleware/rateLimiter';
 import { CalendarEvent } from '@/types';
-import { contextManager } from '@/lib/context-manager';
-import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { ko, enUS } from 'date-fns/locale';
+import { getValidGoogleTokens } from '@/middleware/token-refresh';
+import { SimpleSuggestionService } from '@/services/ai/SimpleSuggestionService';
+import type { SimpleSuggestionContext } from '@/services/ai/SimpleSuggestionService';
+import { ImprovedSuggestionService } from '@/services/ai/ImprovedSuggestionService';
+import {
+  EnhancedSuggestionContext,
+  analyzeEvents,
+  ConversationMessage,
+  UserProfile,
+  UserPreferences
+} from '@/services/ai/EnhancedSuggestionContext';
+import { getServiceRoleSupabase } from '@/lib/supabase-server';
+import { GeminiQuickActionsService, QuickActionsContext } from '@/services/ai/GeminiQuickActionsService';
+import { getUserPatternService, UserPatternLearningService } from '@/services/ai/UserPatternLearningService';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
-// Extract conversation topic from recent messages
-function extractConversationTopic(messages: any[]): string {
-  if (!messages || messages.length === 0) return '';
-  
-  // Get last few messages to understand context
-  const recentConversation = messages.slice(-3).map(m => 
-    `${m.role}: ${m.content}`
-  ).join('\n');
-  
-  return recentConversation;
+// 대화 메시지 타입 정의
+interface ConversationMessageInput {
+  role?: string;
+  isUser?: boolean;
+  content?: string;
+  message?: string;
+  timestamp?: string;
 }
 
-// Simple in-memory cache for suggestions
-const suggestionCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+// 캐시된 응답 데이터 타입
+interface CachedSuggestionData {
+  suggestions: string[];
+  metadata?: Array<{
+    priority: number;
+    category: string;
+  }>;
+  context: {
+    timeOfDay: string;
+    upcomingEventsCount: number;
+    isFollowUp: boolean;
+    isImproved?: boolean;
+    isGeminiAI?: boolean;
+    hasProfile?: boolean;
+    hasPreferences?: boolean;
+  };
+}
+
+// 단순화된 캐시 전략
+const suggestionCache = new Map<string, { data: CachedSuggestionData; timestamp: number }>();
+const CACHE_DURATION = 15 * 60 * 1000; // 15분 캐시
 
 export async function POST(request: NextRequest) {
+  let body: any;
   try {
     // Rate limiting
     const rateLimitResponse = await checkRateLimit(request, 'ai');
     if (rateLimitResponse) return rateLimitResponse;
 
-    const body = await request.json();
-    const { locale = 'ko', sessionId = 'anonymous', recentMessages = [] } = body;
+    body = await request.json();
+    const {
+      locale = 'ko',
+      sessionId = 'anonymous',
+      recentMessages = [],
+      conversationHistory = [], // 전체 대화 히스토리
+      selectedDate,
+      selectedEvent,
+      lastAIResponse, // AI 응답 후 follow-up 제안을 위한 필드
+      sessionStartTime, // 세션 시작 시간
+      previousSuggestions = [], // 이전 표시된 제안들
+      useImproved = true // 개선된 서비스 사용 여부
+    } = body;
 
-    // Create cache key based on locale, sessionId, and message context
-    const messageContext = recentMessages.slice(-2).map((m: any) => m.content).join('|');
-    const cacheKey = `${locale}-${sessionId}-${messageContext}`;
+    // 간단한 캐시 키 생성
+    const now = new Date();
+    const timeOfDay = now.getHours() < 12 ? 'morning' : now.getHours() < 18 ? 'afternoon' : 'evening';
+    const cacheKey = `${locale}-${timeOfDay}-${!!lastAIResponse}`;
 
-    // Check cache first
-    const cached = suggestionCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-      logger.info('[AI Suggestions] Returning cached suggestions', {
-        locale,
-        sessionId,
-        cacheAge: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
-      });
-      return successResponse(cached.data);
+    // 캐시 확인 (follow-up이 아닌 경우만)
+    if (!lastAIResponse) {
+      const cached = suggestionCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+        logger.info('[Simple Suggestions] Returning cached suggestions', {
+          locale,
+          cacheAge: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+        });
+        return successResponse(cached.data);
+      }
     }
 
-    logger.info('[AI Suggestions] Generating new suggestions', {
-      locale,
-      sessionId,
-      hasRecentMessages: recentMessages.length > 0
-    });
-
-    // Get user's calendar events
-    const cookieStore = await cookies();
-    const authToken = cookieStore.get('auth-token')?.value;
-    const accessToken = cookieStore.get('access_token')?.value;
-    
+    // 이벤트 데이터 가져오기
     let events: CalendarEvent[] = [];
-    let userId: any = null;
-    
-    // Fetch calendar events
-    if (authToken) {
-      try {
+    let userId: string | null = null;
+
+    try {
+      // 인증 확인
+      const cookieStore = await cookies();
+      const authToken = cookieStore.get('auth-token')?.value;
+
+      if (authToken) {
         const user = await verifyToken(authToken);
-        if (!user) {
-          logger.warn('AI suggestions API - Email auth token verification returned null');
-        } else {
+        if (user) {
           userId = user.id;
           const localCalendar = new LocalCalendarService(user.id);
           events = localCalendar.getEvents();
         }
-      } catch (error) {
-        logger.error('Email auth token validation failed', error);
       }
-    } else if (accessToken) {
+
+      // Google Calendar 연동 시도
+      const googleTokens = await getValidGoogleTokens();
+      if (googleTokens.isValid && googleTokens.accessToken) {
+        try {
+          const calendar = getCalendarClient(googleTokens.accessToken, googleTokens.refreshToken);
+          const response = await calendar.events.list({
+            calendarId: 'primary',
+            timeMin: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            maxResults: 20,
+            singleEvents: true,
+            orderBy: 'startTime',
+          });
+
+          if (response.data.items && response.data.items.length > 0) {
+            const googleEvents = convertGoogleEventsToCalendarEvents(response.data.items);
+            // Google 이벤트가 있으면 우선 사용
+            if (googleEvents.length > 0) {
+              events = googleEvents;
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to fetch Google Calendar events', error);
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to fetch events for suggestions', error);
+    }
+
+    // 사용자 프로필 조회
+    let userProfile: UserProfile | undefined;
+    let userPreferences: UserPreferences | undefined;
+
+    if (userId) {
       try {
-        const refreshToken = cookieStore.get('refresh_token')?.value;
-        const calendar = getCalendarClient(accessToken, refreshToken);
-        const now = new Date();
-        
-        const response = await calendar.events.list({
-          calendarId: 'primary',
-          timeMin: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(), // Past week
-          timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Next month
-          maxResults: 50,
-          singleEvents: true,
-          orderBy: 'startTime',
-        });
-        
-        const googleEvents = response.data.items || [];
-        events = convertGoogleEventsToCalendarEvents(googleEvents);
+        const supabase = getServiceRoleSupabase();
+
+        // 프로필 조회
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (profile) {
+          userProfile = {
+            workHours: profile.work_start_time && profile.work_end_time
+              ? { start: profile.work_start_time, end: profile.work_end_time }
+              : undefined,
+            homeAddress: profile.home_address,
+            workAddress: profile.work_address,
+            interests: profile.interests || [],
+            goals: profile.goals || [],
+            occupation: profile.occupation
+          };
+        }
+
+        // 선호도 분석 (클릭 히스토리 기반)
+        const { data: actionLogs } = await supabase
+          .from('user_action_logs')
+          .select('suggestion_text, suggestion_category, action_type')
+          .eq('user_id', userId)
+          .eq('action_type', 'clicked')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (actionLogs && actionLogs.length > 0) {
+          const preferredSuggestions = actionLogs
+            .map(log => log.suggestion_text)
+            .filter((text, index, self) => self.indexOf(text) === index)
+            .slice(0, 5);
+
+          const clickedCategories = actionLogs
+            .map(log => log.suggestion_category)
+            .filter(Boolean)
+            .filter((cat, index, self) => self.indexOf(cat) === index);
+
+          userPreferences = {
+            preferredSuggestions,
+            clickedCategories
+          };
+        }
       } catch (error) {
-        logger.error('Failed to fetch Google Calendar events', error);
+        logger.warn('Failed to fetch user profile for suggestions', error);
       }
     }
 
-    // Get recent chat context
-    const recentContext = contextManager.getContext(sessionId);
-    const recentEvents = recentContext.recentEvents || [];
-    const patterns = recentContext.patterns || {};
-    
-    // Analyze patterns and context
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentDay = now.getDay();
-    const dateLocale = locale === 'ko' ? ko : enUS;
-    
-    // Build context for Gemini
-    const contextData = {
-      currentTime: format(now, "yyyy-MM-dd HH:mm", { locale: dateLocale }),
-      currentDay: format(now, "EEEE", { locale: dateLocale }),
-      timeOfDay: currentHour < 12 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening',
-      upcomingEvents: events.slice(0, 5).map(e => ({
-        title: e.summary,
-        date: e.start?.dateTime || e.start?.date,
-        location: e.location
-      })),
-      recentEventsCount: recentEvents.length,
-      patterns: {
-        mostFrequentTime: patterns.mostFrequentTime,
-        mostFrequentLocation: patterns.mostFrequentLocation,
-        averageEventDuration: patterns.averageEventDuration
-      },
-      locale: locale,
-      // Add recent conversation context
-      lastMessage: recentMessages.length > 0 ? recentMessages[recentMessages.length - 1] : null,
-      conversationTopic: recentMessages.length > 0 ? extractConversationTopic(recentMessages) : null
-    };
+    let suggestions;
 
-    // Generate suggestions using Gemini
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
-      generationConfig: {
-        temperature: 0.9,
-        maxOutputTokens: 500
-      }
-    });
+    // Gemini AI 기반 제안 사용 (환경변수 확인)
+    const useGeminiAI = process.env.GEMINI_API_KEY && useImproved;
 
-    // Enhanced context with user behavior patterns
-    const userBehavior = {
-      isFirstTimeToday: events.filter(e => {
-        const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
-        return eventDate.toDateString() === now.toDateString();
-      }).length === 0,
-      hasUpcomingEventSoon: events.some(e => {
-        const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
-        const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-        return hoursUntilEvent > 0 && hoursUntilEvent < 2;
-      }),
-      isWeekend: currentDay === 0 || currentDay === 6,
-      isMondayMorning: currentDay === 1 && currentHour < 10,
-      isFridayAfternoon: currentDay === 5 && currentHour >= 14
-    };
-
-    // Different prompts based on whether we have conversation context
-    const hasConversation = contextData.conversationTopic && contextData.conversationTopic.length > 0;
-
-    const prompt = hasConversation ? `
-You are a smart assistant. Generate 5 follow-up questions or actions based on the ongoing conversation.
-
-Recent Conversation:
-${contextData.conversationTopic}
-
-Current Context:
-- Time: ${contextData.currentTime}
-- Language: ${locale === 'ko' ? 'Korean' : 'English'}
-- Has upcoming event in next 2 hours: ${userBehavior.hasUpcomingEventSoon}
-
-Based on the conversation above, generate 5 natural follow-up questions or actions the user might want to ask. Focus on:
-1. Clarifying questions about the last response
-2. Asking for more specific information
-3. Related topics or actions
-4. Next logical steps
-5. Alternative perspectives or options
-
-${locale === 'ko' ?
-`For example, if the conversation is about "글로벌 팁스 모집", suggest:
-- "지원 자격 조건이 어떻게 되나요?"
-- "신청 마감일이 언제인가요?"
-- "필요한 서류는 뭐가 있나요?"
-- "선정 절차는 어떻게 진행되나요?"
-- "지원 혜택은 무엇인가요?"
-
-Use natural Korean and be conversational.` :
-`For example, if the conversation is about a meeting, suggest:
-- "What documents do I need to prepare?"
-- "Who else will be attending?"
-- "Can you add a reminder 30 minutes before?"
-- "What's the agenda for the meeting?"
-- "Should I book a conference room?"
-
-Use natural English and be conversational.`}
-
-Return ONLY a JSON array of 5 suggestion strings, no other text:
-["suggestion1", "suggestion2", "suggestion3", "suggestion4", "suggestion5"]
-` : `
-You are a smart calendar assistant. Generate 5 contextual suggestions for quick calendar actions based on the user's context.
-
-Current Context:
-- Time: ${contextData.currentTime}
-- Day: ${contextData.currentDay}
-- Time of day: ${contextData.timeOfDay}
-- Upcoming events: ${JSON.stringify(contextData.upcomingEvents)}
-- User has ${contextData.recentEventsCount} recent events
-- Common patterns: ${JSON.stringify(contextData.patterns)}
-- Language: ${locale === 'ko' ? 'Korean' : 'English'}
-
-User Behavior Patterns:
-- First time checking today: ${userBehavior.isFirstTimeToday}
-- Has event coming up soon (within 2 hours): ${userBehavior.hasUpcomingEventSoon}
-- Is weekend: ${userBehavior.isWeekend}
-- Monday morning planning time: ${userBehavior.isMondayMorning}
-- Friday afternoon wrap-up: ${userBehavior.isFridayAfternoon}
-
-Generate 5 smart, contextual suggestions based on the above patterns:
-${userBehavior.hasUpcomingEventSoon ? '- Include a suggestion about the upcoming event (preparation, location, attendees)' : ''}
-${userBehavior.isMondayMorning ? '- Include a weekly planning suggestion' : ''}
-${userBehavior.isFridayAfternoon ? '- Include a weekend planning or week review suggestion' : ''}
-${userBehavior.isFirstTimeToday ? '- Include a daily overview suggestion' : ''}
-${userBehavior.isWeekend ? '- Include relaxed/personal event suggestions' : '- Include work-related suggestions'}
-
-${locale === 'ko' ?
-`Format each suggestion in natural Korean like:
-- "오늘 일정 확인해줘"
-- "내일 오후 3시 회의 추가"
-- "이번주 금요일 저녁 약속"
-
-Use natural Korean expressions and be conversational.` :
-`Format each suggestion in natural English like:
-- "Show today's schedule"
-- "Add meeting tomorrow at 3pm"
-- "Dinner plans this Friday"
-
-Use natural English and be conversational.`}
-
-Return ONLY a JSON array of 5 suggestion strings, no other text:
-["suggestion1", "suggestion2", "suggestion3", "suggestion4", "suggestion5"]
-`;
-
-    try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      // Parse the suggestions from the response
-      let suggestions: any[] = [];
+    if (useGeminiAI) {
       try {
-        // Try to extract JSON array from the response
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          suggestions = JSON.parse(jsonMatch[0]);
-        }
-      } catch (parseError) {
-        logger.error('[AI Suggestions] Failed to parse Gemini response', parseError);
-        // Fallback to default suggestions
-        suggestions = getDefaultSuggestions(locale, contextData);
-      }
-      
-      // Validate suggestions
-      if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        suggestions = getDefaultSuggestions(locale, contextData);
-      }
-      
-      // Ensure we have exactly 5 suggestions
-      suggestions = suggestions.slice(0, 5);
-      while (suggestions.length < 5) {
-        suggestions.push(getRandomFallbackSuggestion(locale));
-      }
-      
-      logger.info('[AI Suggestions] Generated suggestions', {
-        count: suggestions.length,
-        locale
-      });
+        logger.info('[Gemini Quick Actions] Starting AI-powered suggestion generation');
 
-      const responseData = {
-        suggestions,
-        context: {
-          timeOfDay: contextData.timeOfDay,
-          currentDay: contextData.currentDay,
-          upcomingEventsCount: contextData.upcomingEvents.length
-        }
+        const geminiService = new GeminiQuickActionsService(process.env.GEMINI_API_KEY!);
+
+        // Gemini AI를 위한 컨텍스트 준비
+        const aiContext: QuickActionsContext = {
+          locale: locale as 'ko' | 'en',
+          currentTime: new Date(),
+          conversationHistory: (conversationHistory || []).map((msg: ConversationMessageInput) => ({
+            role: msg.role || (msg.isUser ? 'user' : 'assistant'),
+            content: msg.content || msg.message || '',
+            timestamp: msg.timestamp
+          })),
+          currentEvents: events,
+          userProfile,
+          clickHistory: previousSuggestions?.map(s => ({
+            text: s,
+            timestamp: new Date().toISOString()
+          })),
+          lastAIResponse: typeof lastAIResponse === 'string'
+            ? lastAIResponse
+            : lastAIResponse?.message || lastAIResponse?.content,
+          sessionDuration: sessionStartTime
+            ? Math.floor((Date.now() - new Date(sessionStartTime).getTime()) / (1000 * 60))
+            : undefined
+        };
+
+        const aiSuggestions = await geminiService.generateQuickActions(aiContext);
+
+        suggestions = aiSuggestions.map(s => ({
+          text: s.text,
+          priority: s.priority,
+          category: s.category
+        }));
+
+        logger.info('[Gemini Quick Actions] AI suggestions generated successfully', {
+          count: suggestions.length,
+          locale,
+          hasConversation: (conversationHistory || []).length > 0
+        });
+      } catch (geminiError) {
+        logger.error('[Gemini Quick Actions] Failed to generate AI suggestions', geminiError);
+        // Fall back to improved service
+      }
+    }
+
+    // 기존 개선된 서비스 (Gemini 실패 시 폴백)
+    if (!suggestions && useImproved) {
+      try {
+        const improvedService = new ImprovedSuggestionService(locale as 'ko' | 'en');
+
+        // 세션 지속 시간 계산
+        const sessionDuration = sessionStartTime
+          ? Math.floor((Date.now() - new Date(sessionStartTime).getTime()) / (1000 * 60))
+          : 0;
+
+        // 이벤트 분석
+        const eventAnalysis = analyzeEvents(events);
+
+        // 대화 히스토리 변환 (빈 배열 처리 포함)
+        const messages: ConversationMessage[] = (conversationHistory || []).map((msg: ConversationMessageInput & { action?: any }) => ({
+          role: msg.role || (msg.isUser ? 'user' : 'assistant'),
+          content: msg.content || msg.message || '',
+          timestamp: msg.timestamp,
+          action: msg.action
+        }));
+
+        const enhancedContext: EnhancedSuggestionContext = {
+          locale: locale as 'ko' | 'en',
+          currentEvents: events,
+          selectedDate: selectedDate ? new Date(selectedDate) : undefined,
+          timeOfDay: timeOfDay as 'morning' | 'afternoon' | 'evening',
+          conversationHistory: messages,
+          eventAnalysis,
+          userPreferences,
+          userProfile,
+          isFollowUp: !!lastAIResponse,
+          lastAIResponse: typeof lastAIResponse === 'string'
+            ? lastAIResponse
+            : lastAIResponse?.message || lastAIResponse?.content || undefined,
+          sessionDuration,
+          previousSuggestions
+        };
+
+        suggestions = improvedService.generateEnhancedSuggestions(enhancedContext);
+
+        logger.info('[Improved Suggestions] Enhanced suggestions generated', {
+          conversationLength: messages.length,
+          eventCount: events.length,
+          hasProfile: !!userProfile,
+          hasPreferences: !!userPreferences
+        });
+      } catch (improvedError) {
+        logger.error('[Improved Suggestions] Error generating enhanced suggestions', improvedError);
+
+        // 폴백: Simple Service 사용
+        const suggestionService = new SimpleSuggestionService(locale as 'ko' | 'en');
+        const context: SimpleSuggestionContext = {
+          locale: locale as 'ko' | 'en',
+          currentEvents: events,
+          selectedDate: selectedDate ? new Date(selectedDate) : undefined,
+          lastMessage: lastAIResponse?.message || lastAIResponse?.content || recentMessages[recentMessages.length - 1]?.content,
+          timeOfDay: timeOfDay as 'morning' | 'afternoon' | 'evening',
+          isFollowUp: !!lastAIResponse
+        };
+        suggestions = suggestionService.generateSuggestions(context);
+        logger.info('[Improved Suggestions] Fallback to simple service after error');
+      }
+    } else {
+      // 기존 Simple Service 폴백
+      const suggestionService = new SimpleSuggestionService(locale as 'ko' | 'en');
+
+      const context: SimpleSuggestionContext = {
+        locale: locale as 'ko' | 'en',
+        currentEvents: events,
+        selectedDate: selectedDate ? new Date(selectedDate) : undefined,
+        lastMessage: lastAIResponse?.message || lastAIResponse?.content || recentMessages[recentMessages.length - 1]?.content,
+        timeOfDay: timeOfDay as 'morning' | 'afternoon' | 'evening',
+        isFollowUp: !!lastAIResponse
       };
 
-      // Store in cache
+      suggestions = suggestionService.generateSuggestions(context);
+    }
+
+    // 패턴 학습을 통한 제안 개인화 (모든 서비스에 공통 적용)
+    if (userId && suggestions) {
+      try {
+        const patternService = getUserPatternService();
+        const personalizedSuggestions = patternService.adjustSuggestionsBasedOnPatterns(
+          suggestions.map(s => ({
+            text: s.text || s,
+            type: (s.category || 'action') as any,
+            priority: s.priority || 5,
+            category: s.category || 'action',
+            confidence: 0.8,
+            id: `${userId}-${Date.now()}-${Math.random()}`,
+            context: {},
+            action: 'requires_input' as const,
+            reason: 'Generated from pattern learning'
+          })),
+          userId
+        );
+
+        // 원래 포맷으로 변환
+        suggestions = personalizedSuggestions.map(s => ({
+          text: s.text,
+          priority: s.priority,
+          category: 'action' as const // SmartSuggestion doesn't have category, default to 'action'
+        }));
+
+        logger.info('[Pattern Learning] Applied user patterns to suggestions', {
+          userId,
+          originalCount: suggestions.length,
+          personalizedCount: personalizedSuggestions.length
+        });
+      } catch (error) {
+        logger.error('[Pattern Learning] Failed to apply patterns', error);
+        // 패턴 적용 실패 시에도 기본 제안 반환
+      }
+    }
+
+    // 응답 데이터 구성
+    const responseData = {
+      suggestions: suggestions.map(s => s.text),
+      metadata: suggestions.map(s => ({
+        priority: s.priority,
+        category: s.category
+      })),
+      context: {
+        timeOfDay,
+        upcomingEventsCount: events.length,
+        isFollowUp: !!lastAIResponse,
+        isImproved: useImproved && !useGeminiAI, // 개선된 서비스 사용 여부
+        isGeminiAI: useGeminiAI && !!suggestions, // Gemini AI 사용 여부
+        hasProfile: !!userProfile,
+        hasPreferences: !!userPreferences
+      }
+    };
+
+    // 캐시 저장 (follow-up이 아닌 경우만)
+    if (!lastAIResponse) {
       suggestionCache.set(cacheKey, {
         data: responseData,
         timestamp: Date.now()
       });
 
-      // Clean old cache entries (keep max 100 entries)
-      if (suggestionCache.size > 100) {
+      // 오래된 캐시 정리 (최대 20개 유지)
+      if (suggestionCache.size > 20) {
         const entries = Array.from(suggestionCache.entries());
         const oldestEntries = entries
           .sort((a, b) => a[1].timestamp - b[1].timestamp)
-          .slice(0, 50);
+          .slice(0, 10);
         oldestEntries.forEach(([key]) => suggestionCache.delete(key));
       }
-
-      return successResponse(responseData);
-      
-    } catch (geminiError: any) {
-      logger.error('[AI Suggestions] Gemini API error', {
-        error: geminiError.message,
-        stack: geminiError.stack
-      });
-      
-      // Return fallback suggestions
-      const suggestions = getDefaultSuggestions(locale, contextData);
-      
-      return successResponse({
-        suggestions,
-        fallback: true,
-        context: {
-          timeOfDay: contextData.timeOfDay,
-          currentDay: contextData.currentDay,
-          upcomingEventsCount: contextData.upcomingEvents.length
-        }
-      });
     }
-    
+
+    logger.info('[Suggestions API] Generated suggestions', {
+      count: suggestions.length,
+      locale,
+      isFollowUp: !!lastAIResponse,
+      eventsCount: events.length,
+      isImproved: useImproved && !useGeminiAI,
+      isGeminiAI: useGeminiAI
+    });
+
+    return successResponse(responseData);
+
   } catch (error) {
-    if (error instanceof ApiError) {
-      return errorResponse(error);
-    }
-    
-    logger.error('[AI Suggestions] Unexpected error', error);
-    return errorResponse(
-      new ApiError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to generate suggestions')
-    );
+    logger.error('[Simple Suggestions] Unexpected error', error);
+
+    // 오류 시 기본 제안 반환
+    const fallbackSuggestions = getFallbackSuggestions(body.locale || 'ko');
+
+    return successResponse({
+      suggestions: fallbackSuggestions,
+      metadata: fallbackSuggestions.map(() => ({
+        priority: 5,
+        category: 'view'
+      })),
+      context: {
+        timeOfDay: 'afternoon',
+        upcomingEventsCount: 0,
+        isFollowUp: false,
+        isSimplified: true,
+        isFallback: true
+      }
+    });
   }
 }
 
-function getDefaultSuggestions(locale: string, context: any): string[] {
-  const { timeOfDay, currentDay } = context;
-  
+/**
+ * 최종 fallback 제안
+ */
+function getFallbackSuggestions(locale: 'ko' | 'en'): string[] {
   if (locale === 'ko') {
-    const suggestions: string[] = [];
-    
-    // Time-based suggestion
-    if (timeOfDay === 'morning') {
-      suggestions.push("오늘 일정 확인해줘");
-    } else if (timeOfDay === 'afternoon') {
-      suggestions.push("오후 일정 보여줘");
-    } else {
-      suggestions.push("내일 일정 확인");
-    }
-    
-    // Day-based suggestion
-    if (currentDay === '월요일') {
-      suggestions.push("이번주 일정 정리해줘");
-    } else if (currentDay === '금요일') {
-      suggestions.push("주말 계획 추가");
-    } else {
-      suggestions.push("내일 회의 일정 추가");
-    }
-    
-    // Common suggestions
-    suggestions.push("다음주 일정 보여줘");
-    suggestions.push("오늘 저녁 7시 약속 추가");
-    suggestions.push("이번달 중요 일정 확인");
-    
-    return suggestions.slice(0, 5);
+    return [
+      "오늘 일정 확인해줘",
+      "내일 회의 일정 추가",
+      "이번 주 일정 정리해줘",
+      "사진에서 일정 추출하기",
+      "친구와 미팅 잡기"
+    ];
   } else {
-    const suggestions: string[] = [];
-    
-    // Time-based suggestion
-    if (timeOfDay === 'morning') {
-      suggestions.push("Show today's schedule");
-    } else if (timeOfDay === 'afternoon') {
-      suggestions.push("Show afternoon events");
-    } else {
-      suggestions.push("Check tomorrow's schedule");
-    }
-    
-    // Day-based suggestion
-    if (currentDay === 'Monday') {
-      suggestions.push("Review this week's schedule");
-    } else if (currentDay === 'Friday') {
-      suggestions.push("Add weekend plans");
-    } else {
-      suggestions.push("Add meeting tomorrow");
-    }
-    
-    // Common suggestions
-    suggestions.push("Show next week");
-    suggestions.push("Add dinner at 7pm today");
-    suggestions.push("Check important events this month");
-    
-    return suggestions.slice(0, 5);
+    return [
+      "Show today's schedule",
+      "Add meeting tomorrow",
+      "Review this week's events",
+      "Extract schedule from photo",
+      "Schedule meeting with friend"
+    ];
   }
-}
-
-function getRandomFallbackSuggestion(locale: string): string {
-  const fallbacks = locale === 'ko' ? [
-    "내일 일정 추가",
-    "이번주 회의 일정",
-    "다음달 계획 확인",
-    "오늘 할 일 정리",
-    "주간 일정 요약"
-  ] : [
-    "Add tomorrow's event",
-    "This week's meetings",
-    "Check next month's plans",
-    "Today's tasks",
-    "Weekly summary"
-  ];
-  
-  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }

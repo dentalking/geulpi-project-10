@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 import { WebSocketServer } from 'ws';
 import WebSocketManager from '@/lib/websocket/WebSocketManager';
 
@@ -14,7 +16,7 @@ if (!global.wsManager) {
 }
 
 // WebSocket 서버 초기화 (개발 환경에서만)
-if (process.env.NODE_ENV === 'development' && !global.wss) {
+if (env.isDevelopment() && !global.wss) {
   wss = new WebSocketServer({ port: 8080 });
   global.wss = wss;
 
@@ -22,7 +24,7 @@ if (process.env.NODE_ENV === 'development' && !global.wss) {
     wsManager.handleConnection(socket, request);
   });
 
-  console.log('[WebSocket] Server started on port 8080');
+  logger.debug('[WebSocket] Server started on port 8080');
 } else if (global.wss) {
   wss = global.wss;
 }
@@ -30,7 +32,7 @@ if (process.env.NODE_ENV === 'development' && !global.wss) {
 // GET 요청 처리 (WebSocket 업그레이드용)
 export async function GET(request: NextRequest) {
   // 개발 환경에서는 별도 포트(8080) 사용 안내
-  if (process.env.NODE_ENV === 'development') {
+  if (env.isDevelopment()) {
     return new Response(
       JSON.stringify({
         message: 'WebSocket server is running on port 8080',
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('[WebSocket API] Send notification error:', error);
+    logger.error('[WebSocket API] Send notification error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to send notification' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -106,8 +108,8 @@ export async function OPTIONS(request: NextRequest) {
     JSON.stringify({
       status: 'WebSocket manager active',
       stats,
-      environment: process.env.NODE_ENV,
-      endpoint: process.env.NODE_ENV === 'development' ? 'ws://localhost:8080' : null
+      environment: env.get('NODE_ENV'),
+      endpoint: env.isDevelopment() ? 'ws://localhost:8080' : null
     }),
     {
       status: 200,

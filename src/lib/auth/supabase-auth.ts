@@ -4,8 +4,10 @@ import jwt from 'jsonwebtoken';
 import { check2FAEnabled } from './two-factor-auth';
 import { pending2FAStore } from './pending-2fa-store';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from '@/lib/env';
+import { logger } from '@/lib/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const getJwtSecret = () => env.get('JWT_SECRET') || env.get('NEXTAUTH_SECRET') || 'your-secret-key-change-in-production';
 
 export interface User {
   id: string;
@@ -39,7 +41,7 @@ export async function registerUser(email: string, password: string, name?: strin
     
     return data;
   } catch (error: any) {
-    console.error('Registration error:', error);
+    logger.error('Registration error:', error);
     throw error;
   }
 }
@@ -89,7 +91,7 @@ export async function loginUser(email: string, password: string, rememberMe: boo
     // Generate JWT token if no 2FA
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: rememberMe ? '30d' : '7d' }
     );
 
@@ -103,25 +105,25 @@ export async function loginUser(email: string, password: string, rememberMe: boo
       token
     };
   } catch (error: any) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
     throw error;
   }
 }
 
 export async function verifyToken(token: string): Promise<User | null> {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    
+    const decoded = jwt.verify(token, getJwtSecret()) as any;
+
     const { data: user, error } = await supabase
       .from('users')
       .select('id, email, name, auth_type, created_at')
       .eq('id', decoded.userId)
       .single();
-    
+
     if (error || !user) {
       return null;
     }
-    
+
     return user;
   } catch (error) {
     return null;
@@ -143,7 +145,7 @@ export async function updateUserProfile(userId: string, updates: { name?: string
     
     return data;
   } catch (error: any) {
-    console.error('Update profile error:', error);
+    logger.error('Update profile error:', error);
     throw error;
   }
 }
@@ -181,7 +183,7 @@ export async function changeUserPassword(userId: string, currentPassword: string
       throw updateError;
     }
   } catch (error: any) {
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error);
     throw error;
   }
 }

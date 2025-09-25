@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { env } from '@/lib/env';
 
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = env.get('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,7 +80,7 @@ export async function GET(request: NextRequest) {
       });
     }
   } catch (error: any) {
-    console.error('Maps search error:', error);
+    logger.error('Maps search error:', error);
     return NextResponse.json(
       { error: 'Failed to search places', details: error.message },
       { status: 500 }

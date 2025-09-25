@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { googleMapsService } from '@/services/maps/GoogleMapsService';
 import { cookies } from 'next/headers';
 
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Place search error:', error);
+    logger.error('Place search error:', error);
     return NextResponse.json(
       { error: 'Failed to search places' },
       { status: 500 }
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Place details error:', error);
+    logger.error('Place details error:', error);
     return NextResponse.json(
       { error: 'Failed to get place details' },
       { status: 500 }

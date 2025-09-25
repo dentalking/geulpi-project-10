@@ -90,8 +90,20 @@ export class ChatStorage {
   /**
    * 새로운 채팅 세션 생성
    */
-  static async createSession(title: string = '새 채팅', userId?: string): Promise<ChatSession | null> {
+  static async createSession(title?: string, userId?: string, locale?: string): Promise<ChatSession | null> {
     try {
+      // Extract locale from URL if not provided
+      let sessionLocale = locale;
+      if (!sessionLocale && typeof window !== 'undefined') {
+        const pathSegments = window.location.pathname.split('/');
+        sessionLocale = pathSegments[1] === 'en' ? 'en' : 'ko';
+      }
+
+      // Set default title based on locale if not provided
+      if (!title) {
+        title = sessionLocale === 'en' ? 'New Chat' : '새 채팅';
+      }
+
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
       const response = await fetch(`${baseUrl}/api/chat/sessions`, {
         method: 'POST',
@@ -102,6 +114,7 @@ export class ChatStorage {
         body: JSON.stringify({
           title,
           userId,
+          locale: sessionLocale,
           metadata: {
             totalMessages: 0,
             lastActivity: new Date().toISOString(),
@@ -169,7 +182,7 @@ export class ChatStorage {
 
       // 2. 세션 제목 업데이트 (첫 번째 사용자 메시지인 경우)
       const session = await this.getSession(sessionId);
-      if (session && session.title === '새 채팅' && message.role === 'user') {
+      if (session && (session.title === '새 채팅' || session.title === 'New Chat') && message.role === 'user') {
         const newTitle = this.generateTitle(message.content);
         await this.updateSession(sessionId, { title: newTitle });
       }
@@ -341,7 +354,7 @@ export class ChatStorage {
 export const chatStorage = {
   getAllSessions: (userId?: string) => ChatStorage.getAllSessions(userId),
   getSession: (id: string) => ChatStorage.getSession(id),
-  createSession: (title?: string, userId?: string) => ChatStorage.createSession(title, userId),
+  createSession: (title?: string, userId?: string, locale?: string) => ChatStorage.createSession(title, userId, locale),
   addMessage: (sessionId: string, message: AIMessage) => ChatStorage.addMessage(sessionId, message),
   updateSession: (sessionId: string, updates: Partial<ChatSession>) => ChatStorage.updateSession(sessionId, updates),
   deleteSession: (sessionId: string) => ChatStorage.deleteSession(sessionId),

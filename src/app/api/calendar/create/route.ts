@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { GoogleCalendarService } from '@/services/google/GoogleCalendarService';
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
                     userTimezone = await getUserTimezoneByUserId(userId);
                 }
             } catch (error) {
-                console.error('Email auth verification failed:', error);
+                logger.error('Email auth verification failed:', error);
             }
         }
 
@@ -95,11 +96,11 @@ export async function POST(request: Request) {
                             }
                         }
                     } catch (error) {
-                        console.error('Failed to get user from access token', error);
+                        logger.error('Failed to get user from access token', error);
                     }
                 }
             } catch (error) {
-                console.error('Google Calendar API error:', error);
+                logger.error('Google Calendar API error:', error);
                 // Continue with local storage if Google fails
             }
         }
@@ -137,9 +138,9 @@ export async function POST(request: Request) {
             .single();
 
         if (saveError) {
-            console.error('Error saving event to database:', JSON.stringify(saveError, null, 2));
-            console.error('Event data:', JSON.stringify(eventData, null, 2));
-            console.error('RLS context userId:', userId);
+            logger.error('Error saving event to database:', JSON.stringify(saveError, null, 2));
+            logger.error('Event data:', JSON.stringify(eventData, null, 2));
+            logger.error('RLS context userId:', userId);
             return NextResponse.json({
                 success: false,
                 error: 'Failed to save event to database',

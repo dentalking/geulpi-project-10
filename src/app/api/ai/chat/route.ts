@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { env } from '@/lib/env';
 import { cookies } from 'next/headers';
 import { ChatCalendarService, type ChatResponse } from '@/services/ai/ChatCalendarService';
 import { FriendAIService } from '@/services/ai/FriendAIService';
@@ -17,6 +18,7 @@ import { withAILimit, withEventLock, withDebounce } from '@/lib/concurrency-mana
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
 import type { CalendarEvent } from '@/types';
+import { SmartSuggestionService, SuggestionContext } from '@/services/ai/SmartSuggestionService';
 
 const chatService = new ChatCalendarService();
 
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
     const rateLimitResponse = await checkRateLimit(request, 'ai');
     if (rateLimitResponse) return rateLimitResponse;
     body = await request.json();
-    const { message, type = 'text', imageData, mimeType, sessionId, timezone: requestTimezone, lastExtractedEvent } = body;
+    const { message, type = 'text', imageData, mimeType, sessionId, timezone: requestTimezone, lastExtractedEvent, events: providedEvents, currentDate } = body;
     locale = body.locale || 'ko';
 
     logger.info('AI Chat API request received', {
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Debug logging for production
-    if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
+    if (env.isProduction() || env.get('VERCEL') === '1') {
       logger.debug('Cookie check', {
         hasAccessToken: !!accessToken,
         hasRefreshToken: !!refreshToken,
@@ -188,6 +190,13 @@ export async function POST(request: NextRequest) {
 
     // Start fetching events in parallel with processing
     const eventsPromise = (async () => {
+      // First, check if events were provided from the frontend
+      if (providedEvents && Array.isArray(providedEvents) && providedEvents.length > 0) {
+        logger.info('Using provided events from frontend', { count: providedEvents.length });
+        return providedEvents;
+      }
+
+      // If no provided events, try Google Calendar API
       if (!calendar) {
         // For email auth users, return empty events or fetch from database
         logger.info('Email auth user - no Google Calendar access');
@@ -202,7 +211,7 @@ export async function POST(request: NextRequest) {
         const response = await calendar.events.list({
           calendarId: 'primary',
           timeMin: startOfToday.toISOString(), // Include today's past events
-          timeMax: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+          timeMax: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1년 (365일)
           maxResults: 100, // Increase to get more events
           singleEvents: true,
           orderBy: 'startTime'
@@ -234,17 +243,21 @@ export async function POST(request: NextRequest) {
       // Determine user's timezone (priority: request > profile > browser > default)
       userTimezone = requestTimezone || getUserTimezone(userProfile);
     } else {
-      // For text processing, we need events context first (but still fetch in parallel)
-      const [events, profile] = await Promise.all([eventsPromise, profilePromise]);
+      // For text processing, fetch multiple resources in parallel
+      const friendService = new FriendAIService(locale);
+
+      // Start all async operations in parallel
+      const [events, profile, friendAction] = await Promise.all([
+        eventsPromise,
+        profilePromise,
+        friendService.parseCommand(message)
+      ]);
+
       currentEvents = events;
       userProfile = profile;
 
       // Determine user's timezone (priority: request > profile > browser > default)
       userTimezone = requestTimezone || getUserTimezone(userProfile);
-
-      // Check for friend-related commands first
-      const friendService = new FriendAIService(locale);
-      const friendAction = await friendService.parseCommand(message);
       if (friendAction) {
         logger.info('Friend command detected', { action: friendAction });
 
@@ -498,7 +511,7 @@ export async function POST(request: NextRequest) {
               const meetingDate = friendAction.data?.date;
 
               // 친구 찾기
-              const meetingFriendsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/friends`, {
+              const meetingFriendsRes = await fetch(`${env.get('NEXT_PUBLIC_API_URL') || 'http://localhost:3000'}/api/friends`, {
                 headers: {
                   'Authorization': request.headers.get('authorization') || '',
                   'Cookie': request.headers.get('cookie') || ''
@@ -545,7 +558,7 @@ export async function POST(request: NextRequest) {
                 schedulingPayload.autoSelect = false;
               }
 
-              const scheduleRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/friends/schedule-meeting`, {
+              const scheduleRes = await fetch(`${env.get('NEXT_PUBLIC_API_URL') || 'http://localhost:3000'}/api/friends/schedule-meeting`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -1005,13 +1018,19 @@ export async function POST(request: NextRequest) {
             }
 
             if (data.startDate) {
-              searchParams.timeMin = new Date(data.startDate).toISOString();
+              // Set to 00:00:00 of the startDate to include the entire day
+              const startDate = new Date(data.startDate);
+              startDate.setHours(0, 0, 0, 0);
+              searchParams.timeMin = startDate.toISOString();
             } else {
               searchParams.timeMin = new Date().toISOString();
             }
 
             if (data.endDate) {
-              searchParams.timeMax = new Date(data.endDate).toISOString();
+              // Add 23:59:59 to endDate to include the entire day
+              const endDate = new Date(data.endDate);
+              endDate.setHours(23, 59, 59, 999);
+              searchParams.timeMax = endDate.toISOString();
             }
 
             const searchResult = await calendar.events.list(searchParams);
@@ -1049,7 +1068,7 @@ export async function POST(request: NextRequest) {
               isAllDay: false
             };
 
-            const createResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/calendar/create`, {
+            const createResponse = await fetch(`${env.get('NEXT_PUBLIC_API_URL') || 'http://localhost:3000'}/api/calendar/create`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1074,6 +1093,77 @@ export async function POST(request: NextRequest) {
                 ? '\n⚠️ 일정 등록에 실패했습니다.'
                 : '\n⚠️ Failed to create event.';
             }
+          } else if (actionType === 'list' || actionType === 'search') {
+            // Handle list/search for email auth users - fetch from database/sync
+            try {
+              // Fetch events using the sync endpoint which supports email auth
+              const syncResponse = await fetch(`${env.get('NEXT_PUBLIC_API_URL') || 'http://localhost:3000'}/api/calendar/sync`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `auth-token ${authToken}`,
+                  'Cookie': request.headers.get('Cookie') || ''
+                }
+              });
+
+              const syncResult = await syncResponse.json();
+
+              if (syncResult.success && syncResult.data && syncResult.data.events) {
+                let filteredEvents = syncResult.data.events;
+
+                // Apply date filtering if needed
+                if (data.startDate || data.endDate) {
+                  const startDate = data.startDate ? new Date(data.startDate) : new Date();
+                  const endDate = data.endDate ? new Date(data.endDate) : new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days later
+
+                  filteredEvents = filteredEvents.filter((event: any) => {
+                    const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
+                    return eventDate >= startDate && eventDate <= endDate;
+                  });
+                }
+
+                // Apply text search if query provided
+                if (data.query) {
+                  const query = data.query.toLowerCase();
+                  const dateKeywords = ['오늘', '내일', '어제', '이번주', '다음주', '이번달', '다음달',
+                                      'today', 'tomorrow', 'yesterday', 'this week', 'next week',
+                                      'this month', 'next month'];
+
+                  if (!dateKeywords.includes(query.trim())) {
+                    filteredEvents = filteredEvents.filter((event: any) => {
+                      const searchText = `${event.summary || ''} ${event.description || ''} ${event.location || ''}`.toLowerCase();
+                      return searchText.includes(query);
+                    });
+                  }
+                }
+
+                // Sort by start time
+                filteredEvents.sort((a: any, b: any) => {
+                  const aTime = new Date(a.start?.dateTime || a.start?.date || '').getTime();
+                  const bTime = new Date(b.start?.dateTime || b.start?.date || '').getTime();
+                  return aTime - bTime;
+                });
+
+                // Limit results
+                chatResponse.events = filteredEvents.slice(0, 10);
+
+                logger.info('Email auth user search/list results', {
+                  totalEvents: syncResult.data.events.length,
+                  filteredCount: filteredEvents.length,
+                  returnedCount: chatResponse.events?.length || 0,
+                  eventsPreview: chatResponse.events?.slice(0, 2)?.map(e => ({
+                    id: e.id,
+                    summary: e.summary,
+                    start: e.start
+                  }))
+                });
+              } else {
+                chatResponse.events = [];
+                logger.warn('No events found for email auth user');
+              }
+            } catch (error) {
+              logger.error('Failed to fetch events for email auth user', { error });
+              chatResponse.events = [];
+            }
           } else if (actionType === 'create_multiple' && data.events && Array.isArray(data.events)) {
             // Multiple events creation for email auth users
             let createdCount = 0;
@@ -1091,7 +1181,7 @@ export async function POST(request: NextRequest) {
                     isAllDay: false
                   };
 
-                  const createResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/calendar/create`, {
+                  const createResponse = await fetch(`${env.get('NEXT_PUBLIC_API_URL') || 'http://localhost:3000'}/api/calendar/create`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -1167,17 +1257,129 @@ export async function POST(request: NextRequest) {
       });
     }
     
+    // Log the events array before returning
+    logger.info('Events in chatResponse before return', {
+      hasEvents: !!chatResponse.events,
+      eventsCount: chatResponse.events?.length || 0,
+      eventsPreview: chatResponse.events?.slice(0, 2)?.map(e => ({
+        id: e.id,
+        summary: e.summary
+      }))
+    });
+
     logger.info('Returning chat response', {
       messageLength: chatResponse.message?.length,
       hasAction: !!chatResponse.action,
+      actionType: chatResponse.action?.type,
       suggestionCount: chatResponse.suggestions?.length,
+      eventsCount: chatResponse.events?.length || 0,
       sessionId
     });
-    
-    return successResponse({
-      ...chatResponse,
+
+    // Explicitly include events in the response
+    const finalResponse: any = {
+      message: chatResponse.message,
+      suggestions: chatResponse.suggestions,
       sessionId
-    });
+    };
+
+    if (chatResponse.action) {
+      finalResponse.action = chatResponse.action;
+    }
+
+    if (chatResponse.events) {
+      finalResponse.events = chatResponse.events;
+      logger.info('Explicitly including events in response', {
+        eventsCount: chatResponse.events.length
+      });
+    }
+
+    // Generate smart follow-up suggestions based on AI response
+    try {
+      const smartSuggestionService = new SmartSuggestionService(locale as 'ko' | 'en');
+      const currentHour = new Date().getHours();
+      const timeOfDay: 'morning' | 'afternoon' | 'evening' =
+        currentHour < 12 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening';
+
+      // Fetch recent chat messages from session for context
+      let recentMessages: any[] = [];
+      if (sessionId) {
+        try {
+          const { data: sessionData, error: sessionError } = await supabase
+            .from('chat_sessions')
+            .select(`
+              chat_messages (
+                role,
+                content,
+                created_at
+              )
+            `)
+            .eq('id', sessionId)
+            .single();
+
+          if (sessionData?.chat_messages) {
+            // Get last 10 messages for context
+            recentMessages = sessionData.chat_messages
+              .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice(0, 10)
+              .reverse()
+              .map((msg: any) => ({
+                role: msg.role,
+                content: msg.content
+              }));
+
+            logger.info('[AI Chat] Loaded chat history for suggestions', {
+              sessionId,
+              messageCount: recentMessages.length
+            });
+          }
+        } catch (historyError) {
+          logger.error('[AI Chat] Failed to fetch chat history', historyError);
+        }
+      }
+
+      // Add current exchange to messages
+      recentMessages.push(
+        { role: 'user', content: message },
+        { role: 'assistant', content: chatResponse.message || '' }
+      );
+
+      const suggestionContext: SuggestionContext = {
+        currentEvents,
+        selectedDate: undefined, // No specific date context in chat
+        selectedEvent: undefined, // No specific event context in chat
+        userProfile,
+        recentMessages, // Now includes actual chat history
+        lastAction: chatResponse.action?.type,
+        viewMode: 'day',
+        timeOfDay,
+        locale: locale as 'ko' | 'en'
+      };
+
+      const followUpSuggestions = await smartSuggestionService.generateFollowUpSuggestions(
+        chatResponse,
+        suggestionContext
+      );
+
+      // Add smart suggestions to response (keep existing suggestions as fallback)
+      if (followUpSuggestions.length > 0) {
+        finalResponse.smartSuggestions = followUpSuggestions;
+        // Override suggestions with smart ones if they exist, otherwise keep existing
+        if (!finalResponse.suggestions || finalResponse.suggestions.length === 0) {
+          finalResponse.suggestions = followUpSuggestions.map(s => s.text);
+        }
+      }
+
+      logger.info('[AI Chat] Generated smart follow-up suggestions', {
+        smartSuggestionsCount: followUpSuggestions.length,
+        existingSuggestionsCount: finalResponse.suggestions?.length || 0
+      });
+    } catch (suggestionError) {
+      logger.error('[AI Chat] Failed to generate smart suggestions', suggestionError);
+      // Continue without smart suggestions - existing suggestions will be used
+    }
+
+    return successResponse(finalResponse);
 
   } catch (error) {
     if (error instanceof ApiError) {

@@ -1,138 +1,152 @@
-// middleware.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
 import { routing } from './src/i18n/config';
-import { AuthError } from '@/lib/api-errors';
+import jwt from 'jsonwebtoken';
+import { env } from './src/lib/env';
 
-// 보호된 라우트 목록
-const PROTECTED_ROUTES = [
-    '/api/calendar',
-    '/api/assistant',
-    '/api/briefing',
-];
-
-// 공개 라우트 목록
-const PUBLIC_ROUTES = [
-    '/api/auth/login',
-    '/api/auth/callback',
-    '/api/auth/status',
-];
-
-// Create the i18n middleware
 const intlMiddleware = createIntlMiddleware(routing);
+
+// Protected routes that require authentication
+const protectedRoutes = [
+  '/dashboard',
+  '/settings',
+  '/profile',
+  '/calendar',
+  '/search',
+];
+
+// API routes that require authentication
+const protectedApiRoutes = [
+  '/api/calendar',
+  '/api/profile',
+  '/api/friends',
+  '/api/search',
+  '/api/payments',
+  '/api/ai',
+];
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
-    
-    // Handle API routes with existing auth logic
+
+    console.log('[Middleware] Processing request:', pathname);
+
+    // Skip API routes for intl processing
     if (pathname.startsWith('/api/')) {
-        // 공개 라우트는 통과
-        if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-            return NextResponse.next();
-        }
+        console.log('[Middleware] API route detected:', pathname);
 
-        // 보호된 라우트 확인
-        const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+        // Handle auth for protected API routes
+        const isProtectedApiRoute = protectedApiRoutes.some(route =>
+            pathname.startsWith(route)
+        );
 
-        if (isProtectedRoute) {
-            const accessToken = request.cookies.get('access_token')?.value;
+        console.log('[Middleware] Is protected API route:', isProtectedApiRoute);
 
-            if (!accessToken) {
+        if (isProtectedApiRoute) {
+            const authHeader = request.headers.get('authorization');
+            let authToken = request.cookies.get('auth-token')?.value;
+
+            if (!authToken && authHeader) {
+                if (authHeader.startsWith('auth-token ')) {
+                    authToken = authHeader.substring(11);
+                } else if (authHeader.startsWith('Bearer ')) {
+                    authToken = authHeader.substring(7);
+                }
+            }
+
+            if (!authToken) {
                 return NextResponse.json(
-                    {
-                        error: '인증이 필요합니다',
-                        code: 'AUTH_REQUIRED'
-                    },
+                    { error: '인증이 필요합니다', code: 'AUTH_ERROR' },
                     { status: 401 }
                 );
             }
 
-            // 토큰 만료 확인 (간단한 체크)
             try {
-                // JWT 디코딩 (실제로는 jose 등 라이브러리 사용 권장)
-                const tokenParts = accessToken.split('.');
-                if (tokenParts.length === 3) {
-                    const payload = JSON.parse(
-                        Buffer.from(tokenParts[1], 'base64').toString()
-                    );
-
-                    // 만료 시간 확인
-                    if (payload.exp && payload.exp * 1000 < Date.now()) {
-                        // 토큰 만료 - 리프레시 시도
-                        const refreshToken = request.cookies.get('refresh_token')?.value;
-
-                        if (refreshToken) {
-                            // 리프레시 토큰으로 새 액세스 토큰 발급
-                            // (실제 구현 필요)
-                            console.log('Token expired, need refresh');
-                        }
-
-                        return NextResponse.json(
-                            {
-                                error: '인증이 만료되었습니다',
-                                code: 'AUTH_EXPIRED'
-                            },
-                            { status: 401 }
-                        );
-                    }
+                const JWT_SECRET = env.get('JWT_SECRET') || env.get('NEXTAUTH_SECRET') || 'your-secret-key-change-in-production';
+                const decoded = jwt.verify(authToken, JWT_SECRET) as any;
+                if (!decoded || !decoded.userId) {
+                    throw new Error('Invalid token');
                 }
-            } catch (error) {
-                console.error('Token validation error:', error);
-                return NextResponse.json(
-                    {
-                        error: '유효하지 않은 인증입니다',
-                        code: 'AUTH_INVALID'
+
+                const requestHeaders = new Headers(request.headers);
+                requestHeaders.set('x-user-id', decoded.userId);
+
+                return NextResponse.next({
+                    request: {
+                        headers: requestHeaders,
                     },
+                });
+            } catch (error) {
+                const response = NextResponse.json(
+                    { error: '인증이 만료되었습니다', code: 'AUTH_EXPIRED' },
                     { status: 401 }
                 );
+                response.cookies.delete('auth-token');
+                response.cookies.delete('user-id');
+                response.cookies.delete('access_token');
+                response.cookies.delete('refresh_token');
+                return response;
             }
-
-            // CORS 헤더 추가
-            const response = NextResponse.next();
-
-            // 보안 헤더 추가
-            response.headers.set('X-Content-Type-Options', 'nosniff');
-            response.headers.set('X-Frame-Options', 'DENY');
-            response.headers.set('X-XSS-Protection', '1; mode=block');
-            response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-            // CORS 설정 (필요한 경우)
-            if (process.env.NODE_ENV === 'production') {
-                const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-                const origin = request.headers.get('origin');
-
-                if (origin && allowedOrigins.includes(origin)) {
-                    response.headers.set('Access-Control-Allow-Origin', origin);
-                    response.headers.set('Access-Control-Allow-Credentials', 'true');
-                    response.headers.set(
-                        'Access-Control-Allow-Methods',
-                        'GET, POST, PUT, DELETE, OPTIONS'
-                    );
-                    response.headers.set(
-                        'Access-Control-Allow-Headers',
-                        'Content-Type, Authorization'
-                    );
-                }
-            }
-
-            return response;
         }
 
         return NextResponse.next();
     }
-    
-    // Handle all other routes with i18n
+
+    // Get auth token for page routes
+    let authToken = request.cookies.get('auth-token')?.value;
+
+    // Check if the route is protected
+    const pathWithoutLocale = pathname.replace(/^\/(en|ko)/, '');
+    const isProtectedWithLocale = protectedRoutes.some(route =>
+        pathWithoutLocale.startsWith(route)
+    );
+
+    if (isProtectedWithLocale) {
+        if (!authToken) {
+            const localeMatch = pathname.match(/^\/(ko|en)/);
+            const locale = localeMatch ? localeMatch[1] : 'ko';
+            const url = request.nextUrl.clone();
+            url.pathname = `/${locale}/login`;
+            url.searchParams.set('redirect', pathname);
+            return NextResponse.redirect(url);
+        }
+
+        try {
+            const JWT_SECRET = env.get('JWT_SECRET') || env.get('NEXTAUTH_SECRET') || 'your-secret-key-change-in-production';
+            const decoded = jwt.verify(authToken, JWT_SECRET) as any;
+            if (!decoded || !decoded.userId) {
+                throw new Error('Invalid token');
+            }
+        } catch (error) {
+            const localeMatch = pathname.match(/^\/(ko|en)/);
+            const locale = localeMatch ? localeMatch[1] : 'ko';
+            const response = NextResponse.redirect(new URL(`/${locale}/login`, request.url));
+            response.cookies.delete('auth-token');
+            response.cookies.delete('user-id');
+            response.cookies.delete('access_token');
+            response.cookies.delete('refresh_token');
+            return response;
+        }
+    }
+
+    // Check if path is missing locale
+    const pathnameIsMissingLocale = routing.locales.every(
+        (locale) => !pathname.startsWith(`/${locale}/`) && pathname !== `/${locale}`
+    );
+
+    // If missing locale, redirect to default locale
+    if (pathnameIsMissingLocale && pathname !== '/') {
+        return NextResponse.redirect(
+            new URL(`/${routing.defaultLocale}${pathname}${request.nextUrl.search}`, request.url)
+        );
+    }
+
+    // Use next-intl for all other routes
     return intlMiddleware(request);
 }
 
 export const config = {
     matcher: [
-        // Skip all internal paths (_next)
-        '/((?!_next|_vercel|favicon.ico|.*\\..*|api/auth).*)',
-        // API routes
-        '/api/:path*',
-        // Internationalized pathnames
-        '/(ko|en)/:path*'
+        // Include all paths except _next and static files, but include API routes
+        '/((?!_next|.*\\..*).*)',
     ]
 };

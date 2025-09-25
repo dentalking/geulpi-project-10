@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { supabase } from '@/lib/db';
@@ -93,7 +94,7 @@ export async function DELETE(
             eventId: eventId,
           });
 
-          console.log('Successfully deleted Google Calendar event:', eventId);
+          logger.debug('Successfully deleted Google Calendar event:', eventId);
 
           return NextResponse.json({
             success: true,
@@ -101,7 +102,7 @@ export async function DELETE(
             deletedId: eventId
           });
         } catch (error: any) {
-          console.error('Error deleting from Google Calendar:', error);
+          logger.error('Error deleting from Google Calendar:', error);
 
           // If event not found or already deleted, return success (it's already gone)
           const errorMessage = error.message?.toLowerCase() || '';
@@ -112,7 +113,7 @@ export async function DELETE(
               errorMessage.includes('not found') ||
               errorMessage.includes('resource has been deleted') ||
               errorMessage.includes('deleted')) {
-            console.log('Event already deleted or not found, treating as success:', eventId);
+            logger.debug('Event already deleted or not found, treating as success:', eventId);
             return NextResponse.json({
               success: true,
               message: 'Event deleted from Google Calendar',
@@ -162,7 +163,7 @@ export async function DELETE(
       .eq('id', eventId);
 
     if (deleteError) {
-      console.error('Error deleting event from database:', deleteError);
+      logger.error('Error deleting event from database:', deleteError);
       return NextResponse.json(
         { success: false, error: 'Failed to delete event from database' },
         { status: 500 }
@@ -176,7 +177,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error('Calendar delete error', error);
+    logger.error('Calendar delete error', error);
     return NextResponse.json(
       { success: false, error: 'Failed to delete calendar event' },
       { status: 500 }
@@ -268,7 +269,7 @@ export async function PUT(
             requestBody: eventUpdate,
           });
 
-          console.log('Successfully updated Google Calendar event:', eventId);
+          logger.debug('Successfully updated Google Calendar event:', eventId);
 
           return NextResponse.json({
             success: true,
@@ -283,7 +284,7 @@ export async function PUT(
             message: 'Event updated in Google Calendar'
           });
         } catch (error: any) {
-          console.error('Error updating Google Calendar event:', error);
+          logger.error('Error updating Google Calendar event:', error);
           return NextResponse.json(
             { success: false, error: 'Failed to update event in Google Calendar' },
             { status: 500 }
@@ -337,7 +338,7 @@ export async function PUT(
       .single();
 
     if (updateError) {
-      console.error('Error updating event in database:', updateError);
+      logger.error('Error updating event in database:', updateError);
       return NextResponse.json(
         { success: false, error: 'Failed to update event in database' },
         { status: 500 }
@@ -351,7 +352,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    console.error('Calendar update error', error);
+    logger.error('Calendar update error', error);
     return NextResponse.json(
       { success: false, error: 'Failed to update calendar event' },
       { status: 500 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { cookies } from 'next/headers';
 import { verifyToken, updateUserProfile } from '@/lib/auth/supabase-auth';
 import { getCalendarClient } from '@/lib/google-auth';
@@ -19,7 +20,7 @@ export async function PUT(request: NextRequest) {
         userId = user.id;
         authType = 'email';
       } else {
-        console.warn('User profile API - Email auth token verification returned null');
+        logger.warn('User profile API - Email auth token verification returned null');
       }
     }
     
@@ -92,7 +93,7 @@ export async function PUT(request: NextRequest) {
     );
 
   } catch (error: any) {
-    console.error('Profile update error:', error);
+    logger.error('Profile update error:', error);
     
     if (error.code === '23505') {
       return NextResponse.json(

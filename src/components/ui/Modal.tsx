@@ -67,17 +67,24 @@ export function Modal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={closeOnBackdrop ? onClose : undefined}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            onClick={closeOnBackdrop ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            } : undefined}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] pointer-events-auto cursor-pointer"
           />
           
           {/* Modal Container - Centered */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent backdrop click when clicking inside modal
+              }}
               className={`w-full ${sizeClasses[size]} max-h-[90vh] pointer-events-auto ${className}`}
             >
               <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl shadow-2xl border border-gray-800/50 overflow-hidden flex flex-col h-full max-h-[90vh]">
@@ -103,8 +110,14 @@ export function Modal({
                       
                       {showCloseButton && (
                         <button
-                          onClick={onClose}
-                          className="ml-4 p-2 rounded-lg hover:bg-white/10 transition-colors group"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onClose();
+                          }}
+                          className="ml-4 p-2 rounded-lg hover:bg-white/10 transition-colors group pointer-events-auto"
+                          title="Close"
+                          style={{ minWidth: '36px', minHeight: '36px' }}
                         >
                           <X className="w-5 h-5 text-gray-400 group-hover:text-white" />
                         </button>
