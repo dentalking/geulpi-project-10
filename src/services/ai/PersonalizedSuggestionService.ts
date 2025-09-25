@@ -1,5 +1,5 @@
 import { SimpleSuggestionService, SimpleSuggestionContext, SimpleSuggestion } from './SimpleSuggestionService';
-import { createClient } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 
 interface UserPreferences {
@@ -80,8 +80,8 @@ export class PersonalizedSuggestionService extends SimpleSuggestionService {
 
     try {
       // 메모리 캐시 확인
-      if (global.userPreferences?.[this.userId]) {
-        const cached = global.userPreferences[this.userId];
+      if (global.personalizedSuggestionUserPrefs?.[this.userId]) {
+        const cached = global.personalizedSuggestionUserPrefs[this.userId];
         const cacheAge = Date.now() - cached.lastUpdated.getTime();
 
         // 5분 이내 캐시는 재사용
@@ -92,7 +92,10 @@ export class PersonalizedSuggestionService extends SimpleSuggestionService {
       }
 
       // DB에서 선호도 조회
-      const supabase = await createClient();
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
       const { data: preferences } = await supabase
         .rpc('get_user_preferences', { p_user_id: this.userId });
 
@@ -122,8 +125,8 @@ export class PersonalizedSuggestionService extends SimpleSuggestionService {
         };
 
         // 캐시 업데이트
-        global.userPreferences = global.userPreferences || {};
-        global.userPreferences[this.userId] = {
+        global.personalizedSuggestionUserPrefs = global.personalizedSuggestionUserPrefs || {};
+        global.personalizedSuggestionUserPrefs[this.userId] = {
           ...this.userPreferences,
           lastUpdated: new Date()
         };
@@ -181,7 +184,7 @@ export class PersonalizedSuggestionService extends SimpleSuggestionService {
     const eventCount = context.currentEvents?.length || 0;
     if (eventCount === 0 && suggestion.category === 'create') {
       scores.contextScore += 5;
-    } else if (eventCount > 5 && suggestion.category === 'organize') {
+    } else if (eventCount > 5 && suggestion.category === 'action') {
       scores.contextScore += 5;
     } else if (eventCount > 0 && eventCount <= 5) {
       scores.contextScore += 3;
@@ -284,5 +287,5 @@ export class PersonalizedSuggestionService extends SimpleSuggestionService {
 
 // 전역 타입 선언 확장
 declare global {
-  var userPreferences: Record<string, UserPreferences & { lastUpdated: Date }>;
+  var personalizedSuggestionUserPrefs: Record<string, UserPreferences & { lastUpdated: Date }>;
 }

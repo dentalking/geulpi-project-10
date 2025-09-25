@@ -133,19 +133,19 @@ export class ContextAwareQuickActionsService {
     tomorrow.setDate(today.getDate() + 1);
 
     const todayEvents = context.upcomingEvents.filter(e =>
-      new Date(e.start_time).toDateString() === today.toDateString()
+      new Date(e.start?.dateTime || e.start?.date || '').toDateString() === today.toDateString()
     );
 
     const tomorrowEvents = context.upcomingEvents.filter(e =>
-      new Date(e.start_time).toDateString() === tomorrow.toDateString()
+      new Date(e.start?.dateTime || e.start?.date || '').toDateString() === tomorrow.toDateString()
     );
 
     // 시간 충돌 검사
     for (let i = 0; i < todayEvents.length - 1; i++) {
       const current = todayEvents[i];
       const next = todayEvents[i + 1];
-      const currentEnd = new Date(current.end_time);
-      const nextStart = new Date(next.start_time);
+      const currentEnd = new Date(current.end?.dateTime || current.end?.date || '');
+      const nextStart = new Date(next.start?.dateTime || next.start?.date || '');
 
       if (currentEnd > nextStart) {
         upcomingConflicts.push(`${current.summary}와 ${next.summary} 시간 겹침`);
@@ -201,9 +201,9 @@ export class ContextAwareQuickActionsService {
     parts.push(`내일 일정: ${tomorrowEvents.length}개`);
 
     if (todayEvents.length > 0) {
-      const nextEvent = todayEvents.find(e => new Date(e.start_time) > context.currentTime);
+      const nextEvent = todayEvents.find(e => new Date(e.start?.dateTime || e.start?.date || '') > context.currentTime);
       if (nextEvent) {
-        const eventHour = new Date(nextEvent.start_time).getHours();
+        const eventHour = new Date(nextEvent.start?.dateTime || nextEvent.start?.date || '').getHours();
         parts.push(`다음 일정: ${eventHour}시 ${nextEvent.summary}`);
       }
     }
@@ -232,12 +232,12 @@ ${context.contextSummary}
 
 ## 최근 일정들
 ${context.recentEvents.slice(0, 3).map(e =>
-  `- ${new Date(e.start_time).toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
+  `- ${new Date(e.start?.dateTime || e.start?.date || '').toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
 ).join('\n')}
 
 ## 다가오는 일정들
 ${context.upcomingEvents.slice(0, 3).map(e =>
-  `- ${new Date(e.start_time).toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
+  `- ${new Date(e.start?.dateTime || e.start?.date || '').toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
 ).join('\n')}
 
 ## 사용자 행동 패턴
@@ -269,12 +269,12 @@ ${context.contextSummary}
 
 ## Recent Events
 ${context.recentEvents.slice(0, 3).map(e =>
-  `- ${new Date(e.start_time).toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
+  `- ${new Date(e.start?.dateTime || e.start?.date || '').toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
 ).join('\n')}
 
 ## Upcoming Events
 ${context.upcomingEvents.slice(0, 3).map(e =>
-  `- ${new Date(e.start_time).toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
+  `- ${new Date(e.start?.dateTime || e.start?.date || '').toLocaleDateString()}: ${e.summary}${e.location ? ` @${e.location}` : ''}`
 ).join('\n')}
 
 ## User Patterns
@@ -409,7 +409,7 @@ Return specific, actionable suggestions as JSON array only:`;
     const isKorean = context.locale === 'ko';
     const hour = context.currentTime.getHours();
 
-    const fallbackSuggestions = [
+    const fallbackSuggestions: ContextAwareQuickAction[] = [
       {
         text: isKorean ? '오늘 일정 확인' : 'Check today schedule',
         priority: 8,
@@ -576,7 +576,7 @@ export class UserContextBuilder {
   ): UserPattern {
     // 활발한 시간대 분석
     const eventHours = [...recentEvents, ...upcomingEvents]
-      .map(e => new Date(e.start_time).getHours());
+      .map(e => new Date(e.start?.dateTime || e.start?.date || '').getHours());
 
     const hourCount = eventHours.reduce((acc, hour) => {
       acc[hour] = (acc[hour] || 0) + 1;
@@ -677,8 +677,8 @@ export class UserContextBuilder {
     if (events.length === 0) return 60;
 
     const durations = events.map(e => {
-      const start = new Date(e.start_time);
-      const end = new Date(e.end_time);
+      const start = new Date(e.start?.dateTime || e.start?.date || '');
+      const end = new Date(e.end?.dateTime || e.end?.date || '');
       return (end.getTime() - start.getTime()) / (1000 * 60); // 분 단위
     });
 

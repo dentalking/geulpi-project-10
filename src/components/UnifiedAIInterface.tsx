@@ -122,8 +122,8 @@ export function UnifiedAIInterface({
 
   // Quick Action 추적 훅
   const { trackClick, trackDisplay } = useQuickActionTracking({
-    batchMode: true,
-    trackDisplay: FEATURES.QUICK_ACTION_TRACKING
+    batchMode: true
+    // trackDisplay: FEATURES.QUICK_ACTION_TRACKING
   });
 
   useEffect(() => {
@@ -305,10 +305,10 @@ export function UnifiedAIInterface({
 
   // Separate effect for follow-up suggestions after AI responses
   useEffect(() => {
-    if (!lastAIResponse?.content) return;
+    if (!lastAIResponse?.message) return;
 
     // Check if we've already processed this AI response
-    const currentResponse = lastAIResponse.content;
+    const currentResponse = lastAIResponse.message;
     if (lastProcessedAIResponseRef.current === currentResponse) return;
 
     // Mark this response as processed
@@ -321,7 +321,7 @@ export function UnifiedAIInterface({
     }, 3000); // 3 second delay for follow-up suggestions
 
     return () => clearTimeout(followUpTimeout);
-  }, [lastAIResponse?.content]);
+  }, [lastAIResponse?.message]);
 
   // Helper function to get suggestion category for tracking
   const getSuggestionCategory = (suggestion: string): string => {
@@ -1163,7 +1163,7 @@ export function UnifiedAIInterface({
                           index + 1, // position (1-based)
                           {
                             locale,
-                            lastAIResponse: lastAIResponse?.content
+                            lastAIResponse: lastAIResponse?.message
                           }
                         );
                       }
@@ -1202,8 +1202,8 @@ export function UnifiedAIInterface({
                             sessionId: sessionId,
                             contextInfo: {
                               timeOfDay: timeOfDay,
-                              hasEvents: currentEvents && currentEvents.length > 0,
-                              lastAIResponse: lastAIResponse?.content,
+                              hasEvents: messages.length > 0,
+                              lastAIResponse: lastAIResponse?.message,
                               position: index + 1
                             },
                             action: 'clicked'

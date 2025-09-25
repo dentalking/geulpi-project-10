@@ -167,7 +167,7 @@ Output JSON only:`;
   private hasEventsToday(events: CalendarEvent[]): boolean {
     if (!events) return false;
     const today = new Date().toDateString();
-    return events.some(e => new Date(e.start_time).toDateString() === today);
+    return events.some(e => new Date((e.start?.dateTime || e.start?.date || '')).toDateString() === today);
   }
 
   private getNextEmptySlot(events: CalendarEvent[]): number | null {
@@ -179,8 +179,8 @@ Output JSON only:`;
 
     const busyHours = new Set(
       events
-        .filter(e => new Date(e.start_time).toDateString() === today)
-        .map(e => new Date(e.start_time).getHours())
+        .filter(e => new Date((e.start?.dateTime || e.start?.date || '')).toDateString() === today)
+        .map(e => new Date((e.start?.dateTime || e.start?.date || '')).getHours())
     );
 
     for (let h = currentHour + 1; h < 21; h++) {
@@ -248,7 +248,7 @@ Output JSON only:`;
     // 간소화된 fallback 로직
     const today = new Date();
     const todayEvents = context.currentEvents?.filter(e => {
-      const eventDate = new Date(e.start_time);
+      const eventDate = new Date((e.start?.dateTime || e.start?.date || ''));
       return eventDate.toDateString() === today.toDateString();
     }) || [];
 

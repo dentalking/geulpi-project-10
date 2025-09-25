@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
           const clickedCategories = actionLogs
             .map(log => log.suggestion_category)
-            .filter(Boolean)
+            .filter((cat): cat is string => cat !== null)
             .filter((cat, index, self) => self.indexOf(cat) === index);
 
           userPreferences = {

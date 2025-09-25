@@ -73,7 +73,7 @@ export function useSupabaseNotifications(userId?: string) {
         }
       )
       .subscribe((status) => {
-        logger.debug('[Realtime] Subscription status:', status);
+        logger.debug('[Realtime] Subscription status:', { status });
       });
 
     channelRef.current = channel;
@@ -136,7 +136,7 @@ export function useSupabaseNotifications(userId?: string) {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('notifications')
         .update({ read: true, read_at: new Date().toISOString() })
         .eq('id', notificationId);
@@ -151,7 +151,7 @@ export function useSupabaseNotifications(userId?: string) {
 
   const dismissNotification = async (notificationId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('notifications')
         .update({ dismissed: true, dismissed_at: new Date().toISOString() })
         .eq('id', notificationId);
@@ -168,7 +168,7 @@ export function useSupabaseNotifications(userId?: string) {
     if (!userId) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('notifications')
         .update({ read: true, read_at: new Date().toISOString() })
         .eq('user_id', userId)

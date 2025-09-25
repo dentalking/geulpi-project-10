@@ -68,7 +68,7 @@ export function useUnifiedSync(options: UnifiedSyncOptions = {}) {
   }, [updateEvent, broadcast]);
 
   const handleEventDeleted = useCallback((eventId: string) => {
-    logger.info('[UnifiedSync] Event deleted:', eventId);
+    logger.info('[UnifiedSync] Event deleted', { eventId });
     deleteEvent(eventId);
     setSyncStatus(prev => ({ ...prev, lastActivity: new Date() }));
   }, [deleteEvent]);

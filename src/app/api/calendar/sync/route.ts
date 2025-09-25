@@ -196,7 +196,7 @@ async function performCalendarSync(request: NextRequest, userId: string) {
           try {
             return JSON.parse(event.attendees);
           } catch (error) {
-            logger.warn('Invalid attendees JSON for event', event.id, event.attendees);
+            logger.warn('Invalid attendees JSON for event', { eventId: event.id, attendees: event.attendees });
             return [];
           }
         })() : [],

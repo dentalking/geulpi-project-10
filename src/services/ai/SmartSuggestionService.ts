@@ -461,7 +461,7 @@ export class SmartSuggestionService {
       // 현재 일정 요약
       const eventsContext = context.currentEvents.map(event => {
         const start = new Date(event.start?.dateTime || event.start?.date || '');
-        return `- ${event.title} (${format(start, 'M/d HH:mm', { locale: this.locale === 'ko' ? ko : enUS })})`;
+        return `- ${event.summary} (${format(start, 'M/d HH:mm', { locale: this.locale === 'ko' ? ko : enUS })})`;
       }).join('\n');
 
       const prompt = this.locale === 'ko' ? `
@@ -1282,7 +1282,7 @@ Requirements:
    * 키워드 추출 (일정 관련 핵심 키워드)
    */
   private extractKeywords(text: string): string[] {
-    const keywords = [];
+    const keywords: string[] = [];
     const lowerText = text.toLowerCase();
 
     // 시간 관련 키워드
@@ -1336,10 +1336,10 @@ Requirements:
    */
   private extractEntities(text: string): any {
     const entities = {
-      dates: [],
-      times: [],
-      people: [],
-      activities: []
+      dates: [] as string[],
+      times: [] as string[],
+      people: [] as string[],
+      activities: [] as string[]
     };
 
     // 날짜 패턴 매칭
@@ -1414,7 +1414,7 @@ Requirements:
    * 제안된 액션 추출
    */
   private extractSuggestedActions(text: string): string[] {
-    const actions = [];
+    const actions: string[] = [];
     const lowerText = text.toLowerCase();
 
     if (lowerText.includes('계획') || lowerText.includes('plan')) {
@@ -1642,7 +1642,7 @@ Requirements:
       .filter(e => e.start?.dateTime)
       .sort((a, b) => new Date(a.start!.dateTime!).getTime() - new Date(b.start!.dateTime!).getTime());
 
-    const busyPeriods = [];
+    const busyPeriods: any[] = [];
     for (let i = 0; i < sortedEvents.length - 1; i++) {
       const current = sortedEvents[i];
       const next = sortedEvents[i + 1];
@@ -1674,7 +1674,7 @@ Requirements:
       return eventDate >= today && eventDate <= endOfToday;
     }).sort((a, b) => new Date(a.start!.dateTime!).getTime() - new Date(b.start!.dateTime!).getTime());
 
-    const freeSlots = [];
+    const freeSlots: any[] = [];
     let currentTime = new Date(Math.max(fromDate.getTime(), today.getTime()));
 
     for (const event of todayEvents) {

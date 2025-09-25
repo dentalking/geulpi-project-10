@@ -219,11 +219,12 @@ export function useSupabaseRealtime(options: RealtimeOptions = {}) {
             filter: `user_id=eq.${userId}`
           },
           (payload: RealtimePostgresChangesPayload<any>) => {
-            logger.info('[Realtime] Event deleted:', payload.old?.id);
+            const oldRecord = payload.old as any;
+            logger.info('[Realtime] Event deleted:', oldRecord?.id);
             setState(prev => ({ ...prev, lastActivity: new Date() }));
 
-            if (payload.old?.id && callbacksRef.current.onEventDeleted) {
-              callbacksRef.current.onEventDeleted(payload.old.id);
+            if (oldRecord?.id && callbacksRef.current.onEventDeleted) {
+              callbacksRef.current.onEventDeleted(oldRecord.id);
             }
           }
         );
@@ -266,7 +267,7 @@ export function useSupabaseRealtime(options: RealtimeOptions = {}) {
             }));
 
             const errorMessage = err?.message || `Realtime subscription failed with status: ${status}`;
-            logger.warn('[Realtime] Subscription error:', errorMessage);
+            logger.warn('[Realtime] Subscription error', { error: errorMessage });
 
             if (callbacksRef.current.onError) {
               callbacksRef.current.onError(new Error(errorMessage));
@@ -417,10 +418,10 @@ function transformSupabaseEvent(dbEvent: any): CalendarEvent {
     organizer: dbEvent.organizer || null,
     attendees: dbEvent.attendees || [],
     recurrence: dbEvent.recurrence ? [dbEvent.recurrence] : undefined,
-    source: {
-      url: `supabase://calendar_events/${dbEvent.id}`,
-      title: 'Geulpi Calendar'
-    }
+    // source: {
+    //   url: `supabase://calendar_events/${dbEvent.id}`,
+    //   title: 'Geulpi Calendar'
+    // }
   };
 }
 

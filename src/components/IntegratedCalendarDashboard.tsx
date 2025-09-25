@@ -36,7 +36,7 @@ function CalendarDashboardContent() {
 
   // Extract locale from pathname
   const getLocale = () => {
-    const pathSegments = pathname.split('/');
+    const pathSegments = (pathname || '').split('/');
     return pathSegments[1] === 'en' ? 'en' : 'ko';
   };
 

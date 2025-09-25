@@ -214,13 +214,13 @@ export class SimpleSuggestionService {
 
     // 다음 이벤트 찾기
     const upcomingEvents = events
-      .filter(e => new Date(e.start_time) > now)
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+      .filter(e => new Date((e.start?.dateTime || e.start?.date || '')) > now)
+      .sort((a, b) => new Date(a.start?.dateTime || a.start?.date || '').getTime() - new Date(b.start?.dateTime || b.start?.date || '').getTime());
 
     const nextEvent = upcomingEvents[0];
 
     if (nextEvent) {
-      const eventTime = new Date(nextEvent.start_time);
+      const eventTime = new Date(nextEvent.start?.dateTime || nextEvent.start?.date || '');
       const minutesUntil = differenceInMinutes(eventTime, now);
 
       if (this.locale === 'ko') {
@@ -273,7 +273,7 @@ export class SimpleSuggestionService {
     }
 
     // 오늘의 이벤트 수 기반 제안 (개선됨)
-    const todayEvents = events.filter(e => isToday(new Date(e.start_time)));
+    const todayEvents = events.filter(e => isToday(new Date((e.start?.dateTime || e.start?.date || ''))));
     const hour = now.getHours();
 
     if (this.locale === 'ko') {

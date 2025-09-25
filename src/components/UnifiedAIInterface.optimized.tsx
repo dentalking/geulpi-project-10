@@ -297,7 +297,7 @@ export const OptimizedUnifiedAIInterface = React.memo<UnifiedAIInterfaceProps>(f
     if (suggestion.action === 'requires_input') {
       setInputValue(suggestion.text);
       inputRef.current?.focus();
-    } else if (suggestion.action === 'direct_action') {
+    } else if (suggestion.action === 'direct_execute') {
       await handleSubmit();
     }
   }, [locale, sessionId, events.length, propLastAIResponse, suggestions, handleSubmit]);

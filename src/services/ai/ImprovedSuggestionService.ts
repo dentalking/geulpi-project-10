@@ -49,14 +49,16 @@ export class ImprovedSuggestionService extends SimpleSuggestionService {
     // 스코어 기준 정렬 및 변환
     const sortedSuggestions = scoredSuggestions
       .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
+      .slice(0, 5);
+
+    // Filter out 'smart' category and convert to SimpleSuggestion
+    return sortedSuggestions
+      .filter(s => s.category !== 'smart')
       .map(s => ({
         text: s.text,
         priority: Math.min(10, Math.max(1, Math.round(s.score / 10))),
-        category: s.category
+        category: s.category as 'view' | 'create' | 'search' | 'action'
       }));
-
-    return sortedSuggestions;
   }
 
   /**
@@ -306,7 +308,7 @@ export class ImprovedSuggestionService extends SimpleSuggestionService {
     const currentHour = new Date().getHours();
     if (currentHour === 11 && context.eventAnalysis.todayCount > 0) {
       const hasLunch = context.currentEvents.some(e => {
-        const title = e.title.toLowerCase();
+        const title = e.summary.toLowerCase();
         return title.includes('점심') || title.includes('lunch');
       });
 
@@ -333,7 +335,7 @@ export class ImprovedSuggestionService extends SimpleSuggestionService {
 
     // 준비 시간 제안
     const upcomingInHour = context.currentEvents.filter(e => {
-      const eventTime = new Date(e.start_time);
+      const eventTime = new Date((e.start?.dateTime || e.start?.date || ''));
       const now = new Date();
       const diff = eventTime.getTime() - now.getTime();
       return diff > 0 && diff < 60 * 60 * 1000;
@@ -342,8 +344,8 @@ export class ImprovedSuggestionService extends SimpleSuggestionService {
     if (upcomingInHour.length > 0) {
       suggestions.push({
         text: isKorean
-          ? `${upcomingInHour[0].title} 준비하기`
-          : `Prepare for ${upcomingInHour[0].title}`,
+          ? `${upcomingInHour[0].summary} 준비하기`
+          : `Prepare for ${upcomingInHour[0].summary}`,
         score: 92,
         reasons: ['upcoming_soon', 'preparation'],
         category: 'smart'
@@ -369,10 +371,10 @@ export class ImprovedSuggestionService extends SimpleSuggestionService {
           continue;
         }
 
-        const e1Start = new Date(events[i].start_time).getTime();
-        const e1End = new Date(events[i].end_time || events[i].start_time).getTime();
-        const e2Start = new Date(events[j].start_time).getTime();
-        const e2End = new Date(events[j].end_time || events[j].start_time).getTime();
+        const e1Start = new Date(events[i].start?.dateTime || events[i].start?.date || '').getTime();
+        const e1End = new Date(events[i].start?.dateTime || events[i].start?.date || '').getTime();
+        const e2Start = new Date(events[i].start?.dateTime || events[i].start?.date || '').getTime();
+        const e2End = new Date(events[i].start?.dateTime || events[i].start?.date || '').getTime();
 
         if (isNaN(e1Start) || isNaN(e1End) || isNaN(e2Start) || isNaN(e2End)) {
           continue;

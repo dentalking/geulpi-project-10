@@ -130,12 +130,12 @@ export function analyzeEvents(events: CalendarEvent[]): EventAnalysis {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   const todayEvents = events.filter(e => {
-    const eventDate = new Date(e.start_time);
+    const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
     return eventDate >= today && eventDate < tomorrow;
   });
 
   const upcomingEvents = events.filter(e => {
-    const eventDate = new Date(e.start_time);
+    const eventDate = new Date(e.start?.dateTime || e.start?.date || '');
     return eventDate >= now;
   });
 
@@ -149,7 +149,7 @@ export function analyzeEvents(events: CalendarEvent[]): EventAnalysis {
 
   events.forEach(event => {
     // 카테고리 추출 (회의, 미팅, 식사, 운동 등)
-    const title = event.title.toLowerCase();
+    const title = event.summary.toLowerCase();
     if (title.includes('회의') || title.includes('meeting')) {
       categories.add('meeting');
     }
@@ -168,18 +168,19 @@ export function analyzeEvents(events: CalendarEvent[]): EventAnalysis {
     // 참석자 빈도
     if (event.attendees) {
       event.attendees.forEach(attendee => {
-        attendeeFreq.set(attendee, (attendeeFreq.get(attendee) || 0) + 1);
+        const key = attendee.email || attendee.displayName || 'unknown';
+        attendeeFreq.set(key, (attendeeFreq.get(key) || 0) + 1);
       });
     }
 
     // 시간대 분석
-    const eventDate = new Date(event.start_time);
+    const eventDate = new Date(event.start?.dateTime || event.start?.date || "");
     const hour = eventDate.getHours();
     hourFreq.set(hour, (hourFreq.get(hour) || 0) + 1);
 
     // 평균 지속시간 계산
-    if (event.end_time) {
-      const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
+    if (event.end?.dateTime || event.end?.date || "") {
+      const duration = new Date(event.end?.dateTime || event.end?.date || "").getTime() - new Date(event.start?.dateTime || event.start?.date || "").getTime();
       totalDuration += duration;
       durationCount++;
     }

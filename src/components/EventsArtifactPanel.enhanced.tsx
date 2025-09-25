@@ -434,10 +434,6 @@ export function EnhancedEventsArtifactPanel({
               locale={locale}
               onEdit={() => setMode('edit')}
               onDelete={() => handleEventDelete(focusedEvent)}
-              onClose={() => {
-                setFocused(null);
-                setMode('list');
-              }}
             />
           ) : (
             // 리스트 모드
@@ -458,15 +454,10 @@ export function EnhancedEventsArtifactPanel({
                     key={event.id}
                     event={event}
                     locale={locale}
-                    isHighlighted={event.id === highlightedEventId}
                     isExpanded={expandedEvents.has(event.id || '')}
-                    onToggleExpanded={() => event.id && toggleEventExpansion(event.id)}
+                    onToggleExpand={() => event.id && toggleEventExpansion(event.id)}
                     onEdit={() => handleEventEdit(event)}
                     onDelete={() => handleEventDelete(event)}
-                    onFocus={() => {
-                      setFocused(event);
-                      setMode('focused');
-                    }}
                   />
                 ))
               )}

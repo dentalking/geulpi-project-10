@@ -136,7 +136,7 @@ export class EnhancedSuggestionService {
       has_selected_event: !!context.selectedEvent,
       last_action: context.lastAction,
       view_mode: context.viewMode,
-      recent_conversation: context.recentMessages?.length > 0,
+      recent_conversation: (context.recentMessages?.length ?? 0) > 0,
       upcoming_important: this.findUpcomingImportant(context.currentEvents)
     };
   }

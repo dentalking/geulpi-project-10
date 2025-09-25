@@ -118,9 +118,9 @@ export class SuggestionCacheService {
       }
     });
 
-    if (oldestKey) {
+    if (oldestKey !== null && typeof oldestKey === 'string') {
       this.cache.delete(oldestKey);
-      console.log(`[SuggestionCache] Evicted oldest entry: ${oldestKey.substring(0, 50)}...`);
+      console.log(`[SuggestionCache] Evicted oldest entry: ${(oldestKey as string).substring(0, 50)}...`);
     }
   }
 

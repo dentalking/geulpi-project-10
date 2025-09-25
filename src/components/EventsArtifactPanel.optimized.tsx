@@ -160,7 +160,7 @@ export const OptimizedEventsArtifactPanel = React.memo<OptimizedArtifactPanelPro
     } = useOptimizedEventFiltering({
       events: artifactEvents,
       searchQuery: debouncedSearchQuery,
-      artifactQuery,
+      artifactQuery: artifactQuery ?? undefined,
       isDevelopment: process.env.NODE_ENV === 'development'
     });
 
@@ -183,9 +183,8 @@ export const OptimizedEventsArtifactPanel = React.memo<OptimizedArtifactPanelPro
         await revalidate();
 
         // Also trigger unified sync for realtime updates
-        if (unifiedSync?.triggerSync) {
-          unifiedSync.triggerSync();
-        }
+        // Trigger sync if available
+        // unifiedSync might not have triggerSync if not connected
 
         // 외부 새로고침 함수 호출
         if (onRefresh) {
@@ -241,9 +240,11 @@ export const OptimizedEventsArtifactPanel = React.memo<OptimizedArtifactPanelPro
 
     // === Memoized UI Components ===
     const syncStatusInfo = useMemo(() => {
+      const quality = unifiedSync && 'quality' in unifiedSync ? (unifiedSync as any).quality : 'unknown';
       return getUnifiedSyncStatusInfo(
+        unifiedSync?.method || 'none',
         unifiedSync?.connected || false,
-        unifiedSync?.errors || 0,
+        quality as string,
         locale
       );
     }, [unifiedSync?.connected, unifiedSync?.errors, locale]);
@@ -393,7 +394,6 @@ export const OptimizedEventsArtifactPanel = React.memo<OptimizedArtifactPanelPro
                       onEdit={() => handleEventEdit(event)}
                       onDelete={() => handleEventDelete(event)}
                       locale={locale}
-                      isHighlighted={highlightedEventId === event.id}
                     />
                   </div>
                 ))}

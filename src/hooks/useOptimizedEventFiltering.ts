@@ -22,6 +22,10 @@ interface FilteredResult {
     searchFiltered: number;
     finalCount: number;
   };
+  isEventMatching?: (event: CalendarEvent, query: string, searchTerms: any) => boolean;
+  getEventsInRange?: (events: CalendarEvent[], dateRange: any, timezone: string) => CalendarEvent[];
+  userTimezone?: string;
+  dateRange?: any;
 }
 
 export function useOptimizedEventFiltering({
@@ -29,7 +33,12 @@ export function useOptimizedEventFiltering({
   searchQuery,
   artifactQuery,
   isDevelopment = false
-}: UseOptimizedEventFilteringOptions): FilteredResult {
+}: UseOptimizedEventFilteringOptions): FilteredResult & {
+  isEventMatching: (event: CalendarEvent, query: string, searchTerms: any) => boolean;
+  getEventsInRange: (events: CalendarEvent[], dateRange: any, timezone: string) => CalendarEvent[];
+  userTimezone: string;
+  dateRange: any;
+} {
 
   // Memoize timezone to avoid recalculation
   const userTimezone = useMemo(() => getUserTimezone(), []);
@@ -148,11 +157,14 @@ export function useOptimizedEventFiltering({
   }, []);
 
   // Get events within a specific date range (cached)
-  const getEventsInRange = useCallback((startDate: Date, endDate: Date) => {
-    return events.filter(event =>
-      isEventInRange(event, startDate, endDate, userTimezone)
+  const getEventsInRange = useCallback((eventsToFilter: CalendarEvent[], dateRange: any, timezone: string) => {
+    if (!dateRange || !dateRange.start || !dateRange.end) {
+      return eventsToFilter;
+    }
+    return eventsToFilter.filter(event =>
+      isEventInRange(event, dateRange.start, dateRange.end, timezone)
     );
-  }, [events, userTimezone]);
+  }, []);
 
   return {
     ...filteredResult,

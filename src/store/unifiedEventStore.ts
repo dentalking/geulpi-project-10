@@ -510,7 +510,7 @@ const stableEventsSelector = (state: UnifiedEventStore) => {
   return lastEventsSnapshot;
 };
 
-export const useEvents = () => useUnifiedEventStore(stableEventsSelector, shallow);
+export const useEvents = () => useUnifiedEventStore(stableEventsSelector);
 
 // 아티팩트 패널 관련 - 캐시된 selector로 안정화
 let lastArtifactSnapshot: any = null;
@@ -548,7 +548,7 @@ const stableArtifactPanelSelector = (state: UnifiedEventStore) => {
   return lastArtifactSnapshot;
 };
 
-export const useArtifactPanel = () => useUnifiedEventStore(stableArtifactPanelSelector, shallow);
+export const useArtifactPanel = () => useUnifiedEventStore(stableArtifactPanelSelector);
 
 // 뷰 상태 관련 - selector를 함수 외부로 이동하여 안정화
 const viewStateSelector = (state: UnifiedEventStore) => ({
@@ -560,7 +560,7 @@ const viewStateSelector = (state: UnifiedEventStore) => ({
   setSearch: state.setSearchQuery
 });
 
-export const useViewState = () => useUnifiedEventStore(viewStateSelector, shallow);
+export const useViewState = () => useUnifiedEventStore(viewStateSelector);
 
 // 동기화 상태 관련 - 캐시된 selector로 안정화
 let lastSyncSnapshot: any = null;
@@ -594,7 +594,7 @@ const stableSyncStateSelector = (state: UnifiedEventStore) => {
   return lastSyncSnapshot;
 };
 
-export const useSyncState = () => useUnifiedEventStore(stableSyncStateSelector, shallow);
+export const useSyncState = () => useUnifiedEventStore(stableSyncStateSelector);
 
 // UI 상태 관련 - selector를 함수 외부로 이동하여 안정화
 const uiStateSelector = (state: UnifiedEventStore) => ({
@@ -608,7 +608,7 @@ const uiStateSelector = (state: UnifiedEventStore) => ({
   setEditingEvent: state.setEditingEvent
 });
 
-export const useUIState = () => useUnifiedEventStore(uiStateSelector, shallow);
+export const useUIState = () => useUnifiedEventStore(uiStateSelector);
 
 // 실시간 동기화 관련 - selector를 함수 외부로 이동하여 안정화
 const realtimeSyncSelector = (state: UnifiedEventStore) => ({
@@ -619,4 +619,4 @@ const realtimeSyncSelector = (state: UnifiedEventStore) => ({
   disable: state.disableRealtime
 });
 
-export const useRealtimeSync = () => useUnifiedEventStore(realtimeSyncSelector, shallow);
+export const useRealtimeSync = () => useUnifiedEventStore(realtimeSyncSelector);

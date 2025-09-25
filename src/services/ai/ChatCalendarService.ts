@@ -31,7 +31,7 @@ export class ChatCalendarService {
   private model: GenerativeModel;
   private chatSessions: Map<string, ChatSession> = new Map();
   private conversationHistories: Map<string, { role: string; parts: string }[]> = new Map();
-  private recentlyCreatedEvents: Map<string, { title: string; date: string; time: string; createdAt: Date }[]> = new Map();
+  private recentlyCreatedEvents: Map<string, { summary: string; date: string; time: string; createdAt: Date }[]> = new Map();
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -284,7 +284,7 @@ ${profileContext}
 
 ${activeRecentEvents.length > 0 ? `
 ${isEnglish ? 'Recently created events (last 10 minutes):' : '최근 생성된 일정 (10분 이내):'}
-${activeRecentEvents.map(e => `- ${e.title} (${e.date} ${e.time})`).join('\n')}
+${activeRecentEvents.map(e => `- ${e.summary} (${e.date} ${e.time})`).join('\n')}
 ` : ''}
 
 ${userContext?.lastExtractedEvent ? `
@@ -634,7 +634,7 @@ NONE
       if (action && action.type === 'create' && action.data) {
         const recentEvents = this.recentlyCreatedEvents.get(sessionId) || [];
         recentEvents.push({
-          title: (action.data as any).title || '',
+          summary: (action.data as any).title || '',
           date: (action.data as any).date || '',
           time: (action.data as any).time || '',
           createdAt: new Date()
@@ -1042,7 +1042,7 @@ Register event, Modify time, Add details
       if (action && action.type === 'create' && action.data) {
         const recentEvents = this.recentlyCreatedEvents.get(sessionId) || [];
         recentEvents.push({
-          title: (action.data as any).title || '',
+          summary: (action.data as any).title || '',
           date: (action.data as any).date || '',
           time: (action.data as any).time || '',
           createdAt: new Date()
