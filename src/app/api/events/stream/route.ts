@@ -8,8 +8,8 @@ import { supabase } from '@/lib/db';
 import { verifyToken } from '@/lib/auth/supabase-auth';
 import { logger } from '@/lib/logger';
 
-// Vercel Edge Runtime
-export const runtime = 'edge';
+// Using Node.js runtime for jsonwebtoken compatibility
+// export const runtime = 'edge';
 
 // SSE 헤더 설정
 const SSE_HEADERS = {
