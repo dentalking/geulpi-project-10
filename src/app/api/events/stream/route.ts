@@ -180,12 +180,12 @@ function broadcastToClients(event: string, data: any, targetUserId?: string) {
 }
 
 // 특정 사용자에게 이벤트 전송
-export function sendToUser(userId: string, event: string, data: any) {
+function sendToUser(userId: string, event: string, data: any) {
   broadcastToClients(event, data, userId);
 }
 
 // 클라이언트 수 조회 (모니터링용)
-export function getClientCount(userId?: string): number {
+function getClientCount(userId?: string): number {
   if (userId) {
     return Array.from(clients.values()).filter(c => c.userId === userId).length;
   }
