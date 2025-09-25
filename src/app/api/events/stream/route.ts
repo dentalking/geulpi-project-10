@@ -160,7 +160,7 @@ function sendSSE(
 }
 
 // 모든 클라이언트에게 이벤트 브로드캐스트
-export function broadcastToClients(event: string, data: any, targetUserId?: string) {
+function broadcastToClients(event: string, data: any, targetUserId?: string) {
   const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   const encodedMessage = new TextEncoder().encode(message);
 
