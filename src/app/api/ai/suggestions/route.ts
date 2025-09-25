@@ -159,11 +159,11 @@ export async function POST(request: NextRequest) {
             workHours: profile.work_start_time && profile.work_end_time
               ? { start: profile.work_start_time, end: profile.work_end_time }
               : undefined,
-            homeAddress: profile.home_address,
-            workAddress: profile.work_address,
+            homeAddress: profile.home_address || undefined,
+            workAddress: profile.work_address || undefined,
             interests: profile.interests || [],
             goals: profile.goals || [],
-            occupation: profile.occupation
+            occupation: profile.occupation || undefined
           };
         }
 
@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
         if (actionLogs && actionLogs.length > 0) {
           const preferredSuggestions = actionLogs
             .map(log => log.suggestion_text)
+            .filter((text): text is string => text !== null)
             .filter((text, index, self) => self.indexOf(text) === index)
             .slice(0, 5);
 

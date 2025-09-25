@@ -50,6 +50,7 @@ interface EnvSchema {
   VERCEL_ENV?: 'production' | 'preview' | 'development';
   VERCEL?: string;
   NEXT_PUBLIC_API_URL?: string;
+  NEXT_PUBLIC_BASE_URL?: string;
 }
 
 class EnvironmentConfig {
@@ -104,6 +105,7 @@ class EnvironmentConfig {
       VERCEL_ENV: process.env.VERCEL_ENV as any,
       VERCEL: process.env.VERCEL,
       NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
     };
   }
 
@@ -239,6 +241,7 @@ class EnvironmentConfig {
       NEXT_PUBLIC_SUPABASE_ANON_KEY: this.config.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: this.config.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
       NEXT_PUBLIC_APP_URL: this.config.NEXT_PUBLIC_APP_URL,
+      NEXT_PUBLIC_BASE_URL: this.config.NEXT_PUBLIC_BASE_URL,
       NODE_ENV: this.config.NODE_ENV,
     };
   }

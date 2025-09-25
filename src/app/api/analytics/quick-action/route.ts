@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { getServiceRoleSupabase } from '@/lib/supabase-server';
 import { verifyToken } from '@/lib/auth/supabase-auth';
-import { successResponse, errorResponse } from '@/lib/api-response';
+import { successResponse, errorResponse, ApiError } from '@/lib/api-response';
 import { logger } from '@/lib/logger';
 
 interface QuickActionLog {
@@ -57,9 +57,7 @@ export async function POST(request: NextRequest) {
     // 필수 필드 검증
     if (!suggestionText || !actionType) {
       return errorResponse(
-        400,
-        'INVALID_REQUEST',
-        'Missing required fields: suggestionText and actionType'
+        new ApiError(400, 'INVALID_REQUEST', 'Missing required fields: suggestionText and actionType')
       );
     }
 
@@ -97,9 +95,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       logger.error('Failed to insert action log', { error, logData });
       return errorResponse(
-        500,
-        'DATABASE_ERROR',
-        'Failed to save action log'
+        new ApiError(500, 'DATABASE_ERROR', 'Failed to save action log')
       );
     }
 
@@ -125,9 +121,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Unexpected error in quick action analytics', error);
     return errorResponse(
-      500,
-      'INTERNAL_ERROR',
-      'Failed to process analytics request'
+      new ApiError(500, 'INTERNAL_ERROR', 'Failed to process analytics request')
     );
   }
 }
@@ -156,9 +150,7 @@ export async function PUT(request: NextRequest) {
 
     if (!Array.isArray(logs) || logs.length === 0) {
       return errorResponse(
-        400,
-        'INVALID_REQUEST',
-        'Logs array is required'
+        new ApiError(400, 'INVALID_REQUEST', 'Logs array is required')
       );
     }
 
@@ -193,9 +185,7 @@ export async function PUT(request: NextRequest) {
     if (error) {
       logger.error('Failed to insert batch action logs', { error, count: logs.length });
       return errorResponse(
-        500,
-        'DATABASE_ERROR',
-        'Failed to save batch action logs'
+        new ApiError(500, 'DATABASE_ERROR', 'Failed to save batch action logs')
       );
     }
 
@@ -213,9 +203,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     logger.error('Unexpected error in batch quick action analytics', error);
     return errorResponse(
-      500,
-      'INTERNAL_ERROR',
-      'Failed to process batch analytics request'
+      new ApiError(500, 'INTERNAL_ERROR', 'Failed to process batch analytics request')
     );
   }
 }

@@ -44,7 +44,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
   const { data, error } = await query;
 
   if (error) {
-    logger.error('Notifications fetch error', error, 'API');
+    logger.error('Notifications fetch error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to fetch notifications');
   }
 
@@ -98,7 +98,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     .single();
 
   if (error) {
-    logger.error('Notification creation error', error, 'API');
+    logger.error('Notification creation error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to create notification');
   }
 
@@ -154,7 +154,7 @@ export const PATCH = withErrorHandling(async (req: NextRequest) => {
     if (error.code === 'PGRST116') {
       return ApiErrors.notFound('Notification');
     }
-    logger.error('Notification update error', error, 'API');
+    logger.error('Notification update error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to update notification');
   }
 
@@ -186,7 +186,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
     .eq('user_id', user.id);
 
   if (error) {
-    logger.error('Notification deletion error', error, 'API');
+    logger.error('Notification deletion error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to delete notification');
   }
 

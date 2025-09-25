@@ -19,7 +19,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     .single();
 
   if (error && error.code !== 'PGRST116') { // Not a "no rows" error
-    logger.error('Preferences fetch error', error, 'API');
+    logger.error('Preferences fetch error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to fetch preferences');
   }
 
@@ -76,7 +76,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
     .single();
 
   if (error) {
-    logger.error('Preferences save error', error, 'API');
+    logger.error('Preferences save error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to save preferences');
   }
 
@@ -102,7 +102,7 @@ export const DELETE = withErrorHandling(async (req: NextRequest) => {
     .eq('user_id', user.id);
 
   if (error) {
-    logger.error('Preferences delete error', error, 'API');
+    logger.error('Preferences delete error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to reset preferences');
   }
 

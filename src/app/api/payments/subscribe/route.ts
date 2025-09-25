@@ -121,7 +121,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     }, `Successfully subscribed to ${plan.name} plan`);
   } catch (error: any) {
-    logger.error('Payment execution failed', error, 'PAYMENT');
+    logger.error('Payment execution failed', error, { context: 'PAYMENT' });
     return ApiErrors.badRequest(error.message || 'Payment failed');
   }
 });

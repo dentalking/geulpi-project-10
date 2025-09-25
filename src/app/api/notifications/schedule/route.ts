@@ -160,7 +160,7 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
       .select();
 
     if (error) {
-      logger.error('Schedule notifications error', error, 'API');
+      logger.error('Schedule notifications error', error, { context: 'API' });
       return ApiErrors.databaseError('Failed to schedule notifications');
     }
 
@@ -201,7 +201,7 @@ export const GET = withErrorHandling(async (req: NextRequest) => {
     .order('scheduled_for', { ascending: true });
 
   if (error) {
-    logger.error('Get scheduled notifications error', error, 'API');
+    logger.error('Get scheduled notifications error', error, { context: 'API' });
     return ApiErrors.databaseError('Failed to fetch scheduled notifications');
   }
 

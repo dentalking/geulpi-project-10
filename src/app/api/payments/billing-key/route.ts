@@ -110,7 +110,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       cardCompany: billingKeyData.card.company,
     }, 'Billing key issued successfully');
   } catch (error: any) {
-    logger.error('Billing key issuance failed', error, 'PAYMENT');
+    logger.error('Billing key issuance failed', error, { context: 'PAYMENT' });
     return ApiErrors.badRequest(error.message || 'Failed to register card');
   }
 });

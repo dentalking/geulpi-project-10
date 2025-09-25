@@ -154,12 +154,12 @@ export async function GET(request: NextRequest) {
     const authToken = cookieStore.get('auth-token')?.value;
 
     if (!authToken) {
-      return errorResponse('Authentication required', 401);
+      return errorResponse(new ApiError(401, 'AUTHENTICATION_REQUIRED', 'Authentication required'));
     }
 
     const user = await verifyToken(authToken);
     if (!user) {
-      return errorResponse('Invalid authentication', 401);
+      return errorResponse(new ApiError(401, 'INVALID_AUTHENTICATION', 'Invalid authentication'));
     }
 
     const supabase = getServiceRoleSupabase();
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       logger.error('[Learning Analysis] Failed to fetch data', error);
-      return errorResponse('Failed to fetch learning data', 500);
+      return errorResponse(new ApiError(500, 'FETCH_ERROR', 'Failed to fetch learning data'));
     }
 
     // 학습 품질 분석
@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     logger.error('[Learning Analysis] Unexpected error', error);
-    return errorResponse('Failed to analyze learning data', 500);
+    return errorResponse(new ApiError(500, 'ANALYSIS_ERROR', 'Failed to analyze learning data'));
   }
 }
 

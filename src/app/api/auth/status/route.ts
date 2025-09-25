@@ -101,7 +101,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           currentAccessToken = newTokens.access_token!;
           logger.info('Google token refreshed successfully');
         } catch (refreshError) {
-          logger.error('Failed to refresh Google token', refreshError, 'AUTH');
+          logger.error('Failed to refresh Google token', refreshError, { context: 'AUTH' });
           // Clean up cookies on refresh failure (both old and new names)
           cookieStore.delete('google_access_token');
           cookieStore.delete('google_refresh_token');
@@ -147,7 +147,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         authType: 'google'
       });
     } catch (error) {
-      logger.error('Failed to fetch Google user info', error, 'AUTH');
+      logger.error('Failed to fetch Google user info', error, { context: 'AUTH' });
       return apiSuccess({
         authenticated: true,
         authType: 'google'
